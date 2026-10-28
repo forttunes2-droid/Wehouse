@@ -65,7 +65,8 @@ async def main():
    await page.get_by_role('button',name='Refresh activity',exact=True).click()
    await expect(page.get_by_text('Activity unavailable',exact=True)).to_be_visible()
    await expect(page.get_by_role('button',name='Send in chat',exact=True)).to_have_count(0)
-   assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth')
+   overflow=await page.evaluate("[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).map(e=>({tag:e.tagName,classes:e.className,text:e.textContent?.slice(0,100)})).slice(0,8)")
+   assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth'),overflow
    assert not errors,errors
    await page.screenshot(path=str(OUT/f'activity-sharing-{theme}.png'),full_page=True)
    results.append({'theme':theme,'checks':['Services deep link','accepted recipients only','draft without send/booking','sent and received navigation','normal quote and hold','withdrawn publication','no horizontal overflow']})

@@ -7,7 +7,7 @@ grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text) to 
 -- this contract. Only the synthetic booking's clock/fulfillment receipt is moved
 -- into the past; these rows, ratings and moderator decisions are rolled back.
 create function pg_temp.exercise_experience_review(aid uuid,bid uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,sid text) returns void language plpgsql as $$
-declare r public.worker_booking_reviews;receipt uuid;old_stamp timestamptz;result jsonb;topic record;draft uuid;conversation uuid;before_state jsonb;
+declare r public.worker_booking_reviews;receipt uuid;old_stamp timestamptz;result jsonb;topic record;draft uuid;conversation uuid;before_state jsonb;appeal jsonb;appeal_id uuid;appeal_request uuid:=gen_random_uuid();decision_id uuid;
 begin
  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
  perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.get_my_workspace_help_targets('personal')->'experience_bookings') item where item->>'subject_id'=bid::text),'customer Help includes the owned activity');
@@ -63,8 +63,28 @@ begin
  perform pg_temp.expect(exists(select 1 from public.notifications where recipient_id=sid and source_id=bid::text and destination_route='experience_booking' and type='provider_review_moderation'),'reviewer decision reaches exact booking');
  r:=public.submit_my_experience_review(bid,5,'Edited review remains under moderation.',(result->'review'->>'updated_at')::timestamptz);
  perform pg_temp.expect(r.hidden_at is not null,'editing cannot restore hidden content');
+ decision_id:=r.moderation_request_id;
+ perform pg_temp.expect(pg_temp.rejects(format('select public.report_content(%L,%L,%L,%L,%L)','provider_review_appeal',sid,'other','Bypass tracked appeal',r.id::text)),'generic reports cannot forge a review appeal');
+ appeal:=public.submit_my_provider_review_appeal(r.id,decision_id,'Please reconsider the corrected review without private details.',appeal_request);
+ appeal_id:=(appeal->'appeal'->>'id')::uuid;
+ perform pg_temp.expect(appeal_id is not null and appeal->'appeal'->>'status'='open','review author receives a durable open appeal');
+ perform pg_temp.expect(public.submit_my_provider_review_appeal(r.id,decision_id,'Please reconsider the corrected review without private details.',appeal_request)=appeal,'lost submission response returns the same receipt');
+ perform pg_temp.expect((public.submit_my_provider_review_appeal(r.id,decision_id,'A second submission must not create another appeal.',gen_random_uuid())->'appeal'->>'id')::uuid=appeal_id,'one appeal per actual moderation decision');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.submit_my_provider_review_appeal(%L,%L,%L,%L)',r.id,decision_id,'Changed idempotent explanation',appeal_request)),'appeal request reference binds exact explanation');
+ perform pg_temp.expect(exists(select 1 from public.list_my_content_reports() where report_id=appeal_id and subject_type='provider_review_appeal'),'appeal appears in the existing requester history');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+ perform pg_temp.expect(pg_temp.rejects(format('select public.get_my_provider_review_appeal(%L)',r.id)),'Provider cannot read customer appeal metadata');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.submit_my_provider_review_appeal(%L,%L,%L,%L)',r.id,decision_id,'Provider cannot appeal customer hidden feedback',gen_random_uuid())),'only the author can appeal visibility');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
- result:=public.moderate_provider_review(receipt,false,'Reviewed the corrected feedback and restored visibility.',r.updated_at,gen_random_uuid());
+ perform pg_temp.expect(public.get_provider_review_moderation(appeal_id)->'snapshot'->>'explanation'='Please reconsider the corrected review without private details.','existing moderation queue includes appeal explanation');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.admin_resolve_content_report(%L,%L,%L)',appeal_id,'dismissed','False appeal resolution')),'generic closure cannot decide review appeals');
+ result:=public.moderate_provider_review(appeal_id,false,'Reviewed the corrected feedback and restored visibility.',r.updated_at,gen_random_uuid());
+ perform pg_temp.expect(not (result->>'can_moderate')::boolean,'decided appeal cannot be repeatedly reopened');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ appeal:=public.get_my_provider_review_appeal(r.id);
+ perform pg_temp.expect(appeal->'appeal'->>'outcome'='restored' and appeal->'appeal'->>'decision'='Reviewed the corrected feedback and restored visibility.','reviewer sees actual resolution without internal moderator identity');
+ perform pg_temp.expect(not (appeal->>'eligible')::boolean,'visible review cannot create an appeal');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
  perform pg_temp.expect(result->'review'->>'hidden_at' is null,'independent moderator can restore retained review');
 end $$;
 

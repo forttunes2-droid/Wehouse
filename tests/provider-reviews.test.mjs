@@ -37,3 +37,14 @@ test('review decisions open the exact retained booking even without a loaded cha
  assert.equal(resolve({type:'provider_review_moderation',source_type:'experience_booking',source_id:booking,destination_route:'experience_booking',destination_params:{booking_id:booking}}).route,'experience_booking');
  assert.equal(resolve({type:'provider_review_moderation',source_type:'worker_booking',source_id:booking,destination_route:'conversation',destination_params:{booking_id:booking,conversation_id:id}}).id,id);
 });
+
+test('appeal receipts bind the author review and validate real status and resolution',async()=>{
+ const row={review_id:id,moderation_request_id:booking,eligible:true,appeal:null};
+ const client=api({data:row});assert.equal((await client.getReviewAppeal(id)).eligible,true);
+ for(const data of [{...row,review_id:booking},{...row,eligible:'true'},{...row,moderation_request_id:null},{...row,appeal:{}},{...row,appeal:undefined}])await assert.rejects(api({data}).getReviewAppeal(id));
+ const receipt={...row,eligible:false,appeal:{id:booking,status:'open',explanation:'Please review the decision.',created_at:stamp,resolved_at:null,decision:null,outcome:null}};
+ const submitted=api({data:receipt});assert.equal((await submitted.submitReviewAppeal(id,booking,' Please review the decision. ',id)).appeal.id,booking);assert.equal(submitted.calls[0].args.p_explanation,'Please review the decision.');assert.equal(submitted.calls[0].args.p_moderation_request_id,booking);
+ for(const change of [{status:'success'},{outcome:'automatically restored'},{resolved_at:'invalid'},{explanation:42},{decision:{private:'note'}}])await assert.rejects(api({data:{...receipt,appeal:{...receipt.appeal,...change}}}).getReviewAppeal(id));
+ await assert.rejects(api({data:row}).submitReviewAppeal(id,booking,'Please review the decision.',id));
+ await assert.rejects(api({error:{message:'Unavailable'}}).getReviewAppeal(id));
+});

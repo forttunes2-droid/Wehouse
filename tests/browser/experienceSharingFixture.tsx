@@ -21,7 +21,7 @@ function Fixture(){
   }
  }
  return <><main className="bg-[var(--wh-bg)] p-3 text-[var(--wh-text)]">
-  <output aria-label="Shared destination">{destination}</output><output aria-label="Prepared activity reference">{draft}</output>
+  <output className="block break-all" aria-label="Shared destination">{destination}</output><output className="block break-all" aria-label="Prepared activity reference">{draft}</output>
   {([true,false]).map(mine=><section key={String(mine)} aria-label={mine?'Sent activity':'Received activity'}><RoommateBubble mine={mine} msg={{id:mine?'sent':'received',sender_id:mine?'customer':'friend',content:workerShareMessage({id,kind:'experience'}),created_at:'2026-10-28T12:00:00Z'} as Message} onOpenActions={()=>{}} onTapReaction={()=>{}} onReply={()=>{}} onOpenProperty={()=>{}} onOpenExperience={ref=>navigate('experience',ref)}/></section>)}
   </main><WorkerDiscovery profile={{...fixtureProfile,user_id:'customer',role:'user'}} initialExperienceId={target} onInitialExperienceOpened={()=>setTarget(null)} onNavigate={navigate}/><Toaster/></>;
 }

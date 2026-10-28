@@ -7,7 +7,7 @@ import { withTimeout } from "@/lib/withTimeout";
 const FILTERS: ContentReport["status"][] = ["open", "reviewing", "actioned", "dismissed"];
 const SUBJECTS: Record<string, string> = {
   roommate_chat: "Roommate chat", friend_chat: "Friend chat", worker_chat: "Worker chat",
-  provider_review: "Provider review", hotel_chat: "Hotel chat", support_case: "Support", profile: "Profile", message: "Message", listing: "Property listing", hotel: "Hotel listing",
+  provider_review: "Provider review", provider_review_appeal: "Review appeal", hotel_chat: "Hotel chat", support_case: "Support", profile: "Profile", message: "Message", listing: "Property listing", hotel: "Hotel listing",
 };
 
 export default function AdminReports() {
@@ -65,9 +65,9 @@ export default function AdminReports() {
             {row.details ? <p className="mt-2 whitespace-pre-line text-xs leading-5 text-[var(--wh-text-secondary)]">{row.details}</p> : null}
             <p className="mt-2 break-all text-xs text-[var(--wh-text-secondary)]">Report reference: {row.id}</p>
             {['listing','hotel'].includes(row.subject_type) && row.subject_ref ? <p className="mt-2 text-[11px] text-[var(--wh-text-muted)]">{row.subject_type === 'hotel' ? 'Hotel' : 'Listing'} reference: {row.subject_ref}</p> : null}
-            <p className="mt-2 text-[11px] text-[var(--wh-text-muted)]">Reported account: {row.subject_user_id}</p>
+            <p className="mt-2 text-[11px] text-[var(--wh-text-muted)]">{row.subject_type==='provider_review_appeal'?'Review author':'Reported account'}: {row.subject_user_id}</p>
             {row.resolution_note ? <p className="mt-1 text-[11px] text-[var(--wh-text-muted)]">Note: {row.resolution_note}</p> : null}
-            {row.subject_type==='provider_review'?<><button type="button" onClick={()=>setReviewReport(current=>current===row.id?null:row.id)} aria-expanded={reviewReport===row.id} className="mt-3 min-h-11 text-sm font-semibold underline">Review reported review</button>{reviewReport===row.id&&<ProviderReviewModeration reportId={row.id} onChanged={()=>void load()}/>}</>:status === "open" || status === "reviewing" ? (
+            {['provider_review','provider_review_appeal'].includes(row.subject_type)?<><button type="button" onClick={()=>setReviewReport(current=>current===row.id?null:row.id)} aria-expanded={reviewReport===row.id} className="mt-3 min-h-11 text-sm font-semibold underline">{row.subject_type==='provider_review_appeal'?'Review appeal':'Review reported review'}</button>{reviewReport===row.id&&<ProviderReviewModeration reportId={row.id} onChanged={()=>void load()}/>}</>:status === "open" || status === "reviewing" ? (
               <div className="mt-3 space-y-3"><label className="block text-xs text-[var(--wh-text-secondary)]">Review note (optional)<textarea value={notes[row.id]||''} onChange={event=>setNotes(current=>({...current,[row.id]:event.target.value.slice(0,1000)}))} maxLength={1000} className="mt-2 block min-h-20 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-sm" /></label><p className="text-xs text-[var(--wh-text-muted)]">Record the outcome here after any separate listing or account action. Updating a report does not itself remove a listing or restrict an account.</p><div className="grid grid-cols-3 gap-2">
                 {status === "open" ? <button type="button" disabled={busy === row.id} onClick={() => void decide(row.id, "reviewing")} className="h-10 rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-40">Review</button> : <span />}
                 <button type="button" disabled={busy === row.id} onClick={() => void decide(row.id, "actioned")} className="h-10 rounded-xl bg-violet-500 text-xs font-semibold text-white disabled:opacity-40">Actioned</button>

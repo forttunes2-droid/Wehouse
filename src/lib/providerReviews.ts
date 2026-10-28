@@ -5,7 +5,8 @@ export type ProviderReview={id:string;experience_booking_id:string|null;booking_
 export type ExperienceReviewState={booking_id:string;eligible:boolean;review:ProviderReview|null};
 export type PublicProviderReview={id:string;rating:number;comment:string|null;created_at:string;reviewer_name:string};
 export type ReviewPage={items:PublicProviderReview[];summary:{count:number;rating:number|null}};
-export type ReviewModeration={report_id:string;status:string;snapshot:{rating:number;comment:string|null;updated_at:string;title:string};review:ProviderReview;context:{title:string;state:string|null;area:string|null};can_moderate:boolean};
+export type ReviewModeration={report_id:string;status:string;snapshot:{rating:number;comment:string|null;updated_at:string;title:string;kind?:'review_appeal';explanation?:string};review:ProviderReview;context:{title:string;state:string|null;area:string|null};can_moderate:boolean};
+export type ReviewAppealState={review_id:string;moderation_request_id:string|null;eligible:boolean;appeal:null|{id:string;status:'open'|'reviewing'|'actioned'|'dismissed';explanation:string;created_at:string;resolved_at:string|null;decision:string|null;outcome:'upheld'|'restored'|'superseded'|null}};
 const uuid=(v:unknown)=>typeof v==='string'&&/^[a-f\d]{8}(-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(v);
 const date=(v:unknown)=>typeof v==='string'&&Number.isFinite(Date.parse(v));
 function review(value:unknown):ProviderReview{
@@ -33,9 +34,21 @@ export async function getExperienceReviews(activityId:string,before?:PublicProvi
 function moderation(value:unknown,reportId:string):ReviewModeration{
  const data=value as ReviewModeration;
  if(!data||data.report_id!==reportId||!['open','reviewing','actioned','dismissed'].includes(data.status)||typeof data.can_moderate!=='boolean'||!data.snapshot||!Number.isInteger(data.snapshot.rating)||data.snapshot.rating<1||data.snapshot.rating>5||!date(data.snapshot.updated_at)||typeof data.snapshot.title!=='string'||data.snapshot.comment!==null&&typeof data.snapshot.comment!=='string'||!data.context||typeof data.context.title!=='string'||data.context.state!==null&&typeof data.context.state!=='string'||data.context.area!==null&&typeof data.context.area!=='string')throw Error('The moderation record could not be confirmed.');
+ if(data.snapshot.kind!==undefined&&(data.snapshot.kind!=='review_appeal'||typeof data.snapshot.explanation!=='string'||data.snapshot.explanation.length>1000))throw Error('The appeal explanation could not be confirmed.');
  data.review=review(data.review);return data;
 }
 export async function getReviewModeration(reportId:string){return moderation(await rpc('get_provider_review_moderation',{p_report_id:reportId}),reportId);}
+function appealState(value:unknown,reviewId:string):ReviewAppealState{
+ const data=value as ReviewAppealState,a=data?.appeal;
+ if(!data||data.review_id!==reviewId||typeof data.eligible!=='boolean'||data.moderation_request_id!==null&&!uuid(data.moderation_request_id)||data.eligible&&(!data.moderation_request_id||a!==null)||a!==null&&(!a||!uuid(a.id)||!['open','reviewing','actioned','dismissed'].includes(a.status)||typeof a.explanation!=='string'||a.explanation.length>1000||!date(a.created_at)||a.resolved_at!==null&&!date(a.resolved_at)||a.decision!==null&&typeof a.decision!=='string'||a.outcome!==null&&!['upheld','restored','superseded'].includes(a.outcome)))throw Error('Your appeal status could not be confirmed. Refresh before retrying.');
+ return data;
+}
+export async function getReviewAppeal(reviewId:string){return appealState(await rpc('get_my_provider_review_appeal',{p_review_id:reviewId}),reviewId);}
+export async function submitReviewAppeal(reviewId:string,moderationId:string,explanation:string,requestId:string){
+ const data=appealState(await rpc('submit_my_provider_review_appeal',{p_review_id:reviewId,p_moderation_request_id:moderationId,p_explanation:explanation.trim(),p_request_id:requestId}),reviewId);
+ if(!data.appeal)throw Error('Your appeal receipt was not confirmed. Refresh its status before retrying.');
+ return data;
+}
 export async function moderateReview(reportId:string,hidden:boolean,note:string,expectedUpdatedAt:string,requestId:string){
  const data=moderation(await rpc('moderate_provider_review',{p_report_id:reportId,p_hidden:hidden,p_note:note.trim(),p_expected_updated_at:expectedUpdatedAt,p_request_id:requestId}),reportId);
  if(Boolean(data.review.hidden_at)!==hidden||data.review.moderation_reason!==note.trim())throw Error('The moderation outcome does not match this request. Refresh before retrying.');

@@ -4,6 +4,28 @@
 
 ## Current engineering checkpoints
 
+### Tracked Service and Experience review appeals — 28 October
+
+Test migration `20261028184245` extends `content_reports` and the existing scoped
+review moderation command. A review author can appeal an actual hidden-review
+decision once, retain a receipt in the existing history, and see the explanation,
+status and public decision. Providers cannot read or submit the customer's appeal;
+generic reports cannot create one or pretend to resolve it. Moderators use their
+existing Admin/Creator queue to uphold or restore, with stale-decision protection,
+an audit, booking-linked notification and atomic visibility/rating updates. Newer
+decisions resolve older pending appeals; review-first locking avoids opposing
+report/appeal decisions acquiring these records in a different order.
+
+The hosted rollback contract passes real earned-review creation, author ownership,
+idempotent receipts, duplicate/reused-key rejection, requester history, private
+access and restore resolution. Thirteen focused source checks and eighteen
+actual-component browser cases pass, including lost responses and unavailable
+reads in both themes. TypeScript and focused lint pass. The two new authenticated
+SECURITY DEFINER endpoints intentionally mediate tables without browser write
+access; their ownership, trusted-session checks, fixed search path and explicit
+grants were reviewed following the Test advisor warnings. No account, workspace,
+booking, wallet, evidence store or general support queue was duplicated.
+
 ### Experience sharing uses the existing Services/chat path — 28 October
 
 Activity references now use the existing Service sharing dialog, bounded in-memory
@@ -20,11 +42,13 @@ redirects. Personal authority still determines access; a link never switches a
 privileged workspace. Closing the recipient chooser now pops its history layer
 before opening the conversation, fixing a trapped Back action in both Service and
 property sharing. Activity discovery skips unrelated Worker data and campaign
-reads. Focused reference/route tests, TypeScript and lint pass. The new actual-UI
-browser journey is included in CI; local native browser execution was interrupted
-by approval timeouts and then stalled in the sandbox, so browser closure remains
-pending that CI result. Existing payment/provider and remaining integrations are
-unchanged by this UI connection.
+reads. Focused reference/route tests, TypeScript and lint pass. The actual-UI
+browser journey now passes locally at phone/light and desktop/dark sizes, covering
+both recipients, normal quote/hold, withdrawn publication and Back. Its first CI
+run found horizontal overflow in the fixture's raw receipt URL; wrapping that
+diagnostic output fixes it without hiding overflow in the application. Fresh
+exact-commit CI remains required. Existing payment/provider and remaining
+integrations are unchanged by this UI connection.
 
 ### Consolidation and merge acceptance — 28 October
 
@@ -3494,7 +3518,7 @@ event or scoped read projection is not another editable source of truth.
 |---|---|---|
 | Production rollout | `supabase/migrations`, hosted migration history, `scripts/coordinated-database-release.py`, existing Edge deploys and Vercel project | Platform owns history disposition, actual-baseline upgrade, configuration/job parity and rollback. Domain rows supply their affected endpoints/contracts; they do not create separate deploy pipelines or replay applied aliases |
 | Bookings and rent | `reservations`, `hotel_bookings`, existing inventory/physical spaces, `rent_plans`/contributions and canonical shared-payment commands | Finish Hotel sharing, arrears/exit and mixed-inventory recovery here. Keep one accepted obligation and booking identity; delegate provider settlement/charge/refund proof to Money |
-| Experiences | Existing Services workspace, activities/sessions/bookings, shared payments/protection/outbox, `worker_booking_reviews`, reports/cases | Finish sharing, discounts, Sponsored integration and review appeals through the existing sharing/pricing/campaign/moderation systems. Do not create an Experience account, workspace, wallet, refund dispatcher or general support queue |
+| Experiences | Existing Services workspace, activities/sessions/bookings, shared payments/protection/outbox, `worker_booking_reviews`, reports/cases | Finish optional discounts and Sponsored integration through existing pricing/campaign authorities. Sharing and tracked review appeals are implemented with evidence above; exact-commit checks still apply. Do not create an Experience account, workspace, wallet, refund dispatcher or general support queue |
 | Money and Pro | `booking_payments`, verified provider events, protection/ledger/wallet/withdrawal/outbox commands, Worker and Partner Pro entitlements | The booking-to-provider reconciliation row owns the shared provider/recovery matrix once across purposes. Pro adds subscription-specific lifecycle cases to the same receipts/entitlements. Other rows reference this evidence rather than duplicate it |
 | Account and operations | Auth + `profiles`, workspace grants, existing identity evidence, `operational_cases`, existing conversations/reports and audits | Complete privacy/retention, remaining sensitive-action scopes and recertification using existing case/evidence lifecycles. Creator/Admin/Staff see authorised projections of the same work, not copied queues or another person record |
 
@@ -3517,7 +3541,7 @@ event or scoped read projection is not another editable source of truth.
 | Connections | Private two-person plan card inside Friend chat | Production build passes on working tree; remaining real-account/browser, refresh, block/delete and pin/reaction engineering checks stay here; two-device encryption acceptance follows merge |
 | Connections | Roommate and Friend relationship overlap | Product contract documented: one account, independent relationship edges, permissions and conversations; code/UI cross-context review remains |
 | Connections | Private Friend Groups and group plan card | Deferred by owner on 20 October: do not build yet. Excluded from current release requirements; retain one-to-one Friend plans. Any later group proposal needs a separate reviewed encryption, membership and safety contract |
-| Marketplace | Provider-led Experiences | Implemented/Test verified: applications, activity-specific evidence, approval/publication, dated sessions/capacity, quotes, protected checkout/receipts, cancellation/refunds, attendance/completion, Provider earnings, earned reviews and moderation. Ordinary booking/payment/safety Help now uses existing scoped queues. Remaining implementation: sharing, optional discounts, sponsorship, and review-specific appeal resolution. Remaining verification: hosted whole-user/operator journeys, with provider charge/refund/settlement evidence owned by the Money reconciliation row. The 28 October hosted contracts and browser evidence are recorded above. Shows, parties and nightlife remain excluded. |
+| Marketplace | Provider-led Experiences | Implemented/Test verified: applications, activity-specific evidence, approval/publication, dated sessions/capacity, quotes, protected checkout/receipts, cancellation/refunds, attendance/completion, Provider earnings, earned reviews, moderation and tracked review appeals. Ordinary booking/payment/safety Help uses existing scoped queues; sharing uses Services discovery and the existing chats. Remaining implementation: optional discounts and sponsorship. Remaining verification: exact-commit CI and hosted whole-user/operator journeys, with provider charge/refund/settlement evidence owned by the Money reconciliation row. The 28 October hosted contracts and browser evidence are recorded above. Shows, parties and nightlife remain excluded. |
 | Connections | Friend naming across product, API and schema | Canonical names implemented across active source, UI, API and contract fixtures. The forward migration renamed empty legacy Test objects and created Friend-first schema there; Production remains untouched. Only historical migration records, the migration-history register, and explicit upgrade references retain the retired term. Production rollout and role/browser checks remain |
 | Connections | Hotel and Friend conversation-info screens | Open |
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |

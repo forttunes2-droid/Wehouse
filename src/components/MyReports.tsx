@@ -19,6 +19,8 @@ const subjectLabel: Record<string, string> = {
   message: 'Message',
   listing: 'Property listing',
   hotel: 'Hotel listing',
+  provider_review: 'Provider review',
+  provider_review_appeal: 'Review appeal',
 };
 
 export default function MyReports() {

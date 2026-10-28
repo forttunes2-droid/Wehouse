@@ -1,6 +1,6 @@
 import { supabase } from './client';
 
-export type ReportSubject = 'roommate_chat' | 'friend_chat' | 'worker_chat' | 'hotel_chat' | 'provider_review' | 'support_case' | 'profile' | 'message' | 'listing' | 'hotel';
+export type ReportSubject = 'roommate_chat' | 'friend_chat' | 'worker_chat' | 'hotel_chat' | 'provider_review' | 'provider_review_appeal' | 'support_case' | 'profile' | 'message' | 'listing' | 'hotel';
 export const REPORT_REASONS = [
   ['spam', 'Spam'],
   ['harassment', 'Harassment'],
