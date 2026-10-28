@@ -2,7 +2,7 @@
 
 ## CURRENT IMPLEMENTATION
 
-### Experiences application foundation (21 October, Test)
+### Experiences and shared authorities (28 October, Test)
 
 `experience_activities` owns a private activity application's host, draft details,
 revision and submission state. `experience_activity_events` is its immutable
@@ -11,12 +11,17 @@ audit. Both tables have RLS and no direct anon/authenticated grants. Bounded RPC
 check the existing active Service Worker workspace and trusted-device authority;
 no service occupation or service approval is inferred or manufactured.
 
-Owner saves/submission/withdrawal/archive and independent elevated Creator
-correction/decline are implemented. Activity changes reuse
-`user_action_rate_limits`; this is not another wallet or payment table. Public
-publication, affirmative evidence approval, sessions, participant-capacity holds,
-bookings and canonical money integration remain unimplemented. No public catalog
-or payment capability is enabled by this foundation.
+Approval/publication, dated sessions, capacity holds, discovery, quotes, checkout,
+attendance/completion, cancellation/refund review and earned reviews are now
+implemented. `experience_bookings` is the activity booking record; it links to
+the existing `booking_payments` and `payment_protection_transactions`. Refunds and
+releases use `financial_action_outbox` and canonical wallet/ledger commands.
+`worker_booking_reviews` holds earned Service and Experience reviews; reporting
+uses `content_reports`. Ordinary Help and financial review use the existing
+operational cases/conversations. There is no separate Experience identity,
+workspace, wallet, review table or support queue. Sharing, discounts, sponsorship
+and review-appeal resolution remain integrations with their existing domains;
+the current implementation status lives in the release roadmap.
 
 The current database is an incrementally evolved Supabase/Postgres schema. Newer RPCs and RLS helpers often provide a coherent boundary over older tables, but table names and columns still encode several generations of the product.
 
@@ -37,6 +42,11 @@ The current database is an incrementally evolved Supabase/Postgres schema. Newer
 | Hotel demand | `hotel_bookings` | Booking links guest, hotel, room type, rate plan, dates, payment, and assigned physical unit |
 | Worker identity | `profiles`, `worker_verifications`, `worker_identity_checks`, `worker_verification_reviews` | One person, professional evidence/review and separate identity checks govern marketplace capability; the unused `workers` predecessor is retired on Test |
 | Worker jobs | `worker_bookings`, `booking_payments`, `payment_protection_transactions` | Job links user and worker; money is attached polymorphically |
+| Experience activities | `experience_activities`, evidence/photos, publications, sessions, `experience_bookings` | One approved activity with dated capacity; the existing Services workspace owns supply. Booking money, reviews and operational cases reuse the authorities above |
+| Later-year rent | `rent_plans`, `rent_plan_contributions`, `booking_payments`, private reusable-debit consent, provider settlement receipts | One accepted tenancy schedule. Manual and automatic collection fulfil the same contribution; target-year gross credit and provider settlement have distinct meanings. Later-year contributions have no new protection hold; initial/full-upfront protection follows the accepted agreement |
+| Shared booking costs | `shared_payment_groups`/members, linked `shared_housing_groups`/members | Existing commands write matching group/member IDs and shares atomically. The housing tables are compatibility projections, not a second independent checkout. Their direct browser interface is retired; read/create/respond/pay through existing scoped RPCs. Hotel integration must extend the existing payment authority rather than create a third group/checkout system |
+| Operations and appeals | `operational_cases`, events/evidence, `partner_support_conversations`/messages; private restriction/appeal metadata | One case identity owns assignment and resolution. Metadata, requester conversation and notifications reference that case; dashboards project the permitted queue rather than copy its records |
+| Pro entitlements | `worker_pro_subscriptions`, `partner_pro_subscriptions`, provider events and versioned commercial terms | Separate paid products for Services and Property tools, both attached to the existing person. Web/native receipts must update the same entitlement for the purchased product; no second identity or wallet |
 | Roommate | `roommate_profiles`, `roommate_preferences`, `roommate_search_results`, legacy `roommate_matches`, block/shared-home tables | Discovery result becomes mutual relationship and potentially shared housing |
 | Conversations | `conversations/messages`, `booking_conversations/booking_messages`, `hotel_booking_conversations/hotel_booking_messages`, `partner_support_conversations/partner_support_messages`, `private_calls` | Four thread families plus calls |
 | Activity | `notifications`, `announcements`, legacy `user_activity` | Domain event projection, broadcast, and old activity/security records |

@@ -24,6 +24,23 @@ set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"97000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 
+-- Group/participant state is available only through the existing commands.
+-- Even a legitimate payer cannot use old table grants as another interface.
+do $$ declare relation text; begin
+ foreach relation in array array['shared_housing_groups','shared_housing_members','shared_payment_groups','shared_payment_members','payments'] loop
+  begin
+   execute format('select 1 from public.%I limit 1',relation);
+   raise exception 'Direct shared-payment read remains available: %',relation;
+  exception when insufficient_privilege then null;
+  end;
+  begin
+   execute format('delete from public.%I where false',relation);
+   raise exception 'Direct shared-payment mutation remains available: %',relation;
+  exception when insufficient_privilege then null;
+  end;
+ end loop;
+end $$;
+
 select pg_temp.expect(pg_temp.rejects($$select public.create_my_shared_long_let('97000000-0000-4000-8000-000000000020'::uuid,'{}'::uuid[],'{}'::text[])$$),'must choose someone');
 select pg_temp.expect(pg_temp.rejects($$select public.create_my_shared_long_let('97000000-0000-4000-8000-000000000020'::uuid,'{}'::uuid[],array['ll-b'])$$),'a Roommate who is not a friend cannot be passed as a friend');
 select pg_temp.expect(pg_temp.rejects($$select public.create_my_shared_long_let('97000000-0000-4000-8000-000000000020'::uuid,'{}'::uuid[],array['ll-c','ll-c'])$$),'same person twice rejected');
@@ -35,6 +52,12 @@ select pg_temp.expect(
   'one Roommate and one friend can split a Long Let');
 reset role;
 select pg_temp.expect((select count(*) from public.shared_payment_members m join public.shared_payment_groups g using(shared_payment_group_id) where g.listing_id='97000000-0000-4000-8000-000000000020')=3,'three payers recorded');
+select pg_temp.expect((select count(*)=1 and bool_and(h.id=p.shared_payment_group_id and h.canonical_group_id=p.shared_payment_group_id and p.legacy_group_id=h.id)
+ from public.shared_housing_groups h join public.shared_payment_groups p on p.shared_payment_group_id=h.canonical_group_id
+ where h.listing_id='97000000-0000-4000-8000-000000000020'),'one linked group, not competing checkout identities');
+select pg_temp.expect((select count(*)=3 and bool_and(h.id=p.shared_payment_member_id and h.canonical_member_id=p.shared_payment_member_id and p.legacy_member_id=h.id and h.share_amount=p.share_amount)
+ from public.shared_housing_members h join public.shared_payment_members p on p.shared_payment_member_id=h.canonical_member_id
+ join public.shared_housing_groups g on g.id=h.group_id where g.listing_id='97000000-0000-4000-8000-000000000020'),'same three payers and amounts in compatibility projection');
 select pg_temp.expect((select sum(share_amount) from public.shared_payment_members m join public.shared_payment_groups g using(shared_payment_group_id) where g.listing_id='97000000-0000-4000-8000-000000000020')=(select total_amount from public.shared_payment_groups where listing_id='97000000-0000-4000-8000-000000000020'),'shares add up to the total');
 
 -- Four payers are never allowed, even on a bigger property.

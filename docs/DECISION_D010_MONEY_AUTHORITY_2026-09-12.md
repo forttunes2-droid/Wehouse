@@ -24,7 +24,7 @@ WeHouse still has several generations of money tables. Table names alone are mis
 
 ## Active payout chain
 
-1. Worker: `request_worker_withdrawal`; Property Partner: `request_my_property_partner_withdrawal`.
+1. Worker and Property Partner use `request_my_wallet_withdrawal`, with workspace/ownership and a durable request ID. Compatibility wrappers must delegate to the same withdrawal authority.
 2. Request validates verified payout recipient/bank details, moves `wallets.available_balance → frozen_balance`, inserts `withdrawals(awaiting_review)`, records wallet/audit history.
 3. Finance review calls `payout-withdrawal`.
 4. Approval calls `claim_withdrawal_for_payout`, which atomically claims the request and creates/returns the deterministic transfer reference.
@@ -61,6 +61,25 @@ They remain compatibility/read/report candidates until consumer inventory and pa
 6. Only then mark legacy tables read-only/archival and later retire them with a separate migration.
 
 No production data rewrite is part of D-010.
+
+## 28 October implementation boundaries
+
+Experience bookings link to the existing payment/protection/outbox/ledger/wallet
+chain. Their earned reviews extend `worker_booking_reviews`; their Help/review
+cases use existing operations records. Do not build another Experience wallet,
+refund dispatcher or support system.
+
+Later-year rent reuses `rent_plans` and `rent_plan_contributions`. Manual and
+consented automatic debit fund the same obligation. The agreed no-new-hold path
+records verified per-payment fees/net and provider settlement without creating a
+second withdrawable wallet credit. The initial/full-upfront protected agreement
+remains distinct from those later-year contributions.
+
+Shared housing's old tables are linked compatibility projections of
+`shared_payment_groups`/members. Commands write the same group/member IDs and
+amounts. Browser clients use the scoped group RPCs. Future Hotel sharing extends
+this payment authority; it must not introduce an independent third checkout or
+copy a paid booking to another payment engine.
 
 ## Required regression evidence
 

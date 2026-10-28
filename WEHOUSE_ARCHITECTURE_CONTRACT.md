@@ -9,7 +9,7 @@ This document is the repository-level product contract. UI labels may be shared 
 | Customer discovery, Saved, reservation, tenancy | **Apartment / Apartments** | A customer-facing apartment inventory item. |
 | Customer hotel discovery and booking | **Hotel / Hotels** | A hotel and its independently bookable room types. |
 | Partner, Creator, Admin, Property Operations | **Property / Properties** | The operational umbrella containing apartments and hotels. |
-| Worker marketplace | **Service / Worker** | A professional service and the verified person providing it. |
+| Worker marketplace | **Service / Service Worker** | A professional service and the reviewed person providing it; Experiences are activities offered through the same Services workspace. |
 
 Internal table, function, and route names may retain `listing`, `property`, and `homes`. Internal identifiers must not leak into customer copy.
 
@@ -24,7 +24,7 @@ Every authenticated role has one workspace shell, one account surface, and one a
 | Property Partner | Properties, Inbox, Finance, Account | Submitted apartment/hotel records, correction requests, partner support, eligible earnings | Publishing authority, customer-private messages, unrelated bookings |
 | Property Operations | Home, Properties, Inbox, Account | Assigned property intake, evidence review, field assignment, publication preparation | Worker review, finance, unrelated customer Activity |
 | Field Operations | Home, Inspections, Account | Assigned visits, GPS/address confirmation, independent evidence and report submission | Partner access-video approval, publishing, unrelated Inbox/Activity |
-| Worker Operations | Home, Workers, Account | Paid worker onboarding review and professional evidence decisions | Property publication, customer conversations |
+| Worker Operations | Home, Workers, Account | Free Service Worker onboarding, professional/activity evidence and review decisions | Property publication, unrelated customer conversations |
 | Support | Home, Conversations, Inbox | Assigned support lifecycle and replies | Marketplace approvals or unrelated operational events |
 | Finance | Home, Finance Work, Account | Assigned payments, refunds, payouts and settlement exceptions | Content review and customer chat outside a financial case |
 | Security Operations | Home, Security Signals, Account | Assigned authentication/session signals and escalation | General Activity, content review, customer booking control |
@@ -77,10 +77,11 @@ Partner hotel submission → hotel/common-area evidence + room-type inventory �
 
 ### Workers
 
-Account → mandatory onboarding details → mandatory onboarding fee → identity/liveness → professional evidence → Worker Operations review → verified marketplace publication → request → negotiation → secured payment → job → completion approval/dispute → review → payout.
+Account → onboarding details → identity/liveness → required professional evidence → Worker Operations review → eligible marketplace publication → request → negotiation → secured payment → job → completion approval/dispute → review → payout.
 
-- **WeHouse Service Worker** is the canonical marketplace identity. The **Gold Tick** is its visual reviewed-status mark and requires the complete server-confirmed trust chain, including the required onboarding payment.
-- **WeHouse Trusted** is an optional earned performance tier above a reviewed Gold Tick worker; it is not a competing identity or alternate verification system. Ratings and counts come only from completed WeHouse jobs.
+- **WeHouse Service Worker** is the canonical marketplace identity. Onboarding, review, Reviewed/Trusted status, discovery and eligible jobs are free under C-014. Pro is optional paid software and grants no trust, licence or internal authority. A Gold PRO mark describes the active paid entitlement, not identity verification.
+- **WeHouse Trusted** is an optional earned performance tier. Ratings and counts come only from earned reviews of completed WeHouse services and activities, with booking-specific eligibility.
+- Activities reuse that person's identity and Services workspace. Activity-specific suitability/evidence is reviewed for the activity; an unrelated service occupation is not a prerequisite for hosting it.
 - Legacy accounts do not bypass missing gates. Rollback returns the worker to the earliest incomplete gate and removes marketplace visibility.
 - Creator/Admin oversight can suspend access or handle exceptions; it does not duplicate Worker Operations review.
 

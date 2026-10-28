@@ -1,5 +1,12 @@
 # Known Inconsistencies
 
+This register preserves findings from dated audits. Current implementation status,
+remaining tasks and merge acceptance live only in [the release roadmap](WEHOUSE_RELEASE_ROADMAP.md).
+Do not reopen a resolved finding or create another implementation from a historical
+description. In particular, Experiences commerce and later-year rent collection
+now exist; their remaining integrations extend the existing authorities documented
+in [the data model](DATA_MODEL.md).
+
 ## Severity definitions
 
 - **High:** can expose unauthorized data, corrupt/duplicate money or state, strand a user, or make a core workflow materially wrong.

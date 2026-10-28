@@ -4,6 +4,12 @@
 **Source:** PR #118, branch `reconcile/readiness-baseline-20261012`, commit `e1cd31264475d4dad19dbfdbb3f8c903ccb693fd`; read-only production Supabase inspection  
 **Purpose:** preserve one product and operating-model audit for R1–R11. This is a code/schema/config review, not a claim that all signed-in production journeys have been exercised.
 
+**Current-status authority (28 October):** this document retains dated findings
+and follow-through evidence. Use the existing [release roadmap](WEHOUSE_RELEASE_ROADMAP.md)
+for current remaining work and merge acceptance. Earlier statements that
+Experiences commerce or later-year collection are absent have been superseded;
+do not build another implementation from those historical findings.
+
 ## Readiness checkpoint
 
 **23 October follow-through:** C-064 has a private canonical physical-space registry

@@ -24,8 +24,8 @@ Product exploration that is **not yet an accepted product rule**: [Friends and E
 |---|---|
 | [WEHOUSE_RELEASE_ROADMAP.md](./WEHOUSE_RELEASE_ROADMAP.md) | What "finished" means, stages, owners, evidence. **The plan to follow** |
 | [WEHOUSE_OPERATING_MODEL_R1_R11.md](./WEHOUSE_OPERATING_MODEL_R1_R11.md) | The R1–R11 checklist and operating rules |
-| [WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md](./WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md) | Current findings with evidence |
-| [KNOWN_INCONSISTENCIES.md](./KNOWN_INCONSISTENCIES.md) | Defect register (High/Medium/Low) |
+| [WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md](./WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md) | Dated findings and follow-through evidence; current task status is in the roadmap |
+| [KNOWN_INCONSISTENCIES.md](./KNOWN_INCONSISTENCIES.md) | Historical defect references (High/Medium/Low); check roadmap disposition before reopening |
 | [PRODUCT_READINESS_AUDIT_2026-10-12.md](./PRODUCT_READINESS_AUDIT_2026-10-12.md) | Readiness audit and remaining-work table |
 
 ## 3. Operating, legal and release procedures
