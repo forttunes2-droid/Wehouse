@@ -1,13 +1,13 @@
 import {supabase} from '@/lib/supabase/client';
 import {withTimeout} from '@/lib/withTimeout';
 export type Restriction={workspace:string;version:string;reason:string;changed_at:string};
-export type AccountReview={case_id:string;case_number:number;workspace:string;explanation:string;status:string;updated_at:string;decision:string|null;public_decision:string|null;updates:Array<{note:string;created_at:string}>};
+export type AccountReview={case_id:string;case_number:number;workspace:string;restriction_version:string;explanation:string;status:string;updated_at:string;decision:string|null;public_decision:string|null;updates:Array<{note:string;created_at:string}>};
 export type ReviewPortal={restrictions:Restriction[];appeals:AccountReview[]};
 export const workspaceName=(value:string)=>({account:'Entire account',personal:'Personal',worker:'Services',worker_profile:'Service Worker profile',property_partner:'Property Partner',hosting:'Hosting',hotel:'Hotel Team',staff:'Operations',admin:'Admin'}[value]||value);
 export function parseReviewPortal(data:unknown):ReviewPortal{
  const p=data as ReviewPortal;
  if(!p||!Array.isArray(p.restrictions)||!Array.isArray(p.appeals)||p.restrictions.some(r=>typeof r.workspace!=='string'||typeof r.version!=='string'||typeof r.reason!=='string')||
-  p.appeals.some(a=>typeof a.case_id!=='string'||typeof a.case_number!=='number'||typeof a.workspace!=='string'||typeof a.status!=='string'||!Array.isArray(a.updates)||a.updates.some(e=>typeof e.note!=='string'||typeof e.created_at!=='string')))throw Error('Review records could not be confirmed. Refresh before retrying.');
+  p.appeals.some(a=>typeof a.case_id!=='string'||typeof a.case_number!=='number'||typeof a.workspace!=='string'||typeof a.restriction_version!=='string'||typeof a.status!=='string'||!Array.isArray(a.updates)||a.updates.some(e=>typeof e.note!=='string'||typeof e.created_at!=='string')))throw Error('Review records could not be confirmed. Refresh before retrying.');
  return p;
 }
 export async function recoveryRequest(body:Record<string,unknown>){

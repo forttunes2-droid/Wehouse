@@ -26,6 +26,7 @@ async def main():
    await page.evaluate('window.__fixtureState.recoveryLost=false')
    await page.get_by_role('button',name='Refresh reviews',exact=True).click()
    await expect(page.get_by_role('heading',name='Case #52 · Services',exact=True)).to_be_visible()
+   await expect(page.get_by_role('button',name='Submit review request',exact=True)).to_have_count(0)
    assert await page.evaluate("window.__fixtureState.calls.filter(c=>c.name==='my_account_reviews'&&c.args.p_workspace).length")==1
    assert await page.evaluate("window.__fixtureState.calls.some(c=>c.name==='account-recovery')")==False
    await page.screenshot(path=str(OUT/f'user-receipt-{theme}.png'),full_page=True)

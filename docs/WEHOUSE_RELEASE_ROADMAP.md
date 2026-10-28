@@ -6,6 +6,21 @@
 
 ### Scoped restrictions and tracked recovery — 28 October
 
+Follow-up Test migration `20261028040804` repairs the first-profile bootstrap
+regression found by real Auth CI. Only the signed-in person's ordinary initial
+consumer profile is exempted; existing restricted identities and privileged
+workspaces remain guarded. The isolated service-live contract now clears the
+outsider read-probe identity before its service-callback fixture mutations.
+Connected Test rollback checks pass profile creation/retry without privilege
+escalation, service quote signals, tracked recovery and restricted Experience
+search/detail/quote behavior. Services restoration reuses the activity's valid
+approval. The appeal screen reuses the receipt for the same restriction revision
+instead of offering another submission form; both-theme browser checks pass.
+`01591668` passed build, structural checks, existing-account upgrade and both
+capacity jobs. Its fresh replay and mixed Auth failures exposed the bootstrap
+issue above; those need fresh CI on the repair commit before being cleared.
+
+
 Test migration `20261028035034` is applied. Private restrictions supplement the
 existing workspace grants; the public permission function OIDs are preserved so
 existing RLS policies also enforce the gates. Personal restriction leaves Services

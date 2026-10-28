@@ -25,6 +25,16 @@ begin
  perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.search_experiences('NG','orientation Lafia')->'items') x where x->>'id'=aid::text),'customer discovery matches approved title and area');
  perform pg_temp.expect(not exists(select 1 from jsonb_array_elements(public.search_experiences('NG','','','Lagos')->'items') x where x->>'id'=aid::text),'location filter excludes this activity in a different state');
  perform pg_temp.expect(public.get_published_experience(aid)->'details' ? 'what_to_expect','public detail includes the actual activity');
+ -- A restriction on Services covers its activities too, without erasing approval.
+ insert into private.workspace_restrictions(user_id,workspace,restricted,public_reason)
+ values(hid,'worker',true,'Services conduct is under review');
+ perform pg_temp.expect(not exists(select 1 from jsonb_array_elements(public.search_experiences('NG','orientation Lafia')->'items') x where x->>'id'=aid::text),'restricted Services cannot keep selling an activity through another catalog');
+ perform pg_temp.expect(public.get_published_experience(aid) is null,'restricted activity detail is unavailable');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.get_experience_booking_quote(%L,1)',session_id)),'restricted activity cannot quote a new booking');
+ perform pg_temp.expect(exists(select 1 from public.experience_activities where id=aid and status='approved'),'restriction preserves independent activity approval');
+ update private.workspace_restrictions set restricted=false,version=gen_random_uuid() where user_id=hid and workspace='worker';
+ perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.search_experiences('NG','orientation Lafia')->'items') x where x->>'id'=aid::text),'restoring Services reuses valid activity approval');
+
  perform pg_temp.expect(not (public.get_published_experience(aid) ? 'approval_note'),'internal review notes are not public detail');
  perform pg_temp.expect(jsonb_array_length(public.get_published_experience_sessions(aid))>=1,'customer can select approved dated sessions');
  q:=public.get_experience_booking_quote(session_id,8);

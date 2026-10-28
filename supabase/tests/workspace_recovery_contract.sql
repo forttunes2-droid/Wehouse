@@ -1,4 +1,17 @@
 begin;
+-- Real signup order: Auth exists before the first profile and trusted device.
+set local session_replication_role=replica;
+insert into auth.users(id,email,email_confirmed_at) values('b8110000-0000-4000-8000-000000000099','bootstrap-review@example.invalid',now());
+set local session_replication_role=origin;
+select set_config('request.jwt.claims','{"sub":"b8110000-0000-4000-8000-000000000099","email":"bootstrap-review@example.invalid","role":"authenticated"}',true);
+set local role authenticated;
+do $$declare fresh public.profiles;begin
+ fresh:=public.create_my_profile('bootstrap-review@example.invalid','creator');
+ if fresh.role<>'user' or fresh.account_kind<>'consumer' then raise exception 'FAIL: profile bootstrap escalated identity';end if;
+ if public.create_my_profile('bootstrap-review@example.invalid','user') is distinct from fresh then raise exception 'FAIL: profile bootstrap retry created another identity';end if;
+end $$;
+reset role;
+select set_config('request.jwt.claims','{}',true);
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city,local_government) values
  ('b8110000-0000-4000-8000-000000000001','sanction-admin@example.invalid','sanction-admin','user',true,'Nasarawa','Lafia','Lafia'),

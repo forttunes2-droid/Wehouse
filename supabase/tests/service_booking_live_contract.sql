@@ -27,6 +27,8 @@ select set_config('request.jwt.claims','{"sub":"95200000-0000-4000-8000-00000000
 set local role authenticated;
 select pg_temp.expect(not exists(select 1 from realtime.messages where event='service_booking_changed' and payload->>'booking_id'='95200000-0000-4000-8000-000000000010'),'outsider cannot read quote signals');
 reset role;
+-- Subsequent setup mutations are service callbacks, not the outsider read probe.
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
 select pg_temp.expect(not has_function_privilege('authenticated','public.broadcast_service_booking_change()','EXECUTE'),'signal sender cannot be called by a customer');
 update public.worker_bookings set service_quote_revision=1,service_quote='{"revision":1,"scope":"Initial agreed work"}'::jsonb
  where id='95200000-0000-4000-8000-000000000010';
