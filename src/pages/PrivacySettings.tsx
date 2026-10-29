@@ -10,7 +10,7 @@ import { useWorkspaceAccess } from '@/hooks/useWorkspaceAccess';
 import type { WorkspaceAccess } from '@/pages/AccountCenter';
 
 type Props={profile:Profile;onUpdate:(p:Profile)=>void;onBack?:()=>void;embedded?:boolean;workspaceAccess?:WorkspaceAccess|null;workspaceError?:string;reloadWorkspace?:()=>Promise<void>};
-type Key='privacy_profile_visible'|'privacy_search_visible';
+type Key='privacy_profile_visible'|'privacy_search_visible'|'privacy_activity_visible';
 
 export default function PrivacySettings(props:Props){return <PrivacySettingsContent key={props.profile.user_id} {...props}/>;}
 function PrivacySettingsContent({profile,onUpdate,onBack,embedded=false,workspaceAccess,workspaceError,reloadWorkspace}:Props){
@@ -21,6 +21,7 @@ function PrivacySettingsContent({profile,onUpdate,onBack,embedded=false,workspac
   const [settings,setSettings]=useState<Record<Key,boolean>>({
     privacy_profile_visible:profile.privacy_profile_visible!==false,
     privacy_search_visible:profile.privacy_search_visible!==false,
+    privacy_activity_visible:profile.privacy_activity_visible!==false,
   });
   const [saving,setSaving]=useState<Key|null>(null);
   const locked=useRef(false),alive=useRef(true);
@@ -41,6 +42,9 @@ function PrivacySettingsContent({profile,onUpdate,onBack,embedded=false,workspac
   const content=<>
     {accessError?<p role="alert">Privacy access could not be loaded. <button className="min-h-11 underline" onClick={()=>void (reloadWorkspace||ownWorkspace.reload)()}>Try again</button></p>:!access?<p role="status">Loading privacy controls…</p>:null}
     {canCall&&<PrivateCallSettings/>}
+    {canCall&&<section className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
+      <Row label="Online and last seen" text="Let people in your eligible chats see when you are online or were last active. Turning this off hides both across your chats." value={settings.privacy_activity_visible} disabled={saving!==null} onChange={v=>void toggle('privacy_activity_visible',v)}/>
+    </section>}
 
     {access?.personal_workspace&&<section className="overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
       <Row label="Roommate profile visibility" text="Allow compatible roommate candidates to see your roommate profile while matching is active." value={settings.privacy_profile_visible} disabled={saving!==null} onChange={v=>void toggle('privacy_profile_visible',v)}/>

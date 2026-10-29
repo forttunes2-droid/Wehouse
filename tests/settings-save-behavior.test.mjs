@@ -14,7 +14,9 @@ function privacyHarness(save){const successes=[],errors=[],updates=[];const Comp
  '@/hooks/useWorkspaceAccess':{useWorkspaceAccess:()=>({access:{personal_workspace:true,privileged_workspaces:[]},error:'',reload:async()=>{}})},
  react:{...React,useState:initial=>[initial,()=>{}],useEffect:effect=>effect(),useRef:value=>({current:value})},'@/lib/withTimeout':{withTimeout:async task=>await task},'@/components/PrivateCallSettings':()=>null,'@/components/SettingSwitch':()=>null,'@/components/AccountShell':()=>null,
  '@/lib/supabase':{updatePrivacySettings:save},sonner:{toast:{success:message=>successes.push(message),error:message=>errors.push(message)}}});
- const profile={user_id:'person',role:'user',privacy_profile_visible:true,privacy_search_visible:true};const outer=Component({profile,onUpdate:value=>updates.push(value),embedded:true});const rendered=outer.type(outer.props);const section=React.Children.toArray(rendered.props.children).find(child=>child.type==='section');const rows=section.props.children;return{rows,successes,errors,updates};}
+ const profile={user_id:'person',role:'user',privacy_profile_visible:true,privacy_search_visible:true,privacy_activity_visible:true};const outer=Component({profile,onUpdate:value=>updates.push(value),embedded:true});const rendered=outer.type(outer.props);
+ const controls=React.Children.toArray(rendered.props.children).filter(child=>child.type==='section').flatMap(section=>React.Children.toArray(section.props.children));
+ const rows=['Roommate profile visibility','Roommate discovery','Online and last seen'].map(label=>controls.find(row=>row.props.label===label));return{rows,successes,errors,updates};}
 const flush=()=>new Promise(resolve=>setTimeout(resolve,0));
 
 test('incoming call controls keep saves exclusive and reject contradictory receipts',async()=>{
@@ -43,4 +45,8 @@ test('privacy rejects a foreign or contradictory save receipt',async()=>{
 });
 test('privacy blocks overlapping toggles while a request is pending',async()=>{
  let resolve,calls=0;const h=privacyHarness(()=>{calls++;return new Promise(done=>{resolve=done;});});h.rows[0].props.onChange(false);h.rows[1].props.onChange(false);assert.equal(calls,1);resolve({profile:{user_id:'person',privacy_profile_visible:false},error:null});await flush();assert.equal(h.successes.length,1);
+});
+
+test('online visibility uses the existing person preference and requires its confirmed receipt',async()=>{
+ let sent;const h=privacyHarness(async(_id,settings)=>{sent=settings;return{profile:{user_id:'person',privacy_activity_visible:false},error:null};});h.rows[2].props.onChange(false);await flush();assert.deepEqual(JSON.parse(JSON.stringify(sent)),{privacy_activity_visible:false});assert.equal(h.updates.length,1);
 });

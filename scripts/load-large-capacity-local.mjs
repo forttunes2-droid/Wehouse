@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
+import { createHmac,randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { Agent, request as httpRequest } from "node:http";
@@ -136,6 +136,7 @@ try {
       return { ...quote, ok: true, classification: "inventory-unavailable" };
     }
     const booked = await rpc(actor, "create_my_hotel_booking_with_rate", {
+      p_request_key:randomUUID(),
       p_hotel_id: -1_000_000 - hotel, p_room_id: -10_000_000 - hotel,
       p_rate_plan_id: -3_000_000 - hotel, p_check_in: checkIn, p_check_out: checkOut,
       p_guest_count: 1, p_guest_name: "Synthetic Guest", p_guest_phone: "08000000000", p_special_requests: null,

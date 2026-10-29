@@ -1,4 +1,5 @@
 export type PublicCatalogKind = 'homes' | 'hotels';
+export const PUBLIC_CATALOG_MAX_PRICE = 2_000_000_000;
 const shared = ['p_state','p_city','p_min_price','p_max_price','p_limit'];
 const keys = {
   homes: [...shared,'p_stay_type','p_min_bedrooms','p_min_bathrooms','p_home_style'],
@@ -15,7 +16,7 @@ export function publicCatalogQuery(kind: PublicCatalogKind, input: Record<string
       if (!Array.isArray(value) || value.length > 20 || value.some(item=>typeof item!=='string'||!item.trim()||item.length>60)) throw Error('Invalid amenities');
       query.set(key,JSON.stringify([...new Set(value)].sort()));
     } else if (['p_min_price','p_max_price','p_min_bedrooms','p_min_bathrooms','p_limit'].includes(key)) {
-      if (typeof value!=='number'||!Number.isFinite(value)||value<0||value>2000000000) throw Error('Invalid catalog number');
+      if (typeof value!=='number'||!Number.isFinite(value)||value<0||value>PUBLIC_CATALOG_MAX_PRICE) throw Error('Invalid catalog number');
       if ((key==='p_limit'&&value!==24)||(['p_min_bedrooms','p_min_bathrooms'].includes(key)&&(!Number.isInteger(value)||value>100))) throw Error('Invalid catalog bounds');
       query.set(key,String(value));
     } else {

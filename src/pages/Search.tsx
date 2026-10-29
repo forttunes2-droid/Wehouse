@@ -3,6 +3,7 @@ import DiscoveryRail from '@/components/DiscoveryRail';
 import {matchesDiscoveryText, homeDiscoveryFields} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { homeStyleValue } from '@/lib/homeStyles';
+import {PUBLIC_CATALOG_MAX_PRICE} from '@/lib/publicCatalogContract';
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -123,6 +124,7 @@ export default function Search({
   const [priceMax, setPriceMax] = useState<number | "">(() => initialSearch.priceMax);
   const [bedrooms, setBedrooms] = useState<number | "">(() => initialSearch.bedrooms);
   const [bathrooms, setBathrooms] = useState<number | "">(() => initialSearch.bathrooms);
+  const [seenPriceHighs,setSeenPriceHighs]=useState({short_let:0,long_stay:0});
   const [filterState, setFilterState] = useState(() => initialSearch.filterState);
   const [filterCity, setFilterCity] = useState(() => initialSearch.filterCity);
   const sponsoredResults = useSponsoredDiscovery('property', filterState, filterCity, stayType === 'all' ? '' : stayType);
@@ -253,20 +255,32 @@ export default function Search({
     return () => { live = false; };
   }, [sponsoredResults]);
 
+  useEffect(()=>{
+    setSeenPriceHighs(previous=>{
+      const next={...previous};
+      for(const item of listings){
+        const mode=item.sub_type;
+        if(mode!=='short_let'&&mode!=='long_stay')continue;
+        const amount=Number(item.price);
+        if(Number.isFinite(amount)&&amount>next[mode]&&amount<=PUBLIC_CATALOG_MAX_PRICE)next[mode]=amount;
+      }
+      return next.short_let===previous.short_let&&next.long_stay===previous.long_stay?previous:next;
+    });
+  },[listings]);
   const priceScale = useMemo(
     () =>
       stayType === "short_let"
         ? {
             floor: getNumber("home_short_stay_min_price", SHORT_FLOOR),
-            ceiling: getNumber("home_short_stay_max_price", SHORT_CEILING),
+            ceiling: Math.max(getNumber("home_short_stay_max_price", SHORT_CEILING),Math.ceil(seenPriceHighs.short_let/1000)*1000),
             step: 1000,
           }
         : {
             floor: getNumber("home_long_stay_min_price", LONG_FLOOR),
-            ceiling: getNumber("home_long_stay_max_price", LONG_CEILING),
+            ceiling: Math.max(getNumber("home_long_stay_max_price", LONG_CEILING),Math.ceil(seenPriceHighs.long_stay/10000)*10000),
             step: 10000,
           },
-    [stayType, getNumber],
+    [stayType, getNumber,seenPriceHighs],
   );
 
   const filtered = useMemo(

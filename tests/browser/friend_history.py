@@ -24,6 +24,8 @@ async def main():
      if request.method=='OPTIONS':return await handler.fulfill(status=204,headers=headers)
      name=request.url.split('?')[0].split('/')[-1];args=json.loads(request.post_data or '{}');requests.append((name,args));data=[]
      if name=='current_profile_user_id':data='history-me'
+     elif name=='touch_my_presence':data='2026-10-29T12:00:00Z'
+     elif name=='get_chat_peer_presence':data={'visible':False,'online':False,'last_seen':None}
      elif name=='user_encryption_identities':data={'user_id':'history-me'}
      elif name=='conversation_key_envelopes':data={'recipient_user_id':'history-me'}
      elif name=='get_message_pins':data=[{'message_id':mid(1)}]

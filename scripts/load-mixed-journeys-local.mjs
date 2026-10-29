@@ -28,7 +28,7 @@ const percentile = (values, fraction) => values.length ? Math.round(values[Math.
 const actors = [];
 const suffix = randomBytes(6).toString('hex');
 
-async function booking(actor, sequence, stayOffset = 30 + Math.floor(sequence / 100) % 10) {
+async function booking(actor, sequence, stayOffset = 30 + Math.floor(sequence / 100) % 10, requestKey = randomUUID()) {
   const hotel = 1 + sequence % 50;
   const room = 1 + Math.floor(sequence / 50) % 2;
   const hotelId = -1000000 - hotel;
@@ -42,6 +42,7 @@ async function booking(actor, sequence, stayOffset = 30 + Math.floor(sequence / 
   });
   if (quote.error || quote.data?.available !== true) throw new Error(`quote: ${quote.error?.message || 'not available'}`);
   const result = await actor.client.rpc('create_my_hotel_booking_with_rate', {
+    p_request_key: requestKey,
     p_hotel_id: hotelId, p_room_id: roomId, p_rate_plan_id: planId,
     p_check_in: checkIn, p_check_out: checkOut, p_guest_count: 1,
     p_guest_name: 'Synthetic Guest', p_guest_phone: '08000000000', p_special_requests: null,
@@ -68,7 +69,8 @@ for (let i = 0; i < 10; i++) {
   });
   if (device.error || device.data?.trust_status !== 'trusted')
     throw new Error(`Synthetic device registration failed: ${device.error?.message || 'first device not trusted'}`);
-  actor.bookingId = await booking(actor, 20000 + i);
+  actor.checkoutKey=randomUUID();actor.checkoutSequence=20000+i;
+  actor.bookingId = await booking(actor, actor.checkoutSequence, undefined, actor.checkoutKey);
   const conversation = await client.rpc('create_my_support_case', {
     p_subject: 'Synthetic capacity conversation', p_category: 'general',
     p_source_type: 'general', p_source_id: null, p_source_snapshot: {}, p_priority: 'normal',
@@ -95,7 +97,12 @@ const journeys = [
     const result = await actor.client.auth.getUser();
     if (result.error || result.data.user?.id !== actor.authId) throw new Error(result.error?.message || 'wrong session');
   } },
-  { name: 'booking', weight: 15, run: async (actor, i) => { await booking(actor, i); } },
+  // An individual customer resumes their current room hold. New-booking writes
+  // occur in setup/contention, not unbounded pending holds per customer.
+  { name: 'checkout_resume', weight: 15, run: async actor => {
+    const id=await booking(actor,actor.checkoutSequence,undefined,actor.checkoutKey);
+    assert.equal(id,actor.bookingId,'Retry created another booking');
+  } },
   { name: 'message', weight: 10, run: async (actor, i) => {
     const result = await actor.client.rpc('send_support_message_v2', {
       p_request_id: randomUUID(),
@@ -157,7 +164,7 @@ async function stage(rate, seconds, offset) {
 }
 
 const report = { scope: 'Disposable local Supabase; 10 synthetic Auth users; HTTP RPCs plus a three-session Friend live-signal preflight; no Vercel, media or Paystack callback',
-  warning: 'Payment bootstrap creates a pending reference. No provider sandbox charge or verified webhook is exercised.',
+  warning: 'Repeated checkouts resume the same owner-scoped hold; these timings do not measure fresh booking-write capacity. Setup/contention exercise new holds. Payment bootstrap creates a pending reference; no provider charge or verified webhook is exercised.',
   mix: Object.fromEntries(journeys.map(journey => [journey.name, journey.weight])), stages: [] };
 try{report.friend_live_delivery=await checkFriendLiveDelivery(actors);}
 catch(error){
@@ -186,7 +193,7 @@ for (const [rate, seconds] of [[5, 30], [10, 30]]) {
 }
 // Twenty buyers contend for the same ten physical units on one future night.
 // A denied inventory request is expected here; any other error fails the check.
-const contention = await Promise.allSettled(Array.from({ length: 20 }, (_, i) => booking(actors[i % actors.length], 0, 400)));
+const contention = await Promise.allSettled(Array.from({ length: 20 }, (_, i) => booking(actors[i % actors.length], 0, 180)));
 const denials = contention.filter(row => row.status === 'rejected').map(row => String(row.reason?.message || row.reason));
 report.contention = { attempts: 20, capacity: 10,
   accepted: contention.length - denials.length, inventory_denied: denials.filter(reason => /unavailable|not available/i.test(reason)).length,

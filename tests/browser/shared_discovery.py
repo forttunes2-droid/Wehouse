@@ -7,7 +7,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright,expect
 from discovery_requests import settled_search,install_read_counter
 OUT=Path('test-results/experience');B=Path('test-results/shared-discovery-offline')
-HOME={'id':'public-home','title':'Courtyard apartment','sub_type':'long_stay','property_type':'apartment','availability_status':'available','city':'Lafia','state':'Nasarawa','address':'Test road','status':'available','price':400000,'images':['https://assets.wehouse.test/interior.jpg'],'amenities':[],'description':'Sample home','bedrooms':2,'bathrooms':1}
+HOME={'id':'public-home','title':'Courtyard apartment','sub_type':'long_stay','property_type':'apartment','availability_status':'available','city':'Lafia','state':'Nasarawa','address':'Test road','status':'available','price':18000000,'images':['https://assets.wehouse.test/interior.jpg'],'amenities':[],'description':'Sample home','bedrooms':2,'bathrooms':1}
 RATES=[{'rate_plan_id':10,'room_id':9,'active':True,'name':'Room only','meal_plan':'room_only','payment_timing':'pay_now','refundable':False,'cancellation_hours':None,'price_per_night':30000,'included_features':[]},{'rate_plan_id':11,'room_id':9,'active':True,'name':'Breakfast stay','meal_plan':'breakfast','payment_timing':'pay_now','refundable':True,'cancellation_hours':48,'price_per_night':35000,'included_features':['Lounge access']}]
 HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','address':'Hotel test road','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':[],'max_guests':2,'bed_type':'Double bed','rate_plans':RATES}],'description':'Sample hotel.'}
 SCRIPT="""s=>{
@@ -21,6 +21,8 @@ SCRIPT="""s=>{
   if(name==='getHotelById')return{hotel:s.hotel,error:null};
   if(name==='getListing')return{listing:s.home,error:null};
   if(name==='getHotelReviews')return{reviews:[],eligible:false,error:null};
+  if(name==='updatePrivacySettings'){s.privacy={...(s.privacy||{}),...args[1]};return{profile:{user_id:args[0],...s.privacy},error:null};}
+  if(name==='rpc:get_my_private_call_preferences')return{data:{allow_audio_calls:true,allow_video_calls:true},error:null};
   if(name==='getReservationForListing')return{reservation:null,error:null};
   if(name==='rpc:search_discoverable_homes')return{data:{items:[s.home],has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
   if(name==='rpc:get_sponsored_discovery')return{data:[],error:null};
@@ -96,7 +98,7 @@ async def main():
     await expect(page.get_by_role('button',name='Sign in',exact=True)).to_have_count(0)
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
     await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
-    await expect(page.locator('[data-home-card]').first).to_contain_text('₦400,000')
+    await expect(page.locator('[data-home-card]').first).to_contain_text('₦18,000,000')
     shelf=page.get_by_role('group',name='Long Lets listings',exact=True)
     await expect(shelf).to_be_visible()
     next_homes=page.get_by_role('button',name='Next Long Lets',exact=True)
@@ -111,7 +113,17 @@ async def main():
     await page.get_by_role('button',name='Clear',exact=True).click();await expect(page.get_by_role('group',name='Long Lets listings',exact=True)).to_be_visible()
     await page.get_by_role('button',name='Open filters',exact=True).click()
     await page.get_by_role('dialog',name='Home filters',exact=True).get_by_role('button',name='Long Let',exact=True).click()
+    assert float(await page.get_by_role('slider',name='Maximum price',exact=True).get_attribute('aria-valuemax'))>=18000000
+    await expect(page.get_by_placeholder('No maximum',exact=True)).to_be_visible()
     await settled_search(page,page.locator('input[inputmode="numeric"]').first,['190000','200000','210000'],"(window.__discoveryReads.public_homes||0)")
+    maximum=page.get_by_label('Maximum price amount',exact=True)
+    await maximum.fill('25000000');await maximum.press('Tab')
+    await expect(maximum).to_have_value('25000000')
+    await page.wait_for_function("window.__browse.gatewayRequests.at(-1)?.p_max_price==='25000000'")
+    await maximum.fill('');await maximum.press('Tab')
+    await expect(maximum).to_have_value('')
+    await page.wait_for_function("window.__browse.gatewayRequests.at(-1)?.p_min_price==='210000'&&!Object.hasOwn(window.__browse.gatewayRequests.at(-1),'p_max_price')")
+    await page.screenshot(path=str(OUT/f'open-price-filter-{width}-{theme}.png'),full_page=True)
     await page.get_by_role('button',name='Reset',exact=True).click();await page.get_by_role('button',name='Close filters',exact=True).click()
     await expect(page.get_by_role('group',name='Long Lets listings',exact=True)).to_be_visible()
     await settled_search(page,page.get_by_placeholder('City, area or home'),['C','Courtyard','Courtyard apartment'],"window.__browse.calls.filter(c=>c.name==='rpc:search_discoverable_homes').length")
@@ -131,6 +143,11 @@ async def main():
     await page.get_by_role('option',name='Lagos',exact=True).click()
     await expect(page.get_by_label('Chosen local area')).to_have_text('')
     await page.evaluate('window.__switchBrowseMode("privacy")')
+    await page.get_by_role('button',name='Privacy & calls',exact=False).click()
+    online=page.get_by_role('switch',name='Online and last seen',exact=True)
+    await expect(online).to_be_checked();await online.click();await expect(online).not_to_be_checked()
+    assert await page.evaluate('window.__browse.privacy.privacy_activity_visible===false')
+    await page.get_by_role('button',name='Back',exact=True).click()
     await page.get_by_role('button',name='Request access, correction or deletion',exact=False).click()
     request=await page.evaluate('window.__browse.dataRequest')
     assert request['category']=='account_access' and request['contextSnapshot']=={'source_type':'privacy_request','source_id':'qa-viewer'}

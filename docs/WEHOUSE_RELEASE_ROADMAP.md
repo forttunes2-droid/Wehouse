@@ -8,6 +8,47 @@ and history; they do not reopen settled rules or create additional workstreams.
 
 ## Current engineering checkpoints
 
+### Online privacy, Personal workspace scope and open price ranges — 29 October
+
+Test `20261029172205` exposes and enforces the existing person-level online/last-seen
+choice. Hidden activity returns no timestamp. Trusted sessions, actual chat
+relationships and applicable workspace/block checks gate reads; opting out stops
+public-presence timestamp updates. The shared chat hook stops background refreshes,
+shares a pending refresh and clears old peer/error state. Friends use the same
+choice as existing chats. Test `20261029174102` corrects Personal eligibility in
+the shared workspace authority: it derives from the consumer identity rather than
+a professional role named Personal, and obeys Personal-only restrictions while
+preserving independent Worker access. Applied-Test rollback contracts pass owner,
+unrelated/blocked peer, scoped restriction and revoked-device checks.
+
+Home price ranges expand for loaded prices and accept explicit amounts above the
+displayed range within the existing server filter bounds. Empty From/To fields
+mean no minimum/maximum, including the accessible slider labels. Selecting the
+right edge keeps an unbounded maximum. The display range is not a property-pricing
+rule. Studio / self-contained remains exactly zero separate bedrooms outside a
+private-room listing; Penthouse remains an independent home feature. Both combine
+with the same server criteria before pagination. Main-page stay shortcuts and the
+filter sheet edit one state, not independent filters or product types.
+
+The eight width/theme discovery journeys pass with an 18-million rent fixture and
+a typed 25-million maximum, clearing that maximum, online visibility saves and
+existing privacy/help navigation. Both Friend-history layouts and 11 focused
+privacy/save checks pass; build and focused lint pass. All 844 source tests pass.
+The source test harness now
+finds privacy controls by their labels rather than assuming the first section is
+always Roommate settings.
+
+CI on `79137905` passed five workflows, including all browser journeys, the
+production build and both catalogue baseline checks. Two integration checks were
+outdated: the privileged-write audit did not follow the reviewed private Hotel
+actor helper, and mixed HTTP tests called the revoked unkeyed Hotel command. The
+audit now validates the helper body and its denied browser grants. Synthetic
+booking callers use request keys; the mixed workload explicitly resumes existing
+holds and separately exercises new-booking contention within supported dates. It
+does not present retry timings as fresh booking-write capacity. The repaired audit
+passes on applied Test. Exact-commit replay and mixed HTTP results follow the next
+push. Production remains unchanged.
+
 ### Settled search reads and local option filtering — 29 October
 
 Homes, Hotels, Services and Experiences wait 300 ms after text or filter edits

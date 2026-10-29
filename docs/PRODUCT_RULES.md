@@ -61,6 +61,8 @@ operating model as product-owner approval.
 | R-032 | UI labels come from product vocabulary: Overview for workspace landing, Inbox for communication, and actor/team names that match actual responsibility. |
 | R-033 | Every privileged or economic override records actor, reason, previous state, resulting state and correlation ID. |
 | R-034 | Compatibility aliases have an owner, telemetry and removal date; they do not become permanent alternate product concepts. |
+| R-035 | Online and last-seen visibility is a person-level choice enforced by the server across eligible chats. Background tabs do not repeatedly announce an online presence; unrelated, blocked or revoked access cannot reveal it. |
+| R-036 | Personal-data requests use tracked WeHouse review and confirmation (owner decision, 29 October). The result distinguishes data actually erased from data retained and the reason. Closing an account is not a claim of complete erasure; financial/dispute evidence is not silently destroyed, and unapproved retention durations are not invented. |
 
 ### UI action to domain action map
 

@@ -3,6 +3,8 @@ import { pendingPropertyShare, clearPropertyShare, propertyShareMessage, type Sh
 import { releaseRequestKey, requestKeyFor, runSafeAction } from "@/lib/safeAction";
 import { useMessagePins } from "@/hooks/useMessagePins";
 import { createFriendPlanMessage } from "@/lib/friendPlans";
+import useChatPresence from '@/hooks/useChatPresence';
+import {chatPresenceLabel} from '@/lib/supabase/presence';
 import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {createRefreshScheduler} from '@/lib/refreshScheduler';
@@ -43,6 +45,8 @@ export default function FriendChat({ friend, myUserId, onClose, onNavigate }: { 
 }
 function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend: Friend; myUserId: string; onClose: () => void; onNavigate: (page: string, id?: string) => void }) {
   const name = friend.full_name || friend.username || "Friend";
+  const presence=useChatPresence(friend.status==='accepted'?friend.user_id:null);
+  const presenceText=chatPresenceLabel(presence);
   const [readiness, setReadiness] = useState<PrivateConversationReadiness | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [history,setHistory]=useState<(FriendMessageCursor|null)[]>([null]);
@@ -245,7 +249,7 @@ function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend:
     <div role="dialog" aria-modal="true" aria-label={`Chat with ${name}`} className="fixed inset-0 z-[70] flex flex-col bg-[var(--wh-bg)] text-[var(--wh-text)]">
       <header className="flex min-h-14 items-center gap-3 border-b border-[var(--wh-border-subtle)] px-4">
         <button type="button" onClick={onClose} aria-label="Back" className="grid h-11 w-11 place-items-center text-xl">←</button>
-        <button type="button" onClick={() => setInfo(true)} aria-label="Friend info" className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-semibold">{name}</p><p className="text-[11px] text-[var(--wh-text-secondary)]">Friend · end-to-end encrypted</p></button>
+        <button type="button" onClick={() => setInfo(true)} aria-label="Friend info" className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-semibold">{name}</p><p className="truncate text-xs text-[var(--wh-text-secondary)]">{presenceText?`${presenceText} · `:''}Friend · end-to-end encrypted</p></button>
       </header>
       <PinnedMessagesBar
         items={pins.pinned.map(id=>{const line=lines.find(row=>row.id===id);return {id,text:line?(line.content||(line.private_attachment_refs?.length?'Attachment':'Message')):'Open pinned message in history'};})}

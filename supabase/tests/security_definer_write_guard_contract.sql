@@ -26,7 +26,11 @@ begin
    ('public._property_arrival_actor(text,text)','public._property_arrival_actor',
     array['current_profile_user_id','_property_document_session_active','partner_pro_owns_asset','raise exception']),
    ('private.private_call_actor()','private.private_call_actor',
-    array['_current_comm_actor','_property_document_session_active','user_has_active_workspace','raise exception'])
+    array['_current_comm_actor','_property_document_session_active','user_has_active_workspace','raise exception']),
+   ('private.hotel_checkout_actor()','private.hotel_checkout_actor',
+    array['current_profile_user_id','_property_document_session_active','current_actor_has_personal_workspace','raise exception']),
+   ('private.presence_actor()','private.presence_actor',
+    array['current_profile_user_id','_property_document_session_active','raise exception'])
   ), validated_helpers as (
    select h.call_name from reviewed_helpers h
    join pg_proc guard on guard.oid=to_regprocedure(h.signature)

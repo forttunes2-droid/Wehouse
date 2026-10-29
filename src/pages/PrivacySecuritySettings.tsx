@@ -17,7 +17,7 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack,onLogou
   const canClose=['user','worker','property_partner'].includes(profile.role);
   const back=section?()=>setSection(null):onBack;
   const title=section==='reviews'?'Account reviews':section==='privacy'?'Privacy':section==='access'?'Access & security':section==='devices'?'Devices':section==='close'?'Close account':section==='reports'?'Reports you sent':'Privacy & Security';
-  const description=section==='privacy'?'Manage incoming calls and available profile visibility settings.':section==='access'?'Manage your password, devices and account access.':section==='devices'?'Review every device that requested access to this account.':section==='close'?'Close this account after active obligations are cleared.':section==='reports'?'Check the review status of reports you sent.':'Only settings that directly change or protect this account.';
+  const description=section==='privacy'?'Manage online status, incoming calls and profile visibility.':section==='access'?'Manage your password, devices and account access.':section==='devices'?'Review every device that requested access to this account.':section==='close'?'Close this account after active obligations are cleared.':section==='reports'?'Check the review status of reports you sent.':'Only settings that directly change or protect this account.';
   return <AccountShell profile={profile} title={title} description={description} onBack={back}>
 
     {section==='privacy'?<PrivacySettings profile={profile} onUpdate={onUpdate} embedded workspaceAccess={workspace.access} workspaceError={workspace.error} reloadWorkspace={workspace.reload}/>:
