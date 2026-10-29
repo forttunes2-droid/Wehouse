@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
 import { formatMoney } from "@/lib/regional";
 
-type ResourceType="worker"|"property"|"hotel";
+type ResourceType="worker"|"property"|"hotel"|"experience";
 type ScopeType="global"|"lga";
 type Rule={
   rule_id:string;
@@ -28,7 +28,7 @@ type Campaign={ campaign_id:string; resource_type:ResourceType; status:string;
 type StoreProduct={rule_id:string;duration_days:number;platform:"apple"|"google";
   product_id:string;price_ngn:number;enabled:boolean};
 
-const resourceLabels:Record<ResourceType,string>={worker:"Service Workers",property:"Homes",hotel:"Hotels"};
+const resourceLabels:Record<ResourceType,string>={worker:"Service profiles",property:"Homes",hotel:"Hotels",experience:"Experiences"};
 
 export default function SponsoredMarketRules(){
   const{requestElevation}=useCreatorAuth();

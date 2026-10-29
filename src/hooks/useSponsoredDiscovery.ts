@@ -4,7 +4,7 @@ import { withTimeout } from '@/lib/withTimeout';
 
 export type SponsoredResult = { campaign_id: string; resource_id: string };
 
-export function useSponsoredDiscovery(resourceType: 'worker' | 'property' | 'hotel', state: string, lga: string, category = '', enabled = true) {
+export function useSponsoredDiscovery(resourceType: 'worker' | 'property' | 'hotel' | 'experience', state: string, lga: string, category = '', enabled = true) {
   const [results, setResults] = useState<SponsoredResult[]>([]);
   useEffect(() => {
     let live = true;
@@ -13,7 +13,7 @@ export function useSponsoredDiscovery(resourceType: 'worker' | 'property' | 'hot
     const timer = window.setTimeout(() => {
       void withTimeout(supabase.auth.getSession(),15000,'Session lookup timed out').then(({ data: session }) => {
         if (!live) return;
-        if (!session.session && resourceType === 'worker') { if (live) setResults([]); return; }
+        if (!session.session && (resourceType === 'worker'||resourceType === 'experience')) { if (live) setResults([]); return; }
         return withTimeout(supabase.rpc('get_sponsored_discovery', {
           p_resource_type: resourceType, p_state: state || null,
           p_lga: lga || null, p_category: category || null, p_limit: 6,
@@ -28,7 +28,7 @@ export function useSponsoredDiscovery(resourceType: 'worker' | 'property' | 'hot
   return results;
 }
 
-export function recordSponsoredImpression(campaignId: string, context: 'worker_discovery' | 'home_discovery' | 'hotel_discovery') {
+export function recordSponsoredImpression(campaignId: string, context: 'worker_discovery' | 'home_discovery' | 'hotel_discovery' | 'experience_discovery') {
   void withTimeout(supabase.auth.getSession(),15000,'Session lookup timed out').then(({ data }) => {
     if (data.session) return withTimeout(supabase.rpc('record_my_sponsored_impression', {
       p_campaign_id: campaignId, p_context: context,

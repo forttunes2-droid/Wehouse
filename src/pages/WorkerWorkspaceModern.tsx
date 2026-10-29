@@ -148,7 +148,7 @@ function WorkerWorkspaceContent({
         />
       );
     if (accountView === "sponsored")
-      return <AccountShell profile={profile} title="Sponsored" description="Campaigns and placements are separate from WeHouse Pro." onBack={() => setAccountView("account")}><SponsoredCampaignPanel types={['worker']} /></AccountShell>;
+      return <AccountShell profile={profile} title="Sponsored" description="Promote an eligible service profile or activity." onBack={() => setAccountView("account")}><SponsoredCampaignPanel types={['worker','experience']} /></AccountShell>;
     return (
       <AccountCenter
         profile={profile}

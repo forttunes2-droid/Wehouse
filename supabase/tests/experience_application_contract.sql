@@ -90,6 +90,62 @@ end $$;
 
 -- Invoked inside the independently approved fixture below; the surrounding
 -- transaction rolls every policy, publication and hold back afterward.
+create function pg_temp.exercise_experience_sponsored(aid uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,eg uuid) returns void language plpgsql as $$
+declare a public.experience_activities;rule jsonb;quote jsonb;campaign jsonb;checkout jsonb;result jsonb;web_id uuid;store_id uuid;placement uuid;original_bookings bigint;
+begin
+ select * into a from public.experience_activities where id=aid;
+ select count(*) into original_bookings from public.experience_bookings where activity_id=aid;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated','aal','aal2')::text,true);
+ rule:=public.creator_set_sponsored_market_rule('experience','lga',a.details->>'state',a.details->>'local_area',true,2,100,array[7],eg);
+ perform public.creator_set_sponsored_store_product((rule->>'rule_id')::uuid,7,'apple','wehouse.test.activity.7days',700,true,eg);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+ perform pg_temp.expect((select count(*)=1 from public.get_my_sponsored_resources() where resource_type='experience' and resource_id=aid::text),'one eligible owned activity in existing Sponsored selection');
+ quote:=public.quote_my_sponsored_campaign('experience',aid::text,7);
+ perform pg_temp.expect((quote->>'amount_ngn')::numeric=700,'same market daily price times selected duration');
+ campaign:=public.prepare_my_sponsored_campaign('experience',aid::text,7);web_id:=(campaign->>'campaign_id')::uuid;
+ checkout:=public.begin_my_sponsored_checkout(web_id);
+ result:=public.begin_my_sponsored_checkout(web_id);
+ perform pg_temp.expect(result->>'reference'=checkout->>'reference' and (result->>'amount_ngn')::numeric=(checkout->>'amount_ngn')::numeric,'web checkout retry returns same payment and amount');
+ perform pg_temp.expect(not exists(select 1 from public.get_sponsored_discovery('experience') where campaign_id=web_id),'unverified order never delivers Sponsored placement');
+ update public.booking_payments set metadata=metadata||'{"paystack_environment":"test"}' where payment_reference=checkout->>'reference';
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ result:=public.confirm_sponsored_paystack_charge(checkout->>'reference','activity-ad-'||web_id,70000,'test','webhook');
+ perform pg_temp.expect(result->>'status'='active','verified activity advertisement uses canonical Sponsored payment activation');
+ result:=public.confirm_sponsored_paystack_charge(checkout->>'reference','activity-ad-'||web_id,70000,'test','webhook');
+ perform pg_temp.expect((result->>'already_processed')::boolean,'verified advertisement retry cannot create a second campaign period');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ perform pg_temp.expect(exists(select 1 from public.get_sponsored_discovery('experience',a.details->>'state',a.details->>'local_area',a.details->>'category') where campaign_id=web_id),'matching customer gets exact sponsored activity');
+ perform pg_temp.expect(not exists(select 1 from public.get_sponsored_discovery('experience','Lagos','Ikeja') where campaign_id=web_id),'activity promotion cannot cross into an unrelated location');
+ perform pg_temp.expect(not exists(select 1 from public.get_sponsored_discovery('experience',null,null,'unrelated') where campaign_id=web_id),'category selection cannot display an unrelated activity campaign');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.quote_my_sponsored_campaign(%L,%L,7)','experience',aid::text)),'customer cannot promote an activity they do not host');
+ placement:=public.record_my_sponsored_impression(web_id,'experience_discovery');
+ perform pg_temp.expect(placement is not null and public.record_my_sponsored_impression(web_id,'experience_discovery')=placement,'activity impression uses same per-person/day receipt');
+ perform public.record_my_sponsored_open(web_id);
+ perform pg_temp.expect(exists(select 1 from public.sponsored_placements where placement_id=placement and opened_at is not null),'activity opens remain distinct from booking payments');
+ perform set_config('request.jwt.claims','{"role":"anon"}',true);
+ perform pg_temp.expect(not exists(select 1 from public.get_sponsored_discovery('experience') where campaign_id=web_id),'anonymous requests cannot bypass Services sign-in');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+ campaign:=public.prepare_my_sponsored_campaign('experience',aid::text,7);store_id:=(campaign->>'campaign_id')::uuid;
+ checkout:=public.begin_my_sponsored_store_checkout(store_id,'apple');
+ perform pg_temp.expect(checkout->>'product_id'='wehouse.test.activity.7days','existing configured native product maps to the exact activity campaign');
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ result:=public.confirm_sponsored_store_purchase(checkout->>'reference','apple',checkout->>'product_id','activity-native-'||store_id,h,'sandbox',repeat('d',64),null);
+ perform pg_temp.expect(result->>'status'='active','verified native Sponsored order activates through the same campaign ledger');
+ result:=public.confirm_sponsored_store_purchase(checkout->>'reference','apple',checkout->>'product_id','activity-native-'||store_id,h,'sandbox',repeat('d',64),null);
+ perform pg_temp.expect((result->>'already_processed')::boolean,'store verification retry retains one charged order');
+ perform pg_temp.expect(pg_temp.rejects(format('select public.confirm_sponsored_store_purchase(%L,%L,%L,%L,%L,%L,%L,null)',checkout->>'reference','apple',checkout->>'product_id','activity-native-'||store_id,s,'sandbox',repeat('d',64))),'another account cannot reuse the verified store transaction');
+ update public.experience_publications set published=false where activity_id=aid;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ perform pg_temp.expect(not exists(select 1 from public.get_sponsored_discovery('experience') where campaign_id in(web_id,store_id)),'withdrawn activity immediately loses all Sponsored visibility');
+ update public.experience_publications set published=true where activity_id=aid;
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+ perform public.pause_sponsored_on_provider_event((select payment_reference from public.sponsored_campaigns where campaign_id=web_id),'refund.pending','test',70000);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ perform pg_temp.expect(not exists(select 1 from public.get_sponsored_discovery('experience') where campaign_id=web_id),'Sponsored refund suspends visibility without cancelling the actual activity');
+ perform pg_temp.expect((select count(*)=original_bookings from public.experience_bookings where activity_id=aid),'promotion purchase, view, open and refund never book or reserve activity capacity');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+end $$;
+
 create function pg_temp.exercise_experience_publication(aid uuid,session_id uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,cid text,sid text) returns void language plpgsql as $$
 declare eg uuid;ep integer;pub jsonb;q jsonb;held jsonb;bid uuid:=gen_random_uuid();other_id uuid:=gen_random_uuid();before_contract jsonb;
  checkout jsonb;paid_checkout jsonb;confirmation jsonb;protection uuid;action_id uuid;refund_booking uuid;refund_reference text;review_updated timestamptz;
@@ -103,6 +159,7 @@ begin
  perform pg_temp.expect((pub->>'can_publish')::boolean and not (pub->>'published')::boolean,'approval is distinct from host publication');
  pub:=public.set_my_experience_publication(aid,3,0,true);
  perform pg_temp.expect((pub->>'visible')::boolean and (pub->>'revision')::integer=1,'host explicitly publishes the approved revision');
+ perform pg_temp.exercise_experience_sponsored(aid,h,c,s,hs,cs,ss,hid,eg);
  perform pg_temp.expect(public.set_my_experience_publication(aid,3,0,true)=pub,'lost publish response returns the same publication');
  perform pg_temp.expect(pg_temp.rejects(format('select public.get_experience_booking_quote(%L,1)',session_id)),'host cannot book their own session');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);

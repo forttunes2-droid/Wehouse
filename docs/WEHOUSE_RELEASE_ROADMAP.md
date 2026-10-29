@@ -1,8 +1,31 @@
 # WeHouse release roadmap
 
-**Status date:** 28 October 2026
+**Status date:** 29 October 2026
 
 ## Current engineering checkpoints
+
+### Activity promotion through existing Sponsored orders — 29 October
+
+Test migration `20261029080649` adds Experiences to the existing Sponsored market
+rules, owned resource selection, campaign orders, web/native verification and
+placement receipts. The Services workspace uses one promotion panel for service
+profiles and activities; Creator uses the existing market price controls. An
+activity must remain approved, published, in its saved market and have an available
+future date. Promotion never creates an activity booking or changes organic order.
+No market rate or native product was invented or activated.
+
+The integrated rollback contract passes web/native paid activation, exact daily
+price × duration, payment retries, wrong-account rejection, location/category
+matching, publication withdrawal and refund removal. It exposed and repaired the
+shared native account text/UUID comparison. Impression validation now uses the
+campaign's market rather than the first twelve national results. Four actual UI
+journeys pass across light/dark, including failed-read retry, changed-price rejection,
+consent, repeated clicks and activity navigation without booking. All 824 source
+tests, TypeScript, production build and focused lint pass; exact-commit CI is checked
+after pushing. The prior `51e1f699` passes all seven workflows. The new
+eligibility helper has no browser execute grant; existing public command grants
+and service-only charge confirmation remain unchanged. Optional discounts continue
+through the existing quote/booking authority below.
 
 ### Tracked Service and Experience review appeals — 28 October
 
