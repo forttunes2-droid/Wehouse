@@ -107,7 +107,7 @@ jobs:
           output = pathlib.Path('test-results/review-source')
           output.mkdir(parents=True, exist_ok=True)
           (output / 'reviewed-commit.txt').write_text(subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True))
-          prefixes = ('public/', 'src/', 'tests/', 'scripts/', 'supabase/migrations/', 'supabase/tests/', '.github/workflows/')
+          prefixes = ('public/', 'src/', 'tests/', 'scripts/', 'docs/licenses/', 'supabase/migrations/', 'supabase/tests/', '.github/workflows/')
           configs = {'package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.app.json', 'tailwind.config.js', 'tailwind.config.ts', 'postcss.config.js', 'postcss.config.cjs', 'eslint.config.js', 'index.html'}
           names = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
           with tarfile.open(output / 'review-source.tar.gz', 'w:gz') as bundle:
@@ -142,6 +142,7 @@ jobs:
         run: python tests/browser/account_motion_preview.py
       - name: Run isolated browser interactions
         run: |
+          node node_modules/vite/bin/vite.js build
           node node_modules/vite/bin/vite.js --config tests/browser/vite.config.ts > /tmp/wehouse-browser-vite.log 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" || true' EXIT
@@ -150,7 +151,7 @@ jobs:
             sleep 1
           done
           failed=0
-          for test in provider_reviews service_review_link account_authenticator release_six shared_discovery public_entry worker_documents money_rules media_viewport profile_refinement stabilisation_practical message_attachments workspace_repair property_experience property_link property_routing experience bookings_layout native_choices welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability rent_terms later_rent error_states security_controls workspace_recovery creator_sanction report_recovery service_quote friend_history media_preparation service_discovery gallery_sharing discovery_location experience_commerce experience_help experience_sharing experience_sponsored experience_discounts approved_dates provider_account hotel_checkout; do
+          for test in provider_reviews service_review_link account_authenticator release_six shared_discovery public_entry worker_documents money_rules media_viewport profile_refinement stabilisation_practical message_attachments workspace_repair property_experience property_link property_routing experience bookings_layout native_choices welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability rent_terms later_rent error_states security_controls workspace_recovery creator_sanction report_recovery service_quote friend_history media_preparation service_discovery gallery_sharing discovery_location experience_commerce experience_help experience_sharing experience_sponsored experience_discounts approved_dates provider_account hotel_checkout personal_data_review; do
             python "tests/browser/$test.py" || failed=1
           done
           test "$failed" = 0
@@ -190,4 +191,5 @@ jobs:
             test-results/friend-history
             test-results/service-quote
             test-results/hotel-checkout
+            test-results/personal-data-review
           retention-days: 7

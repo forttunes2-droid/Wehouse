@@ -8,6 +8,49 @@ and history; they do not reopen settled rules or create additional workstreams.
 
 ## Current engineering checkpoints
 
+### Reviewed personal-data requests and bundled notices — 29 October
+
+The owner's final choice is tracked review, replacing the earlier automatic-erasure
+selection. Separate access, correction and deletion actions prepare existing
+account-linked Help drafts; only sending submits the request. Test migration
+`20261029190434` uses the existing case assignment, messages, audit events and
+Activity. The assigned Admin or Creator records work actually completed and
+specific retained/not-completed reasons after fresh security confirmation.
+Generic resolution cannot bypass that response. Exact command retries recover the
+same receipt; stale and changed-command decisions fail. No new identity, queue,
+financial retention period or automatic erasure job is introduced. The response
+is an attestation of reviewed work, not an automated export or erasure engine;
+fulfilment and retention operations remain in the existing Account/operations row.
+
+Browser roles no longer directly read/write case audit events or mutate operational
+cases. Authorised scoped commands remain the access path. Applied-Test rollback
+checks pass real first-message intake/retry, requester/unrelated identity, assigned
+reviewer, fresh confirmation, stale/partial decisions, customer response, closing
+and revoked-device denial. The privileged-write audit passes on Test.
+
+Account closure is explicitly separate from complete erasure. Its confirmation
+uses CLOSE, protects duplicate submissions, bounds waiting and exposes a Help
+route on failure. The unpublished legal review draft matches these facts; this
+does not publish or legally approve it.
+
+Account → Legal → Open-source licences loads a static build-generated notice
+inventory on demand. Production includes 71 versioned npm library entries and
+original licence/NOTICE text, including exact-version pinned publisher evidence
+for packages that omit root notices. Vendored notices are retained if included.
+Search/pagination run locally, with bounded loading/error/retry and Back states.
+Development optimizer source paths are resolved separately; actual development
+browser verification finds React and other loaded libraries. This inventory is
+not a legal certification or a complete native/hosting vendor contract inventory.
+
+All 848 source tests, the final production build and focused lint pass. Sixteen
+isolated browser journeys cover both themes, 320/768px review/intake layouts,
+completed/unknown/stale/error responses, library notice pagination/search/Back and
+failed closure recovery. These exercise synthetic APIs and perform no real erasure.
+Six workflows passed on `3935b7c3`; its sole failing replay assertion expected an
+older Friend denial. The updated assertion accepts only the exact earlier
+Personal-workspace denial or 42501 and proves no request was stored. Exact-commit
+replay follows this push. Production remains unchanged.
+
 ### Online privacy, Personal workspace scope and open price ranges — 29 October
 
 Test `20261029172205` exposes and enforces the existing person-level online/last-seen

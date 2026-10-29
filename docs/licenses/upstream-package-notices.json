@@ -1,0 +1,63 @@
+{
+  "scope": "Pinned upstream notices for exact npm versions whose tarballs omit their own root notice",
+  "records": [
+    {
+      "packages": [
+        "@radix-ui/number@1.1.1",
+        "@radix-ui/react-compose-refs@1.1.2",
+        "@radix-ui/react-context@1.1.2",
+        "@radix-ui/react-direction@1.1.1",
+        "@radix-ui/react-id@1.1.1",
+        "@radix-ui/react-use-callback-ref@1.1.1",
+        "@radix-ui/react-use-escape-keydown@1.1.1",
+        "@radix-ui/react-use-layout-effect@1.1.1",
+        "@radix-ui/react-use-previous@1.1.1",
+        "@radix-ui/react-use-rect@1.1.1",
+        "@radix-ui/react-use-size@1.1.1",
+        "@radix-ui/rect@1.1.1"
+      ],
+      "licence": "MIT",
+      "file": "radix-primitives-MIT.txt",
+      "source": "https://github.com/radix-ui/primitives/blob/main/LICENSE",
+      "blob_sha": "a18858fb7b014098cba85703e66609be66a26ef5"
+    },
+    {
+      "packages": [
+        "embla-carousel@8.6.0",
+        "embla-carousel-react@8.6.0",
+        "embla-carousel-reactive-utils@8.6.0"
+      ],
+      "licence": "MIT",
+      "file": "embla-carousel-MIT.txt",
+      "source": "https://github.com/davidjerleke/embla-carousel/blob/master/LICENSE",
+      "blob_sha": "2376624f527f4f1e53887552e42b004ab4056898"
+    },
+    {
+      "packages": [
+        "input-otp@1.4.2"
+      ],
+      "licence": "MIT",
+      "file": "input-otp-MIT.txt",
+      "source": "https://github.com/guilhermerodz/input-otp/blob/master/LICENSE",
+      "blob_sha": "3d8feae905f69bb4279c5abe93d005c7ccc5bdf7"
+    },
+    {
+      "packages": [
+        "react-remove-scroll-bar@2.3.8"
+      ],
+      "licence": "MIT",
+      "file": "react-remove-scroll-bar-MIT.txt",
+      "source": "https://github.com/theKashey/react-remove-scroll-bar/blob/master/LICENSE",
+      "blob_sha": "7c08c3990396ecefd90f99ff5d9a34f26f5b5616"
+    },
+    {
+      "packages": [
+        "victory-vendor@36.9.2"
+      ],
+      "licence": "MIT AND ISC",
+      "file": "victory-MIT.txt",
+      "source": "https://github.com/FormidableLabs/victory/blob/main/LICENSE.txt",
+      "blob_sha": "57a7927ff518fd48864c7c3c229bc551aa94c8c5"
+    }
+  ]
+}

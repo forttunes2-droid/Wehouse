@@ -304,6 +304,9 @@ jobs:
       - name: Verify scoped restrictions and tracked appeals
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_recovery_contract.sql
+      - name: Verify reviewed personal data requests and case audit authority
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/personal_data_review_contract.sql
       - name: Exercise workspace grants, revocation and geographic scope
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_authority_contract.sql

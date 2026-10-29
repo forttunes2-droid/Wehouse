@@ -1,7 +1,9 @@
 import path from "path"
 import { execFileSync } from "node:child_process"
+import {existsSync,readFileSync} from 'node:fs'
 import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite"
+import { defineConfig,type Plugin } from "vite"
+import {bundledLicences} from './scripts/lib/bundled-licences'
 
 // Vercel PR previews may not have project-scoped environment variables yet.
 // This public Test-project key provides an isolated preview by default. A
@@ -91,12 +93,47 @@ function releaseAssets() {
   }
 }
 
+function libraryNotices():Plugin {
+  return {
+    name:'wehouse-bundled-licence-notices',
+    configureServer(server){
+      server.middlewares.use((request,response,next)=>{
+        if(request.url?.split('?',1)[0]!=='/third-party-licences.json')return next()
+        try {
+          const ids=[...server.moduleGraph.idToModuleMap.keys()]
+          // Vite's development optimizer replaces package paths with .vite/deps.
+          // Include the corresponding original package sources for opened modules.
+          const metadata=path.join(server.config.cacheDir,'deps/_metadata.json')
+          if(existsSync(metadata)){
+            const optimized=JSON.parse(readFileSync(metadata,'utf8')).optimized as Record<string,{src?:string;file?:string}>
+            for(const item of Object.values(optimized||{}))if(item.src&&item.file){
+              const file=path.resolve(path.dirname(metadata),item.file).replaceAll('\\','/')
+              if(ids.some(id=>id.replaceAll('\\','/').split('?',1)[0]===file))ids.push(path.resolve(path.dirname(metadata),item.src))
+            }
+          }
+          const report=bundledLicences(ids)
+          response.setHeader('Content-Type','application/json; charset=utf-8')
+          response.setHeader('Cache-Control','no-cache')
+          response.end(JSON.stringify(report))
+        } catch {
+          response.statusCode=503;response.end('Library notices unavailable')
+        }
+      })
+    },
+    generateBundle(){
+      const report=bundledLicences([...this.getModuleIds()].filter(id=>this.getModuleInfo(id)?.isIncluded))
+      this.emitFile({type:'asset',fileName:'third-party-licences.json',source:JSON.stringify(report)})
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: './',
   plugins: [
     react(),
     releaseAssets(),
+    libraryNotices(),
   ],
   server: {
     port: 3000,

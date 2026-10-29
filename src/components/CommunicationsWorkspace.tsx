@@ -25,6 +25,8 @@ import {
 } from "@/lib/supabase/support";
 import type { Profile } from "@/types";
 import BackButton from "@/components/BackButton";
+import PersonalDataCaseReview from '@/components/PersonalDataCaseReview';
+import {PERSONAL_DATA_REASONS} from '@/lib/personalDataReview';
 
 type View = "inbox" | "broadcast";
 type CaseAction =
@@ -500,6 +502,7 @@ export default function CommunicationsWorkspace({
           }}
           onSubmit={(action) => void updateCase(action)}
         />}
+        {PERSONAL_DATA_REASONS.includes(selected.context_snapshot?.reason_code)&&<PersonalDataCaseReview key={profile.user_id+selected.conversation_id} conversationId={selected.conversation_id} creator={profile.role==='creator'} onResolved={()=>{void refreshMessages(selected.conversation_id,true);void load(true);}}/>}
         {selectedPresentation.operational && (
           <div className="flex items-center gap-3 border-b border-[var(--wh-border-subtle)] bg-violet-500/[.045] px-4 py-3">
             <div className="min-w-0 flex-1">
@@ -771,7 +774,7 @@ function CaseManagementPanel({
   onSubmit: (action: CaseAction) => void;
 }) {
   const next = supportNextStep(row.status, row.assigned_staff_name);
-  const actions = canManage ? availableCaseActions(row.status) : [];
+  const actions = canManage ? availableCaseActions(row.status).filter(action=>action!=='resolve'||!PERSONAL_DATA_REASONS.includes(row.context_snapshot?.reason_code)) : [];
   const importantEvent = [...events]
     .reverse()
     .find((event) =>
@@ -784,16 +787,16 @@ function CaseManagementPanel({
       <div className="mx-auto max-w-4xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
+            <p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-secondary)]">
               Request handling
             </p>
-            <p className="mt-1 text-[12px] font-semibold text-[#ECEEF2]">
+            <p className="mt-1 text-sm font-semibold text-[var(--wh-text)]">
               {row.subject || "WeHouse request"}
             </p>
           </div>
           <StatusBadge status={row.status} large />
         </div>
-        <div className="mt-3 grid gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 p-3 sm:grid-cols-3">
+        <div className="mt-3 grid gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 sm:grid-cols-3">
           <CaseFact
             label="Owner"
             value={row.assigned_staff_name || "Awaiting assignment"}
@@ -804,10 +807,10 @@ function CaseManagementPanel({
         {importantEvent?.note &&
         ["waiting_for_user", "escalated", "resolved"].includes(row.status) ? (
           <div className="mt-3 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2.5">
-            <p className="text-[8px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--wh-text-secondary)]">
               Latest decision
             </p>
-            <p className="mt-1 text-[10px] leading-4 text-[#CDD0D8]">
+            <p className="mt-1 text-sm leading-6 text-[var(--wh-text)]">
               {importantEvent.note}
             </p>
           </div>
@@ -824,7 +827,7 @@ function CaseManagementPanel({
                     ? onSubmit(action)
                     : onSelectAction(action)
                 }
-                className={`min-h-9 rounded-xl px-3 text-[9px] font-semibold disabled:opacity-50 ${caseActionTone(action)}`}
+                className={`min-h-11 rounded-xl px-3 text-xs font-semibold disabled:opacity-50 ${caseActionTone(action)}`}
               >
                 {caseActionLabel(action)}
               </button>
@@ -834,23 +837,24 @@ function CaseManagementPanel({
         {activeAction &&
         ["request_info", "escalate", "resolve"].includes(activeAction) ? (
           <div className="mt-3 rounded-2xl border border-violet-500/15 bg-violet-500/[.04] p-3">
-            <label className="text-[9px] font-semibold text-violet-200">
+            <label htmlFor={`case-note-${row.conversation_id}`} className="text-sm font-semibold text-[var(--wh-text)]">
               {caseActionPrompt(activeAction)}
             </label>
             <textarea
+              id={`case-note-${row.conversation_id}`}
               autoFocus
               value={note}
               onChange={(event) => onNoteChange(event.target.value)}
               rows={3}
               placeholder={caseActionPlaceholder(activeAction)}
-              className="mt-2 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-[11px] leading-5 outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-500/35"
+              className="mt-2 w-full resize-none rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-sm leading-6 outline-none placeholder:text-[var(--wh-text-muted)] focus:border-violet-500/35"
             />
             <div className="mt-2 flex justify-end gap-2">
               <button
                 type="button"
                 disabled={busy}
                 onClick={onCancel}
-                className="min-h-9 rounded-xl px-3 text-[9px] font-semibold text-[var(--wh-text-secondary)]"
+                className="min-h-11 rounded-xl px-3 text-xs font-semibold text-[var(--wh-text-secondary)]"
               >
                 Cancel
               </button>
@@ -858,7 +862,7 @@ function CaseManagementPanel({
                 type="button"
                 disabled={busy || !note.trim()}
                 onClick={() => onSubmit(activeAction)}
-                className="min-h-9 rounded-xl bg-violet-500 px-4 text-[9px] font-semibold disabled:opacity-50"
+                className="min-h-11 rounded-xl bg-violet-700 px-4 text-xs font-semibold text-white disabled:opacity-50"
               >
                 {busy ? "Updating…" : caseActionLabel(activeAction)}
               </button>
@@ -866,7 +870,7 @@ function CaseManagementPanel({
           </div>
         ) : null}
         <details className="mt-3 border-t border-[var(--wh-border-subtle)] pt-3">
-          <summary className="cursor-pointer text-[9px] font-semibold text-violet-300">
+          <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--wh-accent-text)]">
             Request history · {events.length + 1} update
             {events.length === 0 ? "" : "s"}
           </summary>
@@ -902,10 +906,10 @@ function CaseFact({
 }) {
   return (
     <div className={wide ? "sm:col-span-1" : ""}>
-      <p className="text-[8px] font-semibold uppercase tracking-wide text-[var(--wh-text-muted)]">
+      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--wh-text-secondary)]">
         {label}
       </p>
-      <p className="mt-1 text-[10px] leading-4 text-[var(--wh-text-secondary)]">{value}</p>
+      <p className="mt-1 text-sm leading-6 text-[var(--wh-text-secondary)]">{value}</p>
     </div>
   );
 }
@@ -921,8 +925,8 @@ function StaffHistoryItem({
 }) {
   return (
     <div>
-      <p className="text-[9px] font-medium text-[#D2D5DC]">{title}</p>
-      <p className="mt-0.5 text-[8px] text-[var(--wh-text-muted)]">
+      <p className="text-sm font-medium text-[var(--wh-text)]">{title}</p>
+      <p className="mt-0.5 text-xs text-[var(--wh-text-secondary)]">
         {new Date(time).toLocaleString([], {
           day: "numeric",
           month: "short",
@@ -931,7 +935,7 @@ function StaffHistoryItem({
         })}
       </p>
       {note ? (
-        <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-secondary)]">{note}</p>
+        <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--wh-text-secondary)]">{note}</p>
       ) : null}
     </div>
   );

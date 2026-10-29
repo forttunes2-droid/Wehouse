@@ -121,6 +121,7 @@ declare
     'activity_event_audiences',
     'wallets',
     'withdrawals'
+    ,'operational_cases','operational_case_events'
   ];
 begin
   foreach relation_name in array protected_relations loop

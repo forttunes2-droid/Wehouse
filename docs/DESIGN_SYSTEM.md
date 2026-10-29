@@ -162,6 +162,12 @@ Use short transitions for opening/closing panels and state changes, and truthful
 
 ### Catalogue arrangement
 
+Account data requests and licence notices use the existing AccountShell and theme
+tokens. Review forms use readable labels, 44px minimum actions, explicit outcomes
+and public retention reasons; response recording must not visually imply automatic
+erasure. Case history keeps line breaks and readable text in either theme. Library
+notices load on demand rather than increasing initial-page text/JS or database use.
+
 Use horizontal shelves to browse actual Short Let, Long Let and Experience category
 results. A shelf uses the same card as the full results grid. “See all” applies the
 corresponding real search filter; entering a query or choosing filters shows the

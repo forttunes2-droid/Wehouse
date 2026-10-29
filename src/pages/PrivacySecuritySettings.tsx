@@ -6,6 +6,7 @@ import SecuritySettings from '@/pages/SecuritySettings';
 import MyReports from '@/components/MyReports';
 import type { Profile } from '@/types';
 import { useWorkspaceAccess } from '@/hooks/useWorkspaceAccess';
+import { personalDataRequest } from '@/lib/personalDataReview';
 
 type Section='privacy'|'access'|'devices'|'close'|'reports'|'reviews';
 type Props={profile:Profile;onUpdate:(profile:Profile)=>void;onBack:()=>void;onLogout?:()=>Promise<unknown>;initialSection?:Section};
@@ -44,8 +45,8 @@ export default function PrivacySecuritySettings({profile,onUpdate,onBack,onLogou
         )}
       </AccountSection>}
       <AccountSection title="Your personal data">
-        <AccountRow title="Request access, correction or deletion" detail="Send a personal-data request to WeHouse and follow its reply in Messages" onClick={()=>window.dispatchEvent(new CustomEvent('openSupportChat',{detail:{subject:'Personal data request: access, correction or deletion',category:'account_access',contextType:'general',contextSnapshot:{source_type:'privacy_request',source_id:profile.user_id}}}))} icon={<ShieldIcon/>}/>
-        <p className="px-4 pb-4 text-xs leading-5 text-[var(--wh-text-secondary)]">Choose what you need in the message and send it to submit your request. WeHouse may need to confirm your identity. Payment, booking and dispute records may require separate review before deletion.</p>
+        {(['access','correction','deletion'] as const).map(kind=><AccountRow key={kind} title={personalDataRequest(kind,profile.user_id).subject!} detail={kind==='access'?'Ask for a copy of your personal information':kind==='correction'?'Tell WeHouse what needs to be corrected':'Review what can be erased and what must be retained'} onClick={()=>window.dispatchEvent(new CustomEvent('openSupportChat',{detail:personalDataRequest(kind,profile.user_id)}))} icon={<ShieldIcon/>}/>)}
+        <p className="px-4 pb-4 text-xs leading-5 text-[var(--wh-text-secondary)]">Send your message to submit a request. Follow its case updates and reply in Messages. WeHouse will review your request and explain the completed work and any information retained, including the reason. Closing your account does not erase all records.</p>
       </AccountSection>
     </>}
   </AccountShell>;

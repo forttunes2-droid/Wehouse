@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {lazy,Suspense,useEffect,useMemo,useRef,useState} from 'react';
 import { withTimeout } from '@/lib/withTimeout';
 import PhoneNotificationSettings from '@/components/PhoneNotificationSettings';
 import SettingSwitch from '@/components/SettingSwitch';
@@ -14,6 +14,7 @@ import AccountShell, {
 } from "@/components/AccountShell";
 import { AccountIcon, WorkspaceIcon } from "@/components/WorkspaceMark";
 import AccountHelpCenter from "@/components/AccountHelpCenter";
+const OpenSourceLicences=lazy(()=>import('@/components/OpenSourceLicences'));
 import type { Profile } from "@/types";
 import PrivacySecuritySettings from "@/pages/PrivacySecuritySettings";
 import MediaViewer from "@/components/MediaViewer";
@@ -80,6 +81,7 @@ type Panel =
   | "appearance"
   | "notifications"
   | "legal"
+  | "licences"
   | "privacy_security"
   | "workspaces"
   | "help"
@@ -499,6 +501,7 @@ function AccountCenterContent({
     </AccountShell>;
   }
 
+  if(panel==='licences')return <Suspense fallback={<AccountShell profile={profile} title="Open-source licences" onBack={()=>setPanel('legal')}><p role="status">Loading library notices…</p></AccountShell>}><OpenSourceLicences profile={profile} onBack={()=>setPanel('legal')}/></Suspense>;
   if (panel === "legal") {
     return (
       <AccountShell profile={profile} title="Legal documents" onBack={() => setPanel(null)}>
@@ -507,6 +510,7 @@ function AccountCenterContent({
             onClick={() => openLegal("privacy_policy")} />
           <LegalCard title="Terms of Service" published={published.terms} accepted={legal.terms_accepted}
             onClick={() => openLegal("terms_of_service")} />
+          <AccountRow title="Open-source licences" detail="Library versions, original notices and source" onClick={()=>setPanel('licences')} icon={<AccountIcon name="legal"/>}/>
         </div>
       </AccountShell>
     );
