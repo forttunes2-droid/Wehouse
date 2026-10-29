@@ -27,6 +27,6 @@ export const supabase={rpc:async(name:string,args:any={})=>{
  if(name==='respond_to_shared_housing_invite'){if(args.p_group_id!=='shared-existing'||control.actor!==guest)throw new Error('Wrong invitation actor');w.__accepted=args.p_accept;return{data:group(),error:null};}
  if(name==='create_my_shared_housing_payment'){if(!control.allAccepted)throw new Error('Payment too early');return{data:{reference:'own-share-reference'},error:null};}
  throw new Error('Unexpected practical fixture API '+name);
-},functions:{invoke:async(name:string,args:any)=>{control.calls.push({name,args});if(name!=='payment-init'||args.body.reference!=='own-share-reference')throw new Error('Wrong payment');return{data:{already_paid:true},error:null};}}};
+},functions:{invoke:async(name:string,args:any)=>{control.calls.push({name,args});if(name!=='payment-init'||args.body.reference!=='own-share-reference')throw new Error('Wrong payment');return{data:{success:true,already_paid:true,reference:args.body.reference,purpose:'shared_housing_share'},error:null};}}};
 w.__practicalTransport=control;
 export const uploadStorageObjectWithProgress=async()=>{throw new Error('Fixture uploads prohibited');};

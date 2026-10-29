@@ -50,8 +50,14 @@ set local role authenticated;
 do $$begin
  if public.current_actor_has_personal_workspace() or public.user_has_active_workspace('presence-1','personal') then raise exception 'Personal-only restriction bypassed';end if;
  if not public.user_has_active_workspace('presence-1','worker') then raise exception 'Personal restriction incorrectly revoked Worker access';end if;
+ begin perform public.send_friend_request('presence-3');raise exception 'FAIL: restricted Personal account requested a Friend';
+ exception when insufficient_privilege then null;
+ when raise_exception then if sqlerrm<>'Active Personal account required' then raise;end if;end;
 end $$;
 reset role;
+do $$begin
+ if exists(select 1 from public.friends where user_low='presence-1' and user_high='presence-3') then raise exception 'Denied Friend request still stored';end if;
+end $$;
 update public.user_sessions set is_active=false where user_id='presence-1';
 set local role authenticated;
 do $$begin

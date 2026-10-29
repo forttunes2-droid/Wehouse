@@ -14,6 +14,8 @@ const resolveReturn = exports.resolvePaymentReturnUrl;
 const sessionExports = {};
 const marketExports = {};
 const quoteExports = {};
+const checkoutExports = {};
+vm.runInNewContext(compile(await read('supabase/functions/_shared/payment-checkout.ts')), {exports:checkoutExports,URL});
 vm.runInNewContext(compile(await read('supabase/functions/_shared/service-quote.ts')), {exports:quoteExports,Intl,Date});
 vm.runInNewContext(compile(await read('supabase/functions/_shared/payment-market.ts')), { exports: marketExports });
 vm.runInNewContext(compile(await read("supabase/functions/_shared/liveSession.ts")), { exports: sessionExports, atob });
@@ -103,6 +105,7 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
     paymentMinorUnits: marketExports.paymentMinorUnits,
     resolvePaymentMarket: marketExports.resolvePaymentMarket,
     serviceCheckoutContractMatches:quoteExports.serviceCheckoutContractMatches,
+    paystackCheckoutDestination:checkoutExports.paystackCheckoutDestination,
     hasLiveSession: sessionExports.hasLiveSession,
     consumeUserAction: async (...args) => {if(name==='payment-init')assert.equal(args[5],true);return { allowed: !extraRows.rateDenied, retryAfterSeconds: 30 };},
     hasActiveWorkspace: sessionExports.hasActiveWorkspace,
@@ -259,4 +262,14 @@ test('checkout requires throttling and a persisted pending session before succes
 });
 test('checkout rejects provider initialization belonging to another reference',async()=>{
  const checkout=await checkoutHarness('payment-init',{},true,{...hotelRows(),providerInitialization:{reference:'another-payment'}});assert.equal((await checkout.request()).status,400);assert.equal(checkout.initialized.length,1);
+});
+test('checkout refuses an invalid saved destination without creating another provider session',async()=>{
+ const fixture=hotelRows();
+ fixture.booking_payments.metadata={...fixture.booking_payments.metadata,paystack_authorization_url:'https://untrusted.invalid/pay',paystack_access_code:'fixture-code'};
+ const checkout=await checkoutHarness('payment-init',{},true,fixture);assert.equal((await checkout.request()).status,409);assert.equal(checkout.initialized.length,0);
+});
+test('checkout does not publish a provider response with a credentialed or alternate-origin destination',async()=>{
+ for(const authorization_url of ['https://untrusted.invalid/pay','https://user:secret@checkout.paystack.com/pay','https://checkout.paystack.com:444/pay']){
+  const checkout=await checkoutHarness('payment-init',{},true,{...hotelRows(),providerInitialization:{authorization_url}});const response=await checkout.request();assert.equal(response.status,502);assert.equal((await response.json()).success,false);assert.equal(checkout.initialized.length,1);
+ }
 });

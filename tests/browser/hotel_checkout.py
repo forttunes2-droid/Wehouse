@@ -39,7 +39,7 @@ async def main():
        saved.update(status='cancelled',payment_status='expired');data=True
        if mode=='lost-release' and lost:lost=False;status=503;data={'message':'The release result is unknown'}
      elif name=='create_hotel_booking_payment':data={'success':True,'reference':'WHH_fixture_77','already_paid':False}
-     elif name=='payment-init':data={'success':True,'reference':'wrong-reference' if mode=='wrong-reference' else 'WHH_fixture_77','authorization_url':'https://untrusted.example.invalid/pay' if mode=='bad-url' else 'https://checkout.paystack.com/fixture'}
+     elif name=='payment-init':data={'success':True,'purpose':'hotel_booking','reference':'wrong-reference' if mode=='wrong-reference' else 'WHH_fixture_77','authorization_url':'https://untrusted.example.invalid/pay' if mode=='bad-url' else 'https://checkout.paystack.com/fixture'}
      else:raise AssertionError('Unexpected Hotel API '+name)
      await handler.fulfill(status=status,headers=headers,content_type='application/json',body=json.dumps(data))
     page.on('pageerror',lambda error:errors.append(str(error)));await page.route('**/*',route)

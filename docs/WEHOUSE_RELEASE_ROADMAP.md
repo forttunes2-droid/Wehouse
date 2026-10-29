@@ -8,6 +8,38 @@ and history; they do not reopen settled rules or create additional workstreams.
 
 ## Current engineering checkpoints
 
+### Shared marketplace checkout receipt validation — 29 October
+
+Reserve fees, Short/Long Let rent, later-year rent, shared housing contributions,
+Hotel bookings, agreed Services and Experience bookings use one initializer. Its
+receipt must contain the exact requested reference and purpose, real boolean
+status and a confirmed HTTPS Paystack checkout origin without credentials or a
+nonstandard port. Missing/malformed/failed responses cannot redirect or become
+Paid. Already-paid receipts carry no checkout destination. The shared provider
+destination function also validates new and saved sessions in Test payment-init
+version 12 with its existing JWT requirement preserved. An invalid saved session
+fails rather than silently starting another provider session. No amount, currency,
+commission, protection, later-rent credit or Partner-settlement rule changes.
+
+All 853 source tests, production build, focused lint and frozen Edge type check
+pass. Browser verification passes 18 Hotel recovery journeys, 28 Experience
+commerce journeys including real component checkout/mismatch/failure controls,
+both later-rent/customer-and-Partner layouts, 48 practical shared-cost/profile
+journeys and both Service quote failure journeys. APIs/provider responses are
+isolated fixtures. An unauthenticated request to the deployed Test endpoint
+returns 401 without entering payment handling; no charge was initiated. These
+checks do not replace signed provider settlement/refund verification or native
+store subscription acceptance.
+
+On `44409d39`, fresh migration replay, upgrade preservation/rollback and the new
+personal-data contract passed. Its recovery assertion incorrectly inspected the
+private Friends table while still using the browser role; that inspection now
+occurs after RESET ROLE, and the same denied request/no-insert proof passes in the
+smaller applied-Test presence contract. The browser workflow's only assertion
+failure looked for the retired combined privacy row; it now follows the separate
+deletion action and canonical account Help context. Fresh exact-commit CI follows
+the next push; neither fix grants browser access or weakens business checks.
+
 ### Reviewed personal-data requests and bundled notices — 29 October
 
 The owner's final choice is tracked review, replacing the earlier automatic-erasure
@@ -3892,7 +3924,7 @@ event or scoped read projection is not another editable source of truth.
 | Money | Booking-to-provider reconciliation matrix | Internal sandbox integration/recovery work and evidence pending for every enabled purpose: order review, exact total/currency, price/capacity revalidation, charge, signed and duplicate/delayed webhook, cancellation, refund, dispute, held/released/reversed earnings and withdrawal. Include stale tabs, lost responses, failed/late settlement, chargeback after Partner payout and bank-change recovery. Independently reconcile provider and ledger results. Live-account authorization/credentials are external; engineering of these journeys is internal |
 | Pro billing | Web/native subscription lifecycle | Verify prices, versioned terms, purchase, entitlement, paid-through cancellation, renewal, failed payment, refund/revocation, restore and support. Exercise free/active/expired/under-review states in main workspaces and Paid Tools. Pro never grants trust or internal authority |
 | Moderation | Report through resolution | Every enabled report needs a receipt, scoped operator queue, evidence permissions, decision/reason, reporter status and escalation/appeal. Include portfolio claims, reviews, uploads, chat, hotels and properties. Whole-journey evidence pending |
-| Privacy | Account and data-rights operations | Verify profile changes, closure, access/export/deletion requests, retained financial/dispute evidence, private media expiry and consent/version changes through authorized operator actions. Coverage and operating evidence pending |
+| Privacy | Account and data-rights operations | Owner chose tracked review. Separate access/correction/deletion drafts now reach the existing account-linked case, with assigned Admin/Creator step-up, stale/retry receipts, completed-work and retention reasons, protected resolution and customer tracking. Test migration 20261029190434 and SQL/browser contracts pass. Closure is explicitly access removal. Remaining: exercise actual access/export, correction and reviewed erasure fulfilment across retained financial/dispute evidence, private media expiry and approved consent/retention rules; a response attestation alone is not erasure evidence |
 | Discovery | Search/maps/followed-search lifecycle | Verify filters, sort, pagination, empty results, map/list agreement, approximate versus entitled exact location, followed-search reopen/edit/delete and notifications from every publication/edit path. Hosted whole-flow evidence pending |
 | Platform | Deployed configuration parity | MFA source migration matches Test version 20261028121039; the 16 dependent Edge handlers are updated and hosted Auth/Data API/Edge checks pass. Experience Help matches Test version 20261028123420. All seven workflows, including fresh/upgrade replay and browser checks, pass on 7e35e40c. Test shared-table authority migrations 20261028132729/20261028133124 and their contract require fresh CI on the next reviewed commit. Remaining: complete source/Test/Production history disposition and reviewed Production migration/Edge/secret/schedule rollout with rollback. Production was not changed. |
 | Dependencies | Toolchain vulnerability remediation | Existing npm audit findings need reviewed remediation and regression evidence. Do not force a Tailwind major upgrade merely to clear an advisory count. Review maintained/pinned runtime/provider dependencies and preserve lockfiles |

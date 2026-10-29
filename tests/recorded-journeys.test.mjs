@@ -99,7 +99,7 @@ test('an unknown Service Worker job state cannot become a new request or a confi
 
 test('booking adapters reject missing cancellation, inspection and move-in receipts',async()=>{
  let data=null;
- const api=moduleAt('src/lib/supabase/reservations.ts',{'./client':{supabase:{rpc:async()=>({data,error:null})}},'@/lib/locationPresentation':{}});
+ const api=moduleAt('src/lib/supabase/reservations.ts',{'./housing-payments':{initializePaymentReference:async()=>{throw Error('This test must never initiate payment');}},'./client':{supabase:{rpc:async()=>({data,error:null})}},'@/lib/locationPresentation':{}});
  assert.ok((await api.cancelReservation('booking')).error);
  assert.ok((await api.cancelPaidShortLetStay('booking')).error);
  assert.ok((await api.createInspectionRequest('booking')).error);
@@ -149,7 +149,7 @@ test('A hotel receipt renders the verified merchant, stay, amount and reference 
 });
 test('Short Let checkout bootstraps the server reference and reuses it for payment-init', async () => {
   const calls=[];
-  const {initializeShortStayPayment}=moduleAt('src/lib/supabase/housing-payments.ts',{'./client':{supabase:{rpc:async(name,args)=>{calls.push([name,args]);return {data:{success:true,reference:'WHSTAY-SERVER'},error:null};},functions:{invoke:async(name,args)=>{calls.push([name,args]);return {data:{success:true,authorization_url:'https://checkout.paystack.com/test'},error:null};}}}}});
+  const {initializeShortStayPayment}=moduleAt('src/lib/supabase/housing-payments.ts',{'@/lib/withTimeout':{withTimeout:task=>task},'../../../supabase/functions/_shared/payment-checkout':moduleAt('supabase/functions/_shared/payment-checkout.ts',{}, {URL}),'./client':{supabase:{rpc:async(name,args)=>{calls.push([name,args]);return {data:{success:true,reference:'WHSTAY-SERVER'},error:null};},functions:{invoke:async(name,args)=>{calls.push([name,args]);return {data:{success:true,reference:args.body.reference,purpose:'apartment_rent',authorization_url:'https://checkout.paystack.com/test'},error:null};}}}}});
   const result=await initializeShortStayPayment('reservation-one');
   assert.equal(result.result.success,true);
   assert.equal(calls[0][0],'create_short_stay_payment');

@@ -35,7 +35,7 @@ async def main():
      if state['lost_acceptance']:return await h.fulfill(status=503,body=json.dumps({'message':'Synthetic lost acceptance receipt'}),headers=headers)
      data=state['consent']
     elif name=='create_rent_plan_contribution_payment':data={'success':True,'reference':'WHNEXT-'+'A'*32,'amount':150000,'currency':'NGN'}
-    elif name=='payment-init':data={'success':True,'reference':'WHNEXT-'+'A'*32,'authorization_url':'https://checkout.paystack.com/rent-fixture'}
+    elif name=='payment-init':data={'success':True,'purpose':'rent_plan_contribution','reference':'WHNEXT-'+'A'*32,'authorization_url':'https://checkout.paystack.com/rent-fixture'}
     elif name=='get_my_property_later_rent_accounts':data={'listing_id':args['p_listing_id'],'items':[{'plan_id':PLAN,'reservation_id':'rent-agreement-browser','tenant_name':'Ada','status':'active'}],'has_more':False,'next_id':None}
     elif name=='get_my_rent_settlement_setup':data={'listing_id':args['p_listing_id'],'bank_account_id':BANK,'bank_name':'Synthetic Bank','last4':'0123','ready':state['setup_ready']}
     elif name=='rent-settlement-setup':state['setup_ready']=True;data={'success':True,'ready':True,'bank_account_id':BANK}

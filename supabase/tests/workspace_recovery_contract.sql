@@ -140,10 +140,12 @@ do $$declare result jsonb;begin
  begin perform public.send_friend_request('sanction-other');raise exception 'FAIL: restricted Personal action';
  exception when insufficient_privilege then null;
  when raise_exception then if sqlerrm<>'Active Personal account required' then raise;end if;end;
- if exists(select 1 from public.friends where user_low=least('sanction-person','sanction-other') and user_high=greatest('sanction-person','sanction-other') and status='pending') then raise exception 'FAIL: denied Personal request was still stored';end if;
  perform public.my_account_reviews(); -- Account review/security remain available.
 end $$;
 reset role;
+do $$begin
+ if exists(select 1 from public.friends where user_low=least('sanction-person','sanction-other') and user_high=greatest('sanction-person','sanction-other') and status='pending') then raise exception 'FAIL: denied Personal request was still stored';end if;
+end $$;
 select set_config('request.jwt.claims','{"sub":"b8110000-0000-4000-8000-000000000004","session_id":"b8110000-0000-4000-8000-000000000004","role":"authenticated"}',true);
 set local role authenticated;
 select public.review_workspace_access('sanction-person','personal',false,'Personal review has been resolved',current_setting('test.personal_version')::uuid,'b8110000-9000-4000-8000-000000000001');

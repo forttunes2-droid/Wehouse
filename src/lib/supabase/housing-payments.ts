@@ -1,32 +1,18 @@
 import { supabase } from "./client";
+import {withTimeout} from '@/lib/withTimeout';
+import {paymentCheckoutReceipt,type PaymentInitResult} from '../../../supabase/functions/_shared/payment-checkout';
 
-type PaymentInitResult = {
-  success?: boolean;
-  already_paid?: boolean;
-  reference?: string;
-  purpose?: string;
-  authorization_url?: string;
-  access_code?: string;
-  existing?: boolean;
-  error?: string;
-};
-
-export async function initializePaymentReference(reference: string) {
-  const { data, error } = await supabase.functions.invoke("payment-init", {
-    body: { reference },
-  });
-  if (!error) return { result: data as PaymentInitResult | null, error: null };
-  let message = error.message || "Payment checkout could not start";
-  try {
-    const body = await (error as any).context?.json?.();
-    if (body?.error) message = String(body.error);
-  } catch {
-    /* The network response may not contain JSON. */
+export async function initializePaymentReference(reference:string,purpose:string):Promise<{result:PaymentInitResult|null;error:Error|null}>{
+ try{
+  if(!/^[A-Za-z0-9.=_-]{6,120}$/.test(reference))throw Error('The payment reference could not be confirmed.');
+  const {data,error}=await withTimeout(supabase.functions.invoke('payment-init',{body:{reference}}),25000,'Checkout result is unknown. Refresh this booking before retrying.');
+  if(error){
+   let message=error.message||'Payment checkout could not start';
+   try{const body=await error.context?.clone?.().json();if(typeof body?.error==='string'&&body.error.length<=2000)message=body.error;}catch{/* A transport error may have no JSON response. */}
+   throw Error(message);
   }
-  return {
-    result: { success: false, error: message } as PaymentInitResult,
-    error: null,
-  };
+  return{result:paymentCheckoutReceipt(data,reference,purpose),error:null};
+ }catch(cause){return{result:null,error:cause instanceof Error?cause:new Error('Checkout could not be confirmed. Refresh before retrying.')};}
 }
 
 export async function initializeApartmentRentPayment(reservationId: string) {
@@ -47,7 +33,7 @@ export async function initializeApartmentRentPayment(reservationId: string) {
       result: { success: false, error: "Rent payment reference is missing" },
       error: null,
     };
-  return initializePaymentReference(reference);
+  return initializePaymentReference(reference,'apartment_rent');
 }
 
 export async function initializeShortStayPayment(reservationId: string) {
@@ -70,6 +56,6 @@ export async function initializeShortStayPayment(reservationId: string) {
       },
       error: null,
     };
-  return initializePaymentReference(reference);
+  return initializePaymentReference(reference,'apartment_rent');
 }
 

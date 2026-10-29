@@ -22,6 +22,8 @@ class Scenario:
   if mode=='customer-complete':self.booking.update(attendance_confirmed_at=self.q['starts_at'],host_finished_at=self.q['ends_at'])
  async def route(self,route):
   req=route.request
+  if req.url.startswith('https://checkout.paystack.com/'):
+   return await route.fulfill(content_type='text/html',body='<h1>Controlled Experience checkout</h1>')
   if req.url.startswith(BASE):return await route.continue_()
   if not req.url.startswith('http://127.0.0.1:54321/'):return await route.abort()
   name=req.url.split('/')[-1].split('?')[0];args=req.post_data_json if req.post_data else {};self.calls.append({'name':name,'args':args});data=[];status=200
@@ -40,6 +42,10 @@ class Scenario:
   elif name=='get_experience_booking_quote':self.q=contract(args['p_participants'],discounted=self.mode=='discount-customer');data={'contract':self.q,'contract_hash':'a'*64,'remaining':8}
   elif name=='hold_experience_booking':self.booking.update(id=args['p_booking_id'],participants=args['p_participants'],contract=self.q);data=self.booking
   elif name=='get_my_experience_booking':data=self.booking
+  elif name=='create_experience_checkout':data={'booking_id':B,'payment_id':P,'reference':'WHEX_'+B.replace('-',''),'already_paid':False}
+  elif name=='payment-init':
+   data={'success':True,'reference':'wrong-reference' if self.mode=='customer-bad-reference' else 'WHEX_'+B.replace('-',''),'purpose':'experience_booking','authorization_url':'https://other.invalid/pay' if self.mode=='customer-bad-destination' else 'https://checkout.paystack.com/experience-fixture'}
+   if self.mode=='customer-checkout-failure':status=503;data={'success':False,'error':'Synthetic checkout connection failure'}
   elif name=='get_my_experience_bookings':data=[self.booking] if self.mode in ('bookings','host-list') else []
   elif name=='cancel_experience_booking':
    self.booking.update(status='cancelled' if self.booking['status']=='pending_payment' else 'review_pending' if self.mode=='customer-late' else 'refund_pending');data=self.booking
@@ -100,6 +106,13 @@ async def main():
       assert context['contextSnapshot']['requester_workspace']==('worker' if mode in ('host-ready','host-list') else 'personal')
      assert await p.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--wh-bg').trim()") == ('#F7F8FB' if theme=='light' else '#090B10')
     await p.screenshot(path=str(OUT/f'{mode}-{theme}.png'),full_page=True);assert not errors,errors;results.append(mode+' '+theme);await ctx.close()
+  for mode in ('customer-unpaid','customer-bad-reference','customer-bad-destination','customer-checkout-failure'):
+   s,ctx,p,errors=await page_for(browser,mode)
+   await p.get_by_role('button',name='Pay ₦5,000.00',exact=True).evaluate('(button)=>{button.click();button.click();}')
+   if mode=='customer-unpaid':await expect(p.get_by_role('heading',name='Controlled Experience checkout',exact=True)).to_be_visible()
+   else:await expect(p.get_by_role('alert')).to_be_visible();assert p.url.startswith(BASE)
+   assert len([c for c in s.calls if c['name']=='create_experience_checkout'])==1 and len([c for c in s.calls if c['name']=='payment-init'])==1
+   assert not errors,errors;results.append(mode+' checked checkout');await ctx.close()
   s,ctx,p,errors=await page_for(browser,'discovery')
   await expect(p.get_by_role('button',name='View activity and dates',exact=False)).to_be_visible()
   await settled_search(p,p.get_by_placeholder('Activity, city or area'),['L','Local','Local walk'],"(window.__discoveryReads.search_experiences||0)")

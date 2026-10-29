@@ -148,10 +148,10 @@ async def main():
     await expect(online).to_be_checked();await online.click();await expect(online).not_to_be_checked()
     assert await page.evaluate('window.__browse.privacy.privacy_activity_visible===false')
     await page.get_by_role('button',name='Back',exact=True).click()
-    await page.get_by_role('button',name='Request access, correction or deletion',exact=False).click()
+    await page.get_by_role('button',name='Request data deletion',exact=False).click()
     request=await page.evaluate('window.__browse.dataRequest')
-    assert request['category']=='account_access' and request['contextSnapshot']=={'source_type':'privacy_request','source_id':'qa-viewer'}
-    await expect(page.get_by_text('Choose what you need in the message and send it to submit your request.',exact=False)).to_be_visible()
+    assert request['category']=='account_access' and request['contextType']=='contextual_help' and request['contextSnapshot']=={'reason_code':'personal_data_deletion','subject_type':'account','source_id':'qa-viewer'}
+    await expect(page.get_by_text('Send your message to submit a request.',exact=False)).to_be_visible()
     await page.evaluate('window.__switchBrowseMode("homes")')
     await expect(page.locator('[data-home-card] [data-media-thumbnail]').first).to_have_attribute('data-media-state','ready')
     await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}-{theme}.png'),full_page=True,timeout=15000)

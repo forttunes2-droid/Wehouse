@@ -1,19 +1,6 @@
 import { supabase } from "./client";
 import { locationLabel } from "@/lib/locationPresentation";
-
-type PaymentInitResult = {
-  success?: boolean;
-  already_paid?: boolean;
-  reference?: string;
-  purpose?: string;
-  authorization_url?: string;
-  access_code?: string;
-  existing?: boolean;
-  error?: string;
-};
-type InvokeErrorWithContext = {
-  context?: { json?: () => Promise<{ error?: unknown }> };
-};
+import {initializePaymentReference} from './housing-payments';
 type ReservationRecord = Record<string, unknown> & {
   id: string;
   listing_id?: string | null;
@@ -86,26 +73,7 @@ export async function createShortStayReservation(
 }
 
 export async function initializeReservationPayment(reference: string) {
-  const { data, error } = await supabase.functions.invoke("payment-init", {
-    body: { reference },
-  });
-  if (error) {
-    let message = error.message || "Reservation checkout could not start";
-    try {
-      const body = await (error as InvokeErrorWithContext).context?.json?.();
-      if (body?.error) message = String(body.error);
-    } catch {
-      /* The network response may not contain JSON. */
-    }
-    return {
-      result: { success: false, error: message } as PaymentInitResult,
-      error: null,
-    };
-  }
-  return {
-    result: data as PaymentInitResult | null,
-    error: null,
-  };
+  return initializePaymentReference(reference,'apartment_reservation');
 }
 
 export async function getReservationForListing(

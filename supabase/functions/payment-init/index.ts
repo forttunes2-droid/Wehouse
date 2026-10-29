@@ -6,6 +6,7 @@ import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
 import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
 import {serviceCheckoutContractMatches} from '../_shared/service-quote.ts';
 import {rentCheckoutSplit} from '../_shared/later-rent.ts';
+import {paystackCheckoutDestination} from '../_shared/payment-checkout.ts';
 
 const cors={
  'Access-Control-Allow-Origin':'*',
@@ -142,10 +143,17 @@ serve(async(req)=>{
    if(routeError||valid?.valid!==true)return json({success:false,error:'Rent terms, consent or Partner settlement changed. Refresh before paying.'},409);
    providerSplit={split:rentCheckoutSplit(meta.rent_settlement_route,amountMinor,isLivePaystackKey(paystackSecret)?'live':'test')};
   }
-  const existingUrl=typeof meta.paystack_authorization_url==='string'?meta.paystack_authorization_url:'',existingCode=typeof meta.paystack_access_code==='string'?meta.paystack_access_code:'';if(existingUrl&&existingCode)return json({success:true,reference,purpose:payment.purpose,authorization_url:existingUrl,access_code:existingCode,existing:true});
+  const existingUrl=typeof meta.paystack_authorization_url==='string'?meta.paystack_authorization_url:'',existingCode=typeof meta.paystack_access_code==='string'?meta.paystack_access_code:'';
+  if(existingUrl||existingCode){
+   const destination=paystackCheckoutDestination(existingUrl);
+   if(!destination||!existingCode)return json({success:false,error:'The saved checkout could not be confirmed. Refresh this booking or contact WeHouse before paying.'},409);
+   return json({success:true,reference,purpose:payment.purpose,authorization_url:destination,access_code:existingCode,existing:true});
+  }
   const response=await fetch('https://api.paystack.co/transaction/initialize',{method:'POST',signal:AbortSignal.timeout(15000),headers:{Authorization:`Bearer ${paystackSecret}`,'Content-Type':'application/json'},body:JSON.stringify({...providerSplit,email:user.email,amount:String(amountMinor),currency:market.currency,reference,callback_url:paymentReturnUrl,metadata:JSON.stringify({purpose:payment.purpose,payment_id:payment.id,listing_id:payment.listing_id||null,hotel_booking_id:payment.hotel_booking_id||null,worker_booking_id:payment.worker_booking_id||null,reservation_id:meta.reservation_id||null,contribution_id:meta.contribution_id||null,shared_group_id:meta.shared_group_id||null,shared_member_id:meta.shared_member_id||null,booking_code:meta.booking_code||null,stay_type:meta.stay_type||null,payment_component:meta.payment_component||null,return_page:returnPage})})});
   let initialized:any=null;try{initialized=await response.json()}catch{initialized=null}if(!response.ok||initialized?.status!==true||typeof initialized?.data?.authorization_url!=='string'||typeof initialized?.data?.access_code!=='string'||!initialized.data.access_code||initialized?.data?.reference!==reference){const upstreamMessage=String(initialized?.message||'Paystack could not initialize this payment');console.error('[payment-init] Paystack initialization rejected',{reference,purpose:payment.purpose,status:response.status,message:upstreamMessage});return json({success:false,error:upstreamMessage,retryable:response.status>=500},response.status>=500?502:400)}
-  const authorizationUrl=String(initialized.data.authorization_url),accessCode=String(initialized.data.access_code);const nextMeta={...meta,return_page:returnPage,paystack_access_code:accessCode,paystack_authorization_url:authorizationUrl,paystack_initialized_at:new Date().toISOString()};const{data:savedSession,error:updateError}=await db.from('booking_payments').update({metadata:nextMeta,updated_at:new Date().toISOString()}).eq('id',payment.id).eq('status','pending').select('id').maybeSingle();if(updateError||savedSession?.id!==payment.id)return json({success:false,error:'Checkout status changed or could not be confirmed. Refresh this booking before paying.',reference,retryable:false},409);
+  const authorizationUrl=paystackCheckoutDestination(initialized.data.authorization_url),accessCode=String(initialized.data.access_code);
+  if(!authorizationUrl)return json({success:false,error:'The payment provider returned an unverified checkout address. Refresh this booking before paying.'},502);
+  const nextMeta={...meta,return_page:returnPage,paystack_access_code:accessCode,paystack_authorization_url:authorizationUrl,paystack_initialized_at:new Date().toISOString()};const{data:savedSession,error:updateError}=await db.from('booking_payments').update({metadata:nextMeta,updated_at:new Date().toISOString()}).eq('id',payment.id).eq('status','pending').select('id').maybeSingle();if(updateError||savedSession?.id!==payment.id)return json({success:false,error:'Checkout status changed or could not be confirmed. Refresh this booking before paying.',reference,retryable:false},409);
   return json({success:true,reference,purpose:payment.purpose,authorization_url:authorizationUrl,access_code:accessCode,existing:false});
  }catch(error){console.error('[payment-init] unexpected failure',{message:error instanceof Error?error.message:String(error)});return json({success:false,error:'Checkout could not be confirmed. Refresh this booking before retrying.',outcome:'unknown'},503)}
 });

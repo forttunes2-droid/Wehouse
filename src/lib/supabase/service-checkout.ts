@@ -24,7 +24,7 @@ export async function acceptServiceQuoteAndCheckout(bookingId:string,revision:nu
  if(checkout.error||checkout.data?.success!==true||typeof checkout.data.reference!=='string'){
   return {result:null,error:checkout.error||new Error(checkout.data?.error||'Checkout could not be confirmed.')};
  }
- const initialized=await initializePaymentReference(checkout.data.reference);
+ const initialized=await initializePaymentReference(checkout.data.reference,'worker_booking');
  if(initialized.result?.success===true&&(initialized.result.reference!==checkout.data.reference||initialized.result.purpose!=='worker_booking')){
   return {result:null,error:new Error('The Service checkout receipt did not match this booking. Refresh before retrying.')};
  }

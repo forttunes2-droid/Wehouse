@@ -1,6 +1,7 @@
 import { supabase } from './client';
 import {matchesDiscoveryText} from '@/lib/discoveryText';
 import { withTimeout } from '@/lib/withTimeout';
+import {initializePaymentReference} from './housing-payments';
 import {publicCatalogRead} from '@/lib/publicCatalogRead';
 async function readHotel<T extends { data: unknown; error: unknown }>(request: PromiseLike<T>): Promise<T> {
   try { return await withTimeout(request, 15000, 'Hotel information took too long to load. Please try again.'); }
@@ -163,15 +164,7 @@ export async function initializeHotelBookingPayment(bookingId: number) {
 
   const reference = String(bootstrap.reference || '');
   if (!reference) return { result: { success: false, error: 'Hotel payment reference is missing' }, error: null };
-  const { data, error } = await withTimeout(supabase.functions.invoke('payment-init', { body: { reference } }),25000,'The payment start result is unknown. Refresh this booking before retrying.');
-  if(!error&&data?.success===true){
-    if(data.reference!==reference)return{result:null,error:new Error('The checkout reference could not be confirmed.')};
-    if(data.already_paid!==true){
-      let url:URL;try{url=new URL(String(data.authorization_url||''));}catch{return{result:null,error:new Error('The payment destination could not be confirmed.')}}
-      if(url.protocol!=='https:'||url.hostname!=='checkout.paystack.com'||url.username||url.password)return{result:null,error:new Error('The payment destination could not be confirmed.')};
-    }
-  }
-  return { result: data as any, error };
+  return initializePaymentReference(reference,'hotel_booking');
 }
 
 export async function getHotelBookingsForUser(userId: string) {

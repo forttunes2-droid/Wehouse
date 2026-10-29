@@ -29,7 +29,7 @@ export async function initializeLaterRentPayment(item:RentHistoryItem){
  if(receipt?.success!==true)throw Error('Rent checkout could not be confirmed.');
  if(receipt.already_paid===true)return{alreadyPaid:true};
  if(typeof receipt.reference!=='string'||!/^WHNEXT-[A-F\d]{32}$/.test(receipt.reference)||receipt.amount!==item.amount||receipt.currency!=='NGN')throw Error('Rent checkout does not match your scheduled payment.');
- const {result,error}=await withTimeout(initializePaymentReference(receipt.reference),25000,'Checkout result is unknown. Refresh before retrying.');
+ const {result,error}=await withTimeout(initializePaymentReference(receipt.reference,'rent_plan_contribution'),25000,'Checkout result is unknown. Refresh before retrying.');
  if(error||result?.success!==true||result.reference!==receipt.reference)throw Error(result?.error||'Rent checkout could not be confirmed. Refresh before retrying.');
  if(result.already_paid)return{alreadyPaid:true};
  const url=new URL(String(result.authorization_url||''));if(url.protocol!=='https:'||url.hostname!=='checkout.paystack.com')throw Error('Payment destination could not be confirmed.');
