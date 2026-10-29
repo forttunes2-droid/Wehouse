@@ -111,28 +111,28 @@ try {
     for(const theme of ['light','dark'])for(const mode of ['experience-sessions-success','experience-sessions-read-error','experience-sessions-wrong-receipt','experience-sessions-archive-error']){
       const page=await browser.newPage({viewport:{width:390,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/?mode='+mode);await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
       if(mode.endsWith('read-error')){await page.getByRole('alert').waitFor();await page.evaluate(()=>window.__walletPro.recover=true);await page.getByRole('button',{name:'Refresh sessions'}).click();}
-      await page.getByLabel('Start date and time').fill('2040-01-01T11:00');await page.getByLabel('Places available').fill('8');await page.getByLabel('Price per participant (NGN)',{exact:true}).fill('2500.25');await page.getByRole('button',{name:'Save prepared session'}).click();
+      await page.getByLabel('Start date and time').fill('2040-01-01T11:00');await page.getByLabel('Session capacity').fill('8');await page.getByLabel('Price per participant (NGN)',{exact:true}).fill('2500.25');await page.getByRole('button',{name:'Save prepared session'}).click();
       if(mode.endsWith('wrong-receipt')){await page.getByRole('alert').waitFor();assert.equal(await page.getByRole('button',{name:'Edit session'}).count(),0);await page.evaluate(()=>window.__walletPro.recover=true);await page.getByRole('button',{name:'Save prepared session'}).click();}
       await page.getByRole('button',{name:'Edit session'}).waitFor();assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.filter(c=>c.name==='save_my_experience_session').at(-1).args.p_price_minor),250025);
-      await page.getByRole('button',{name:'Edit session'}).click();await page.getByLabel('Places available').fill('7');await page.getByRole('button',{name:'Save session changes'}).click();await page.getByText(/7 places/).waitFor();
+      await page.getByRole('button',{name:'Edit session'}).click();await page.getByLabel('Session capacity').fill('7');await page.getByRole('button',{name:'Save session changes'}).click();await page.getByText(/Capacity 7/).waitFor();
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:output+'/'+mode+'-'+theme+'.png',fullPage:true});
       await page.getByRole('button',{name:'Archive prepared session'}).click();if(mode.endsWith('archive-error')){await page.getByRole('alert').waitFor();await page.evaluate(()=>window.__walletPro.recover=true);await page.getByRole('button',{name:'Archive prepared session'}).click();}await page.getByText('No prepared sessions yet.',{exact:true}).waitFor();assert.deepEqual(errors,[]);results.push(mode+' '+theme);await page.close();
     }
     for(const theme of ['light','dark']){
       const page=await browser.newPage({viewport:{width:390,height:900}});await page.goto(base+'/?mode=experience-applications-sessions');await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
-      await page.getByRole('button',{name:/Campus orientation walk/}).click();await page.getByLabel('Start date and time').fill('2040-02-01T11:00');await page.getByLabel('Places available').fill('5');await page.getByLabel('Price per participant (NGN)',{exact:true}).fill('3000');
+      await page.getByRole('button',{name:/Campus orientation walk/}).click();await page.getByLabel('Start date and time').fill('2040-02-01T11:00');await page.getByLabel('Session capacity').fill('5');await page.getByLabel('Price per participant (NGN)',{exact:true}).fill('3000');
       assert.equal(await page.getByRole('button',{name:'Submit for review',exact:true}).isDisabled(),true);assert.equal(await page.getByRole('button',{name:'Save draft',exact:true}).isDisabled(),true);assert.equal(await page.getByRole('button',{name:'Archive activity',exact:true}).isDisabled(),true);
       await page.getByRole('button',{name:'Back to activities',exact:true}).click();
       await page.getByRole('dialog',{name:'Discard unsaved changes?'}).waitFor();
       await page.getByRole('button',{name:'Keep editing',exact:true}).click();
-      assert.equal(await page.getByLabel('Places available').inputValue(),'5');
+      assert.equal(await page.getByLabel('Session capacity').inputValue(),'5');
       await page.getByRole('button',{name:'Save prepared session'}).click();
       await page.getByRole('button',{name:'Edit session'}).waitFor();
       // The saved row renders before the parent clears its dirty/busy guard.
       // Wait for real button actionability; do not click or bypass the guard.
       await page.getByRole('button',{name:'Submit for review',exact:true}).click({trial:true});
       assert.equal(await page.getByRole('button',{name:'Submit for review',exact:true}).isEnabled(),true);
-      await page.getByRole('button',{name:'Back to activities'}).click();await page.getByRole('button',{name:/Campus orientation walk/}).click();await page.getByText(/5 places/).waitFor();results.push('session application continuity '+theme);await page.close();
+      await page.getByRole('button',{name:'Back to activities'}).click();await page.getByRole('button',{name:/Campus orientation walk/}).click();await page.getByText(/Capacity 5/).waitFor();results.push('session application continuity '+theme);await page.close();
     }
   }else if(process.argv.includes('--site-offers-only')){
     for(const theme of ['light','dark'])for(const mode of ['site-offers-success','site-offers-error','site-offers-malformed','site-offers-empty','site-offers-ungrouped','site-offers-paging']){

@@ -110,7 +110,10 @@ test("Worker Jobs and Partner Properties remain the existing operational homes",
     read("src/pages/PropertyOwnerDashboard.tsx"),
   ]);
   assert.match(worker, /\{ id: "jobs", label: "Jobs" \}/);
-  assert.doesNotMatch(worker, /label: "Overview"/);
+  // Requested-service providers keep Jobs. Activity-only providers need an
+  // operational home before they have an unrelated requested-service profile.
+  assert.match(worker, /canManageJobs \? \{ id: "jobs", label: "Jobs" \} : \{ id: "home", label: "Overview" \}/);
+  assert.match(worker, /<WorkerActivationHome[\s\S]*activityBookings=\{access\.capabilities\?\.experience_next\}/);
   assert.match(worker, /<WorkerAvailabilityControl profile=\{profile\}/);
   assert.match(worker, /<WorkerJobsPanelV2/);
   assert.match(partner, /key: "properties"[\s\S]*label: "Properties"/);

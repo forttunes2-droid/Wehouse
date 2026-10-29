@@ -237,9 +237,52 @@ begin
  end;
 end $$;
 
+create function pg_temp.exercise_approved_dates(aid uuid,original_session uuid,h uuid,s uuid,hs uuid,ss uuid) returns void language plpgsql as $$
+declare date_id uuid:=gen_random_uuid();overlap_id uuid:=gen_random_uuid();bid uuid:=gen_random_uuid();start_at timestamptz;receipt jsonb;q jsonb;held jsonb;checkout jsonb;result jsonb;
+begin
+ begin
+  select starts_at+interval '3 hours' into start_at from public.experience_sessions where id=original_session;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+  receipt:=public.save_my_experience_session(aid,date_id,0,3,start_at,4,300000,'NGN');
+  perform pg_temp.expect((receipt->>'activity_revision')::integer=1 and (select status='approved' and revision=3 from public.experience_activities where id=aid),'Host adds a date against reviewed content without withdrawing the approved activity');
+  perform pg_temp.expect(public.save_my_experience_session(aid,date_id,0,3,start_at,4,300000,'NGN')=receipt,'lost new-date response returns the same date');
+  perform pg_temp.expect(pg_temp.rejects(format('select public.save_my_experience_session(%L,%L,0,3,%L,9,300000,%L)',aid,gen_random_uuid(),start_at+interval '2 hours','NGN')),'new approved date cannot exceed the reviewed group limit');
+  perform pg_temp.expect(pg_temp.rejects(format('select public.save_my_experience_session(%L,%L,0,3,%L,4,300000,%L)',aid,overlap_id,start_at-interval '3 hours','NGN')),'a Host cannot open overlapping guided dates');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+  perform pg_temp.expect(pg_temp.rejects(format('select public.set_my_experience_session_availability(%L,0,false)',date_id)),'another Provider cannot change date availability');
+  q:=public.get_experience_booking_quote(date_id,1);held:=public.hold_experience_booking(bid,date_id,1,q->>'contract_hash');checkout:=public.create_experience_checkout(bid);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+  receipt:=public.set_my_experience_session_availability(date_id,0,false);
+  perform pg_temp.expect((receipt->>'availability_revision')::integer=1 and (receipt->>'revision')::integer=1 and not (receipt->>'booking_open')::boolean,'closing availability has its own revision and preserves accepted date terms');
+  perform pg_temp.expect(public.set_my_experience_session_availability(date_id,0,false)=receipt,'availability lost-response retry is idempotent');
+  perform pg_temp.expect(pg_temp.rejects(format('select public.set_my_experience_session_availability(%L,0,true)',date_id)),'stale availability cannot reopen a changed date');
+  perform public.set_my_experience_session_availability(original_session,0,false);
+  perform pg_temp.expect(private.sponsored_experience_context(aid::text,(select host_user_id from public.experience_activities where id=aid)) is null,'closed dates cannot keep an activity eligible for paid promotion');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+  perform pg_temp.expect(public.get_published_experience_sessions(aid)='[]'::jsonb,'closed dates are absent from customer date selection');
+  perform pg_temp.expect(pg_temp.rejects(format('select public.get_experience_booking_quote(%L,1)',date_id)),'closed date rejects a new customer quote');
+  perform pg_temp.expect(public.hold_experience_booking(bid,date_id,1,q->>'contract_hash')->'contract'=held->'contract','existing hold retry keeps accepted terms after the date closes');
+  perform pg_temp.expect(public.create_experience_checkout(bid)->>'reference'=checkout->>'reference','an existing hold may finish checkout after new bookings close');
+  perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+  result:=public.process_verified_paystack_charge('charge.success:'||(checkout->>'reference'),'charge.success',checkout->>'reference',repeat('e',64),now(),300000,'NGN','closed-date-existing-hold');
+  perform pg_temp.expect((result->>'success')::boolean,'verified original held payment is honored after closing availability: '||result::text);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+  perform pg_temp.expect(pg_temp.rejects(format('select public.save_my_experience_session(%L,%L,1,3,%L,4,300000,%L)',aid,date_id,start_at+interval '1 day','NGN')),'paid date time cannot be moved by normal scheduling');
+  perform pg_temp.expect(pg_temp.rejects(format('select public.save_my_experience_session(%L,%L,1,3,%L,4,310000,%L)',aid,date_id,start_at,'NGN')),'paid date standard price stays immutable');
+  perform pg_temp.expect(exists(select 1 from jsonb_array_elements(public.get_my_experience_sessions(aid)) r where r->>'id'=date_id::text and (r->>'edit_locked')::boolean),'Host controls receive the server-held edit lock');
+  perform public.set_my_experience_session_availability(date_id,1,true);
+  perform pg_temp.expect(private.experience_session_remaining(date_id)=3,'reopening preserves the verified participant allocation');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+  perform public.request_experience_booking_review(bid,'payment_issue','Please review this existing protected booking without losing its participant place.');
+  perform pg_temp.expect(private.experience_session_remaining(date_id)=3,'a pending review does not resell the paid participant place');
+  raise exception using errcode='ZX003',message='roll back approved date and payment fixtures';
+ exception when sqlstate 'ZX003' then null;
+ end;
+end $$;
+
 create function pg_temp.exercise_experience_publication(aid uuid,session_id uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,cid text,sid text) returns void language plpgsql as $$
 declare eg uuid;ep integer;pub jsonb;q jsonb;held jsonb;bid uuid:=gen_random_uuid();other_id uuid:=gen_random_uuid();before_contract jsonb;
- checkout jsonb;paid_checkout jsonb;confirmation jsonb;protection uuid;action_id uuid;refund_booking uuid;refund_reference text;review_updated timestamptz;
+ checkout jsonb;paid_checkout jsonb;confirmation jsonb;protection uuid;action_id uuid;refund_booking uuid;refund_reference text;review_updated timestamptz;overview jsonb;
 begin
  update public.creator_elevation_grants set action_classes=array['private_evidence','policy_publish'] where creator_user_id=cid returning creator_elevation_id into eg;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
@@ -251,6 +294,7 @@ begin
  pub:=public.set_my_experience_publication(aid,3,0,true);
  perform pg_temp.expect((pub->>'visible')::boolean and (pub->>'revision')::integer=1,'host explicitly publishes the approved revision');
  perform pg_temp.exercise_experience_sponsored(aid,h,c,s,hs,cs,ss,hid,eg);
+ perform pg_temp.exercise_approved_dates(aid,session_id,h,s,hs,ss);
  perform pg_temp.exercise_experience_discounts(aid,session_id,h,c,s,hs,cs,ss,eg);
  perform pg_temp.expect(public.set_my_experience_publication(aid,3,0,true)=pub,'lost publish response returns the same publication');
  perform pg_temp.expect(pg_temp.rejects(format('select public.get_experience_booking_quote(%L,1)',session_id)),'host cannot book their own session');
@@ -307,7 +351,12 @@ begin
  perform pg_temp.expect(exists(select 1 from public.payment_protection_transactions where id=protection and protection_state='protected' and amount_total=2500 and amount_commission=250 and amount_payee=2250 and protected_ledger_transaction_id is not null),'original accepted commission enters the canonical protected ledger');
  confirmation:=public.process_verified_paystack_charge('charge.success:'||(paid_checkout->>'reference'),'charge.success',paid_checkout->>'reference',repeat('f',64),now(),250000,'NGN','test-current-charge');
  perform pg_temp.expect((confirmation->>'already_processed')::boolean,'provider receipt retry cannot duplicate payment');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+ overview:=public.get_my_provider_workspace_capabilities();
+ perform pg_temp.expect((overview->>'has_activity_bookings')::boolean and jsonb_array_length(overview->'experience_next')=1 and overview->'experience_next'->0->>'booking_id'=other_id::text,'Provider overview contains its verified confirmed activity booking, not the unpaid hold');
+ perform pg_temp.expect(overview->'experience_next'->0->>'starts_at'=(before_contract->>'starts_at') and (overview->'experience_next'->0->>'participants')::integer=1,'overview uses accepted booking time and actual participant count');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+ perform pg_temp.expect(public.get_my_provider_workspace_capabilities()->'experience_next'='[]'::jsonb,'a different Provider cannot read the Host work through the overview');
  perform pg_temp.expect(pg_temp.rejects(format('select public.progress_experience_booking(%L,%L)',other_id,'attend')),'customer cannot report attendance before the accepted session starts');
  perform pg_temp.expect(pg_temp.rejects(format('select public.progress_experience_booking(%L,%L)',other_id,'complete')),'customer cannot release funds before attendance and completion');
  perform pg_temp.expect(public.get_my_payment_receipts(paid_checkout->>'reference')->0->>'booking_type'='experience','shared receipt identifies the actual Experience');

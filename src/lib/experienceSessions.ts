@@ -6,6 +6,7 @@ export type ExperienceSession = {
   id: string; activity_id: string; revision: number; activity_revision: number;
   starts_at: string; ends_at: string; timezone: string; capacity: number;
   price_minor: number; currency: string; status: 'draft' | 'archived';
+  booking_open?:boolean;availability_revision?:number;edit_locked?:boolean;
 };
 const uuid = (v: unknown) => typeof v === 'string' && /^[a-f\d]{8}(-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(v);
 export function sessionReceipt(value: unknown, activityId: string): ExperienceSession {
@@ -16,7 +17,9 @@ export function sessionReceipt(value: unknown, activityId: string): ExperienceSe
     typeof r.ends_at !== 'string' || !Number.isFinite(Date.parse(r.ends_at)) || Date.parse(r.ends_at) <= Date.parse(r.starts_at) ||
     !Number.isInteger(r.capacity) || r.capacity < 1 || r.capacity > 100 ||
     !Number.isSafeInteger(r.price_minor) || r.price_minor < 1 || !/^[A-Z]{3}$/.test(r.currency) ||
-    !['draft', 'archived'].includes(r.status) || typeof r.timezone !== 'string') throw new Error('Session details could not be confirmed. Refresh before continuing.');
+    !['draft', 'archived'].includes(r.status) || typeof r.timezone !== 'string' ||
+    r.booking_open!==undefined&&typeof r.booking_open!=='boolean' || r.edit_locked!==undefined&&typeof r.edit_locked!=='boolean' ||
+    r.availability_revision!==undefined&&(!Number.isSafeInteger(r.availability_revision)||r.availability_revision<0)) throw new Error('Session details could not be confirmed. Refresh before continuing.');
   try { new Intl.DateTimeFormat('en', { timeZone: r.timezone }); }
   catch { throw new Error('Session timezone could not be confirmed.'); }
   return r;
@@ -59,7 +62,8 @@ export async function saveExperienceSession(activity: ExperienceActivity, id: st
     p_activity_id: activity.id, p_session_id: id, p_expected_revision: revision, p_activity_revision: activity.revision,
     p_starts_at: startsAt, p_capacity: capacity, p_price_minor: priceMinor, p_currency: currency,
   }), activity.id);
-  if (row.id !== id || ![revision, revision + 1].includes(row.revision) || row.activity_revision !== activity.revision ||
+  const contentRevision=activity.status==='approved'?(activity.approved_from_revision||activity.revision)-1:activity.revision;
+  if (row.id !== id || ![revision, revision + 1].includes(row.revision) || row.activity_revision !== contentRevision ||
     row.status !== 'draft' || Date.parse(row.starts_at) !== Date.parse(startsAt) || row.capacity !== capacity ||
     row.price_minor !== priceMinor || row.currency !== currency || row.timezone !== activity.details.timezone ||
     Date.parse(row.ends_at) - Date.parse(row.starts_at) !== Number(activity.details.duration_minutes) * 60000) throw new Error('Saved session was not confirmed. Refresh before retrying.');
@@ -69,5 +73,11 @@ export async function archiveExperienceSession(row: ExperienceSession) {
   const saved = sessionReceipt(await rpc('archive_my_experience_session', { p_activity_id: row.activity_id, p_session_id: row.id, p_expected_revision: row.revision }), row.activity_id);
   if (saved.id !== row.id || saved.revision !== row.revision + 1 || saved.status !== 'archived' ||
     ['activity_revision','starts_at','ends_at','timezone','capacity','price_minor','currency'].some(key => saved[key as keyof ExperienceSession] !== row[key as keyof ExperienceSession])) throw new Error('Session archive was not confirmed. Refresh before retrying.');
+  return saved;
+}
+export async function setExperienceSessionAvailability(row:ExperienceSession,open:boolean){
+  const saved=sessionReceipt(await rpc('set_my_experience_session_availability',{p_session_id:row.id,p_expected_revision:row.availability_revision??0,p_open:open}),row.activity_id);
+  if(saved.id!==row.id||saved.revision!==row.revision||saved.status!=='draft'||saved.booking_open!==open||saved.availability_revision!==(row.availability_revision??0)+1||
+    ['activity_revision','starts_at','ends_at','timezone','capacity','price_minor','currency'].some(key=>saved[key as keyof ExperienceSession]!==row[key as keyof ExperienceSession]))throw Error('Date availability could not be confirmed. Refresh before retrying.');
   return saved;
 }

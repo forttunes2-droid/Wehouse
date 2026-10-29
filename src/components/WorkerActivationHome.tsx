@@ -6,8 +6,12 @@ import WeHouseLoadingState from '@/components/WeHouseLoadingState';
 import type { Profile } from '@/types';
 import { withTimeout } from '@/lib/withTimeout';
 import { assertWorkerActivation } from '@/lib/workerActivation';
+import type {ProviderActivityWork} from '@/hooks/useProviderWorkspaceCapabilities';
+import {displayDateTimeAtProperty} from '@/lib/displayDate';
+import {Button} from '@/components/ui/button';
+import {RefreshCw} from 'lucide-react';
 
-type Props = { profile: Profile; onProfile: () => void; onVerification: () => void; onExperiences?: () => void };
+type Props = { profile: Profile; onProfile: () => void; onVerification: () => void; onExperiences?: () => void; activityBookings?:ProviderActivityWork[];hasActivityBookings?:boolean;onActivityBooking?:(id?:string)=>void;onRefresh?:()=>void };
 type Activation = {
   worker_status: string;
   live: boolean;
@@ -26,9 +30,24 @@ type Activation = {
 
 export default function WorkerActivationHome(props: Props) {
   return <div className="space-y-5">
+    {props.onActivityBooking&&(props.hasActivityBookings||Boolean(props.activityBookings?.length))&&<ProviderActivityOverview rows={props.activityBookings||[]} onOpen={props.onActivityBooking} onRefresh={props.onRefresh}/>}
     {props.onExperiences && <ProviderOfferingEntry onService={props.onProfile} onExperience={props.onExperiences} />}
     <ServiceReadinessSummary {...props} />
   </div>;
+}
+
+function ProviderActivityOverview({rows,onOpen,onRefresh}:{rows:ProviderActivityWork[];onOpen:(id?:string)=>void;onRefresh?:()=>void}){
+  return <section aria-label="Next activity bookings" className="space-y-4 rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4 sm:p-5">
+    <header className="flex items-center justify-between gap-2"><h2 className="text-xl font-semibold">Activity bookings</h2>
+      {onRefresh&&<Button type="button" variant="ghost" aria-label="Refresh overview" className="h-11 w-11 shrink-0 p-0" onClick={onRefresh}><RefreshCw aria-hidden="true" className="h-4 w-4"/></Button>}
+    </header>
+    {rows.length===0&&<p className="text-sm text-[var(--wh-text-secondary)]">No confirmed activity bookings to show here. View all bookings for payments and history.</p>}
+    <div className="divide-y divide-[var(--wh-border)]">{rows.map(row=><button type="button" key={row.booking_id} onClick={()=>onOpen(row.booking_id)} className="block min-h-20 w-full space-y-1 py-4 text-left">
+      <span className="block font-semibold">{row.title}</span><span className="block text-sm text-[var(--wh-text-secondary)]">{displayDateTimeAtProperty(row.starts_at,row.timezone)} · {row.participants} {row.participants===1?'participant':'participants'}</span>
+      <span className="block text-sm font-medium text-[var(--wh-accent-text)]">{row.host_finished?'Waiting for participant completion':Date.parse(row.ends_at)<=Date.now()?'Review and finish this session':'View confirmed booking'}</span>
+    </button>)}</div>
+    <Button type="button" variant="outline" className="w-full" onClick={()=>onOpen()}>View all activity bookings</Button>
+  </section>;
 }
 
 function ServiceReadinessSummary({ profile, onProfile, onVerification, onExperiences }: Props) {

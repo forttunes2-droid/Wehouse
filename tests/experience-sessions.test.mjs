@@ -21,7 +21,7 @@ test('session prices preserve minor units and currency precision',()=>{
 });
 test('session receipts reject another activity, malformed money and dates',()=>{
  const h=harness();assert.equal(h.api.sessionReceipt(h.row,h.activity.id).capacity,8);
- for(const patch of [{activity_id:'other'},{price_minor:NaN},{price_minor:0},{capacity:101},{revision:0},{ends_at:h.row.starts_at},{timezone:'Invalid/Zone'},{status:'published'}])assert.throws(()=>h.api.sessionReceipt({...h.row,...patch},h.activity.id));
+ for(const patch of [{activity_id:'other'},{price_minor:NaN},{price_minor:0},{capacity:101},{revision:0},{ends_at:h.row.starts_at},{timezone:'Invalid/Zone'},{status:'published'},{booking_open:'false'},{availability_revision:-1},{edit_locked:'yes'}])assert.throws(()=>h.api.sessionReceipt({...h.row,...patch},h.activity.id));
 });
 test('session save confirms exact inputs and response-loss retry',async()=>{
  const h=harness();const save=()=>h.api.saveExperienceSession(h.activity,h.row.id,0,h.row.starts_at,8,250000,'NGN');
@@ -31,6 +31,24 @@ test('session save confirms exact inputs and response-loss retry',async()=>{
 test('session archive must preserve saved date, price and capacity',async()=>{
  const h=harness();h.set({...h.row,status:'archived',revision:2});assert.equal((await h.api.archiveExperienceSession(h.row)).status,'archived');
  for(const patch of [{capacity:3},{price_minor:1},{revision:1}]){h.set({...h.row,status:'archived',revision:2,...patch});await assert.rejects(h.api.archiveExperienceSession(h.row),/not confirmed/);}
+});
+
+test('approved-date save retains the reviewed content version',async()=>{
+ const h=harness(),activity={...h.activity,status:'approved',revision:3,approved_from_revision:2};
+ h.set({...h.row,activity_revision:1});
+ assert.equal((await h.api.saveExperienceSession(activity,h.row.id,0,h.row.starts_at,8,250000,'NGN')).activity_revision,1);
+ h.set({...h.row,activity_revision:3});
+ await assert.rejects(h.api.saveExperienceSession(activity,h.row.id,0,h.row.starts_at,8,250000,'NGN'),/not confirmed/);
+});
+
+test('date availability has its own revision and cannot rewrite accepted date or price',async()=>{
+ const h=harness(),row={...h.row,revision:4,booking_open:true,availability_revision:2,edit_locked:true};
+ const result={...row,booking_open:false,availability_revision:3};h.set(result);
+ const saved=await h.api.setExperienceSessionAvailability(row,false);assert.equal(saved.revision,4);
+ assert.equal(h.calls[0].name,'set_my_experience_session_availability');assert.equal(h.calls[0].args.p_expected_revision,2);
+ for(const patch of [{revision:5},{starts_at:'2040-01-01T11:00:00Z',ends_at:'2040-01-01T12:00:00Z'},{price_minor:1},{capacity:7},{availability_revision:4},{booking_open:true}]){
+  h.set({...result,...patch});await assert.rejects(h.api.setExperienceSessionAvailability(row,false),/not be confirmed/);
+ }
 });
 
 test('review sessions use revision-bound reviewer authority and validate receipts',async()=>{

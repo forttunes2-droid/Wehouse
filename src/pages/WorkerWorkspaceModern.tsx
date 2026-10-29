@@ -66,7 +66,7 @@ function WorkerWorkspaceContent({
   const serviceReviewed = access.capabilities?.service_reviewed===true;
   const canManageJobs = access.capabilities?.can_manage_jobs===true;
   const inbox = useWorkerInboxSummary(profile.user_id);
-  const rootItem = canManageJobs ? { id: "jobs", label: "Jobs" } : { id: "home", label: "Setup" };
+  const rootItem = canManageJobs ? { id: "jobs", label: "Jobs" } : { id: "home", label: "Overview" };
   const nav = [rootItem,...COMMON_NAV.slice(0,2),
     ...(access.capabilities?.can_manage_showcase?[{id:'showcase',label:'Showcase'}]:[]),...COMMON_NAV.slice(2)].map((item) =>
         item.id === "inbox"
@@ -221,6 +221,10 @@ function WorkerWorkspaceContent({
         profile={profile}
         onProfile={onGoToSetup}
         onExperiences={() => setTab("experiences")}
+        activityBookings={access.capabilities?.experience_next}
+        hasActivityBookings={access.capabilities?.has_activity_bookings}
+        onActivityBooking={id=>{setExperienceBookingTarget({id:id||'',sequence:Date.now()});setTab('experiences');}}
+        onRefresh={access.refresh}
         onVerification={() => onNavigate?.("worker_verification")}
       />
     );

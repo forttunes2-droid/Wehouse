@@ -4,6 +4,35 @@
 
 ## Current engineering checkpoints
 
+### One Provider operational home and reviewed activity dates — 29 October
+
+Test `20261029104902` extends the existing Provider capability receipt with up to
+three owned confirmed activity bookings. The shared workspace opens the existing
+booking detail, completion and full history views; activity-only Providers do not
+need to create an unrelated requested-service profile. Requested-service Providers
+retain their Jobs home. All offerings retain the same person, Services workspace,
+Inbox, Team and earnings.
+
+Test `20261029114720` lets approved hosts add dates within the reviewed activity's
+duration, group size and country currency. A held or paid date retains its time,
+capacity and standard price. Closing a date stops new quotes, public availability
+and Sponsored eligibility, while preserving existing holds and accepted payments.
+Availability has its own optimistic revision; it does not rewrite the customer's
+session agreement. Reopening preserves reserved places, including paid bookings
+under review. Host schedule locks reject overlapping published guided activities.
+The existing action budget also bounds new holds and host date/discount writes.
+
+The complete application/payment/delivery rollback contract passes on the applied
+Test database, including a verified payment after a date closes, outsider rejection,
+retry receipts, private evidence and retained review capacity. The new commands
+remain owner-checked and unavailable to anonymous callers; internal schedule
+helpers have no client execute grant. No additional booking, wallet or identity
+table was introduced. All 827 source tests, TypeScript, production build and
+focused lint pass. Eight approved-date/Provider journeys, ten existing session
+journeys and six offer journeys pass. Phone light/dark screenshots were inspected;
+the compact work summary keeps full booking history one action away. Exact-commit
+CI is checked after pushing this batch.
+
 ### Connected catalogue shelves and CI repairs — 29 October
 
 Homes now browse real Short Let and Long Let sections with the existing listing
@@ -29,7 +58,9 @@ entry now also checks that the reader exposes only its four metadata fields and
 does not grant table reads; the full foundation contract passes on Test. The
 application-browser check found helper text included in a textarea's accessible
 name. Its label/description are now separate, and the exact 32 application and 10
-session browser scenarios pass. Fresh CI on the next pushed commit remains required.
+session browser scenarios pass. All seven CI workflows pass on `4f072e14`, including
+fresh/upgrade replay and the complete Experience SQL contract. Later changes require
+their own exact-commit checks.
 
 ### Experience offers, host visibility and shared Provider entry — 29 October
 

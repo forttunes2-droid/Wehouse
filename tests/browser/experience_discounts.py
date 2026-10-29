@@ -19,7 +19,7 @@ async def main():
      if '127.0.0.1:54321' in request.url and name in ('platform_countries','get_my_experience_sessions','creator_experience_discount_targets','get_my_experience_session_discount','set_my_experience_session_discount','creator_get_experience_discount','creator_set_experience_discount'):
       args=request.post_data_json if request.post_data else {};s.calls.append({'name':name,'args':args});status=200
       if name=='platform_countries':data={'currency_code':'NGN'}
-      elif name=='get_my_experience_sessions':data=[{'id':S,'activity_id':A,'revision':1,'activity_revision':2,'starts_at':s.q['starts_at'],'ends_at':s.q['ends_at'],'timezone':'Africa/Lagos','capacity':8,'price_minor':250000,'currency':'NGN','status':'draft'}]
+      elif name=='get_my_experience_sessions':data=[{'id':S,'activity_id':A,'revision':1,'activity_revision':1,'starts_at':s.q['starts_at'],'ends_at':s.q['ends_at'],'timezone':'Africa/Lagos','capacity':8,'price_minor':250000,'currency':'NGN','status':'draft'}]
       elif name=='creator_experience_discount_targets':data={'activities':[{'id':A,'title':'Campus guided walk','state':'Nasarawa'}],'states':['Nasarawa']}
       else:
        if name.startswith(('set_','creator_set_')):

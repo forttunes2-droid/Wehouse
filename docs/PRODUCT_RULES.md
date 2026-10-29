@@ -240,6 +240,14 @@ share one Provider identity, Services workspace, Inbox, Team and earnings. An
 existing Provider adds an offering; a new Provider can start with either offering.
 Activity-specific expertise and evidence do not require an unrelated service first.
 
+Approved hosts manage dates within the reviewed activity limits. A date with a held
+or paid booking keeps its agreed time, capacity and standard price. Closing that
+date stops new bookings while preserving existing holds and confirmed bookings;
+it is not a cancellation or refund. Reopening retains reserved participant places.
+Changing the reviewed activity content follows the existing review process. The
+same host cannot publish overlapping guided activities. These controls extend the
+existing Provider workspace, bookings and payment records.
+
 Optional activity discounts use the accepted price snapshot. A host-funded offer
 reduces the base price before commission; a WeHouse-funded offer comes from
 WeHouse commission and preserves the host's net. Hosts see current pricing and
