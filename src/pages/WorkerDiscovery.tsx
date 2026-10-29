@@ -1,13 +1,14 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
 import {matchesDiscoveryText} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   getCategoryWithSubcategories,
-  getWorkers,
   supabase,
 } from "@/lib/supabase";
+import {searchServiceProviders,getServiceProvidersByIds,type ServiceProviderCursor} from '@/lib/supabase/workers-public';
+import {withTimeout} from '@/lib/withTimeout';
 import { useSponsoredDiscovery, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { getUserActiveBookings } from "@/lib/supabase/worker-bookings";
 import LocationFilterFields from "@/components/LocationFilterFields";
@@ -28,7 +29,7 @@ import {locationLabel} from '@/lib/locationPresentation';
 import { workerAvatarUrl, workerDisplayName, workerInitial, workerRoleLabel } from "@/lib/workerIdentity";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
-import { formatRecordedMoney } from "@/lib/regional";
+import { formatRecordedMoney,getRegionalDefaults } from "@/lib/regional";
 
 type Category = ServiceCategory & { subcategories: ServiceSubcategory[] };
 const ExperienceDiscovery=lazy(()=>import('@/components/ExperienceDiscovery'));
@@ -57,6 +58,7 @@ function workerMatchesFilters(worker: Profile, filters: {
 }) {
   const hay = [
     workerDisplayName(worker),
+    worker.username || '',
     worker.worker_occupation || "",
     worker.worker_bio || "",
     worker.city || "",
@@ -88,8 +90,9 @@ export default function WorkerDiscovery({
   const [offering,setOffering]=useState<'services'|'experiences'>(initialExperienceId?'experiences':'services');
   const { getBoolean, loading: settingsLoading } = usePlatformSettings();
   const marketplaceEnabled = getBoolean("worker_marketplace_launch_enabled", false);
+  const country=getRegionalDefaults().countryCode;
   const savedState = profile?.state || "",
-    savedCity = profile?.local_government || profile?.city || userCity || "";
+    savedCity = savedState ? profile?.local_government || profile?.city || userCity || "" : '';
   const [workers, setWorkers] = useState<Profile[]>([]),
     [categories, setCategories] = useState<Category[]>([]),
     [loading, setLoading] = useState(true),
@@ -114,37 +117,51 @@ export default function WorkerDiscovery({
       bookingId: string;
     } | null>(null);
   const sponsoredResults = useSponsoredDiscovery('worker', state, city, category,offering==='services');
+  const [hasMore,setHasMore]=useState(false),[cursor,setCursor]=useState<ServiceProviderCursor|null>(null),[paging,setPaging]=useState(false),[categoryError,setCategoryError]=useState(''),[promotedWorkers,setPromotedWorkers]=useState<Profile[]>([]);
+  const searchVersion=useRef(0),pagingLock=useRef(false);
+  const appliedCategory=useRef<string|null>(null);
+  const sponsoredIds=JSON.stringify(sponsoredResults.map(row=>row.resource_id));
+  useEffect(()=>{let live=true;setPromotedWorkers([]);const ids=JSON.parse(sponsoredIds) as string[];if(offering==='services'&&ids.length)void getServiceProvidersByIds(ids).then(rows=>{if(live)setPromotedWorkers(rows);}).catch(()=>{});return()=>{live=false;};},[sponsoredIds,offering,profile?.user_id]);
+  useEffect(()=>{setViewWorker(null);setBookingWorker(null);setChat(null);setActive(new Set());},[profile?.user_id]);
   useEffect(()=>{if(initialExperienceId){setOffering('experiences');setViewWorker(null);setChat(null);}},[initialExperienceId]);
   useEffect(() => {
     if(offering!=='services')return;
     let live = true;
+    setCategoryError('');
+    void withTimeout(getCategoryWithSubcategories(),15000,'Service categories took too long.').then(({categories:rows,error})=>{
+      if(error)throw error;if(live)setCategories((rows||[]) as Category[]);
+    }).catch(()=>{if(live)setCategoryError('Service categories could not be loaded. Refresh to use category filters.');});
+    return()=>{live=false;};
+  },[reload,offering]);
+  useEffect(() => {
+    const request=++searchVersion.current;
+    if(offering!=='services')return;
     setLoading(true);
     setLoadError('');
-    void (async () => {
+    setWorkers([]);setHasMore(false);setCursor(null);setPaging(false);pagingLock.current=false;
+    const timer=window.setTimeout(()=>{void (async () => {
       try {
-        const [{ workers: rows, error }, { categories: cats }] =
-          await Promise.all([
-            getWorkers(),
-            getCategoryWithSubcategories().catch(() => ({ categories: [], error: null })),
-          ]);
-        if (!live) return;
-        if (error) setLoadError(error.message || 'Service Providers could not be loaded.');
-        setWorkers(rows || []);
-        setCategories((cats || []) as Category[]);
+        const page=await searchServiceProviders({country,query:search,category,specialty,state,city});
+        if(request!==searchVersion.current)return;
+        setWorkers(page.workers);setHasMore(page.hasMore);setCursor(page.nextCursor);
       } catch (error: unknown) {
-        if (live) {
+        if (request===searchVersion.current) {
           setWorkers([]);
-          setCategories([]);
           setLoadError(error instanceof Error ? error.message : 'Service Providers could not be loaded.');
         }
       } finally {
-        if (live) setLoading(false);
+        if (request===searchVersion.current) setLoading(false);
       }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [reload,offering]);
+    })();},250);
+    return()=>{window.clearTimeout(timer);searchVersion.current++;};
+  }, [reload,offering,country,search,category,specialty,state,city,profile?.user_id]);
+  async function moreProviders(){
+    if(pagingLock.current||!cursor||!hasMore)return;
+    pagingLock.current=true;setPaging(true);setLoadError('');const request=searchVersion.current;
+    try{const page=await searchServiceProviders({country,query:search,category,specialty,state,city},cursor);if(request===searchVersion.current){setWorkers(previous=>[...new Map([...previous,...page.workers].map(row=>[row.user_id,row])).values()]);setHasMore(page.hasMore);setCursor(page.nextCursor);}}
+    catch(error){if(request===searchVersion.current)setLoadError(error instanceof Error?error.message:'More Service Providers could not be loaded.');}
+    finally{if(request===searchVersion.current){pagingLock.current=false;setPaging(false);}}
+  }
   useEffect(() => {
     if (!profile?.user_id||offering!=='services') return;
     void getUserActiveBookings(profile.user_id).then(({ bookings }) =>
@@ -172,18 +189,19 @@ export default function WorkerDiscovery({
     };
   }, [active, viewWorker]);
   useEffect(() => {
-    if (!initialWorkerId || loading || loadError) return;
-    const found = workers.find(worker => worker.user_id === initialWorkerId);
-    if (found) setViewWorker(found);
-    else toast.error('This Service Provider is unavailable. You can search for another provider.');
-    onInitialWorkerOpened?.();
-  }, [initialWorkerId, loading, loadError, workers, onInitialWorkerOpened]);
+    if(!initialWorkerId)return;
+    let live=true;
+    void getServiceProvidersByIds([initialWorkerId]).then(rows=>{if(!live)return;if(rows[0])setViewWorker(rows[0]);else toast.error('This Service Provider is unavailable. You can search for another provider.');}).catch(()=>{if(live)toast.error('This Service Provider could not be opened. Please retry the shared link.');}).finally(()=>{if(live)onInitialWorkerOpened?.();});
+    return()=>{live=false;};
+  }, [initialWorkerId,onInitialWorkerOpened,profile?.user_id]);
   useEffect(() => {
-    if (!preSelectedCategory || !categories.length) return;
+    if(!preSelectedCategory){appliedCategory.current=null;return;}
+    if (!categories.length || appliedCategory.current===preSelectedCategory) return;
     const direct = categories.find((item) => item.name === preSelectedCategory);
     if (direct) {
       setCategory(direct.name);
       setSpecialty("");
+      appliedCategory.current=preSelectedCategory;
       return;
     }
     const parent = categories.find((item) =>
@@ -194,6 +212,7 @@ export default function WorkerDiscovery({
     if (parent) {
       setCategory(parent.name);
       setSpecialty(preSelectedCategory);
+      appliedCategory.current=preSelectedCategory;
     }
   }, [preSelectedCategory, categories]);
   const selected = useMemo(
@@ -223,25 +242,15 @@ export default function WorkerDiscovery({
       ),
     [workers],
   );
-  const shown = useMemo(
-    () =>
-      liveWorkers
-        .filter((worker) => workerMatchesFilters(worker, { search, category, specialty, state, city,categoryServices }))
-        .sort((a, b) => {
-          const rating = Number(b.rating || 0) - Number(a.rating || 0);
-          return (
-            rating ||
-            workerDisplayName(a).localeCompare(workerDisplayName(b))
-          );
-        }),
-    [liveWorkers, search, category, specialty, state, city,categoryServices],
-  );
+  // The server filters before pagination. A second browser filter can drop a
+  // valid page or use different taxonomy/search rules from the next page.
+  const shown = liveWorkers;
   const visibleFeaturedWorkers = useMemo(
     () => sponsoredResults.map(item => ({ campaignId: item.campaign_id,
-      worker: liveWorkers.find(worker => worker.user_id === item.resource_id) }))
+      worker: promotedWorkers.find(worker => worker.user_id === item.resource_id) }))
       .filter((item): item is { campaignId: string; worker: Profile } =>
         Boolean(item.worker && workerMatchesFilters(item.worker, { search, category, specialty, state, city,categoryServices }))),
-    [sponsoredResults, liveWorkers, search, category, specialty, state, city,categoryServices],
+    [sponsoredResults, promotedWorkers, search, category, specialty, state, city,categoryServices],
   );
 
   const filterCount = [category, specialty, state, city].filter(Boolean).length;
@@ -412,7 +421,7 @@ export default function WorkerDiscovery({
               {loading || settingsLoading
                 ? "Finding Workers…"
                 : marketplaceEnabled
-                  ? `${shown.length} ${shown.length === 1 ? "Worker" : "Workers"}`
+                  ? `${shown.length}${hasMore?'+':''} ${shown.length === 1 ? "Worker" : "Workers"}`
                   : "WeHouse Services"}
             </p>
             <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
@@ -435,7 +444,7 @@ export default function WorkerDiscovery({
         </div>
         {loading || settingsLoading ? (
           <WeHouseLoadingState compact label="Loading" />
-        ) : loadError ? (
+        ) : loadError && workers.length===0 ? (
           <section role="alert" className="rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-5">
             <p className="text-sm text-[var(--wh-text-secondary)]">Service Providers could not be loaded. Try again to continue your search.</p>
             <button type="button" onClick={()=>setReload(value=>value+1)} className="mt-3 min-h-11 rounded-full bg-[var(--wh-violet)] px-5 text-sm font-semibold text-white">Try again</button>
@@ -470,6 +479,8 @@ export default function WorkerDiscovery({
             ))}
           </div>
         )}
+        {!loading&&workers.length>0&&loadError&&<p role="alert" className="text-sm text-[var(--wh-text-secondary)]">{loadError}</p>}
+        {!loading&&hasMore&&<button type="button" disabled={paging} onClick={()=>void moreProviders()} className="min-h-11 rounded-xl border border-[var(--wh-border)] bg-[var(--wh-surface)] px-5 text-sm font-semibold disabled:opacity-50">{paging?'Loading more Providers...':'Show more Providers'}</button>}
       </main>
       {filtersOpen && (
         <DiscoveryFilterSheet
@@ -477,6 +488,7 @@ export default function WorkerDiscovery({
           onClose={() => setFiltersOpen(false)}
           onClear={resetStructured}
         >
+          {categoryError&&<p role="alert" className="text-sm">{categoryError}<button type="button" onClick={()=>setReload(value=>value+1)} className="ml-2 min-h-11 underline">Refresh categories</button></p>}
           <div className="grid grid-cols-2 gap-3">
             <SearchableSelect
               label="Work category"

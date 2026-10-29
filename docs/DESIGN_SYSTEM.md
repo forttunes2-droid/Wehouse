@@ -63,6 +63,14 @@ status color with a label or icon.
 
 ## Controls and feedback
 
+Filter dependent fields together: a region change clears its local area and a
+category change clears its specialty. Filter before pagination on the server;
+avoid a second browser predicate with different taxonomy or text rules. Retain
+existing results when the next page fails and provide retry. Shared record links
+and eligible Sponsored cards must open independently of the loaded results page.
+Account and verification shells take the active workspace explicitly; a person's
+primary role does not identify the workspace they are currently using.
+
 Use these existing components as implementation references:
 
 | Interaction | Shared reference |

@@ -10,6 +10,7 @@ import ExperiencePublicationPanel from '../../src/components/ExperiencePublicati
 import ExperienceHostBookings from '../../src/components/ExperienceHostBookings';
 import ExperienceFinanceReviews from '../../src/components/ExperienceFinanceReviews';
 import WorkerActivationHome from '../../src/components/WorkerActivationHome';
+import WorkerWorkspaceModern from '../../src/pages/WorkerWorkspaceModern';
 import {useProviderWorkspaceCapabilities} from '../../src/hooks/useProviderWorkspaceCapabilities';
 import type {ExperienceActivity} from '../../src/lib/experienceActivities';
 import {CreatorAuthProvider} from '../../src/hooks/useCreatorAuth';
@@ -30,7 +31,8 @@ function ProviderHome({onOpen}:{onOpen:(id?:string)=>void}){
 function Fixture(){
  const [booking,setBooking]=useState<string|null>(mode.startsWith('customer')||mode==='host-ready'?bid:null),[hostList,setHostList]=useState(false);
  let body;
- if(mode==='provider-overview')body=booking?<ExperienceBookingDetail id={booking} viewerId="host" onClose={()=>setBooking(null)}/>:hostList?<ExperienceHostBookings userId="host" onBack={()=>setHostList(false)}/>:<ProviderHome onOpen={id=>{if(id)setBooking(id);else setHostList(true);}}/>;
+ if(mode==='provider-account')body=<WorkerWorkspaceModern profile={{...fixtureProfile,user_id:'host',role:'user',full_name:'Activity Provider',worker_status:null}} onGoToSetup={()=>{}} onLogout={()=>{}} activeWorkspace="worker"/>;
+ else if(mode==='provider-overview')body=booking?<ExperienceBookingDetail id={booking} viewerId="host" onClose={()=>setBooking(null)}/>:hostList?<ExperienceHostBookings userId="host" onBack={()=>setHostList(false)}/>:<ProviderHome onOpen={id=>{if(id)setBooking(id);else setHostList(true);}}/>;
  else if(mode==='discount-host'||mode==='approved-dates')body=<ExperienceSessionsPanel activity={approvedActivity} onDirtyChange={dirty=>{(window as unknown as {__dateDirty:boolean}).__dateDirty=dirty;}}/>;
  else if(mode==='discount-creator')body=<CreatorExperienceDiscounts/>;
  else if(mode==='sponsored')body=<SponsoredCampaignPanel types={['worker','experience']}/>;

@@ -112,7 +112,9 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_checkout_commission_contract.sql
       - name: Verify complete Service quote, consent, protection and cancellation lifecycle
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
-        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/service_quote_lifecycle_contract.sql
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/service_quote_lifecycle_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/service_provider_search_contract.sql
       - name: Verify agreed Long Let monthly and full-term schedules
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_rent_schedule_contract.sql

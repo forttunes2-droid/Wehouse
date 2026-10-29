@@ -33,26 +33,27 @@ export default function LocationFilterFields({
     </div>
   );
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <label className="min-w-0 text-[10px] font-semibold text-[var(--wh-text-secondary)]">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <label className="min-w-0 text-sm font-semibold text-[var(--wh-text-secondary)]">
         Region or state
         <input
           type="text"
           autoComplete="address-level1"
           maxLength={100}
           value={region}
-          onChange={(event) => onRegionChange(event.target.value)}
+          onChange={(event) => {onRegionChange(event.target.value);onLocalityChange('');}}
           placeholder="Any region"
           className={inputClassName}
         />
       </label>
-      <label className="min-w-0 text-[10px] font-semibold text-[var(--wh-text-secondary)]">
+      <label className="min-w-0 text-sm font-semibold text-[var(--wh-text-secondary)]">
         City or local area
         <input
           type="text"
           autoComplete="address-level2"
           maxLength={100}
           value={locality}
+          disabled={!region.trim()}
           onChange={(event) => onLocalityChange(event.target.value)}
           placeholder="Any city or area"
           className={inputClassName}

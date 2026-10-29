@@ -2,7 +2,54 @@
 
 **Status date:** 29 October 2026
 
+The [single open work register](#open-work-register-single-list-update-in-place-do-not-start-another)
+is the current implementation/verification inventory. Dated checkpoints are evidence
+and history; they do not reopen settled rules or create additional workstreams.
+
 ## Current engineering checkpoints
+
+### Connected service filters, public links and Provider controls — 29 October
+
+Test `20261029140052` moves Services discovery from an unpaged national browser
+response to server-filtered pages of 24. Text, category, its actual specialty,
+declared service region/local area and reviewed country are combined before the
+bound. Equal ratings use review count and identity as stable cursor keys. One
+private public-field projection retains the existing review, identity, credential,
+workspace, availability and customer-block rules for search, saved readers and
+bounded direct links. Shared links and paid placements do not depend on the
+currently loaded organic page. No additional Provider identity/table was created.
+
+The combined contract exposed an Abuja/FCT mismatch between browser and database;
+the service comparison now agrees without changing global state keys or existing
+expression indexes. Local-area fields clear when their region changes, including
+the fallback layout. A cleared preselected specialty is not reapplied by refresh.
+Failed pagination keeps current results, repeated clicks share one pending action,
+and stale search responses cannot replace newer criteria. Private fields are not
+returned. Country is part of the existing credential review context; this is not
+activation of other markets or proof of their payment/document readiness.
+
+The shared Account now exposes Sponsored to activity-only Providers; the server
+still selects eligible owned resources and configured rates. Existing requested
+jobs retain the Work tools entry when ordinary service approval is unavailable.
+Pro entitlements and billing remain server-authorised; normal activity dates,
+bookings and fulfillment stay free. Provider Account and shared identity-gate
+headers use their actual workspace rather than the person's primary role.
+
+The full search SQL contract passes on applied Test, including 30 reachable
+results, country separation, literal text, conflicting category/specialty denial,
+direct-link blocks and revoked workspaces. The pre-apply proof used two smaller
+rollback requests after the connector failed to send the combined payload; the
+CLI fallback lacked credentials and made no database change. Two search themes
+and two actual Account-to-Sponsored layouts pass. All 831 source tests, build and
+focused lint pass before the final header/preselection refinements; the final
+checks also pass after those refinements. The eight shared Homes/Hotels width/theme
+journeys pass, including dependent location resets. Services shared-link navigation
+outside the loaded page and eligibility refresh on account change pass in both
+tested themes. Cloudflare security-skill guidance was used for a focused source
+boundary review; this is not a completed whole-codebase security audit. The previous
+commit's remaining CI failure was an approval
+browser assertion still expecting “places”; the full 32-case step passes after
+its expected capacity wording was corrected. Exact-commit CI follows the push.
 
 ### One Provider operational home and reviewed activity dates — 29 October
 

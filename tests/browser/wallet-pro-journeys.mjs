@@ -512,7 +512,7 @@ try {
       const page=await browser.newPage({viewport:{width:320,height:1000}});await page.goto(base+'/?mode=experience-applications-review');await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
       await page.getByRole('button',{name:'Open review queue',exact:true}).click();await page.getByRole('button',{name:/Campus orientation walk/}).click();
       assert.equal(await page.evaluate(()=>getComputedStyle(document.body).margin),'0px','Application styles must load before visual checks');
-      await page.getByText(/8 places.*per participant/).waitFor();
+      await page.getByText(/Capacity 8.*per participant/).waitFor();
       assert.equal(await page.getByRole('button',{name:'Archive prepared session',exact:true}).count(),0);
       assert.equal(await page.getByRole('button',{name:'Edit session',exact:true}).count(),0);
       assert.equal(await page.getByText(/Activity changed since this date was prepared/).count(),0);

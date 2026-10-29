@@ -1,5 +1,37 @@
 import { supabase } from './client';
 import type { Profile } from '@/types';
+import {withTimeout} from '@/lib/withTimeout';
+
+export type ServiceProviderCursor={rating:number;reviews:number;id:string};
+export type ServiceProviderFilters={country:string;query:string;category:string;specialty:string;state:string;city:string};
+function providerRows(value:unknown,ids?:string[]):Profile[]{
+  if(!Array.isArray(value)||value.length>(ids?.length??24))throw Error('Service results could not be confirmed. Please retry.');
+  const seen=new Set<string>();
+  return value.map(row=>{
+    if(!row||typeof row!=='object'||typeof row.user_id!=='string'||!row.user_id||row.user_id.length>120||seen.has(row.user_id)||ids&&!ids.includes(row.user_id)||
+      typeof row.rating!=='number'||!Number.isFinite(row.rating)||row.rating<0||row.rating>5||typeof row.review_count!=='number'||!Number.isInteger(row.review_count)||row.review_count<0)throw Error('Service results could not be confirmed. Please retry.');
+    seen.add(row.user_id);
+    return {...row,role:'worker',profile_complete:true,worker_status:'verified',worker_verified:true,available:true,deleted:false,suspended:false,banned:false} as Profile;
+  });
+}
+export async function searchServiceProviders(filters:ServiceProviderFilters,after?:ServiceProviderCursor|null){
+  const {data,error}=await withTimeout(supabase.rpc('search_service_providers',{
+    p_country:filters.country,p_query:Array.from(filters.query.trim()).slice(0,80).join('')||null,p_category:filters.category||null,p_specialty:filters.specialty||null,
+    p_state:filters.state||null,p_city:filters.city||null,p_after_rating:after?.rating??null,p_after_reviews:after?.reviews??null,p_after_id:after?.id??null,
+  }),15000,'Service search took too long. Please retry.');
+  if(error)throw Error(error.message||'Service search could not be loaded. Please retry.');
+  if(!data||typeof data.has_more!=='boolean')throw Error('Service results could not be confirmed. Please retry.');
+  const workers=providerRows(data.items),last=workers.at(-1),cursor=data.next_cursor;
+  if(data.has_more&&(workers.length!==24||!last||!cursor||cursor.id!==last.user_id||cursor.rating!==Number(last.rating)||cursor.reviews!==Number(last.review_count)))throw Error('More service results could not be confirmed. Please refresh.');
+  return{workers,hasMore:data.has_more,nextCursor:data.has_more?cursor as ServiceProviderCursor:null};
+}
+export async function getServiceProvidersByIds(ids:string[]){
+  const selected=[...new Set(ids)];
+  if(selected.length<1||selected.length>12||selected.some(id=>!id||id.length>120))throw Error('Choose valid Service Provider references.');
+  const {data,error}=await withTimeout(supabase.rpc('get_discoverable_service_providers',{p_ids:selected}),15000,'The Service Provider took too long to load. Please retry.');
+  if(error)throw Error(error.message||'Service Providers could not be loaded.');
+  return providerRows(data,selected);
+}
 
 // Public worker discovery must use the backend projection instead of reading
 // arbitrary profile rows. The RPC exposes only the fields intended for the

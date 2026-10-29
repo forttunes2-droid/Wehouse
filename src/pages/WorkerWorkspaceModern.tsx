@@ -127,6 +127,7 @@ function WorkerWorkspaceContent({
       return (
         <AccountShell
           profile={profile}
+          workspace="worker"
           title="Service Worker profile"
           description="Services, coverage and the public details customers see."
           onBack={() => setAccountView("account")}
@@ -148,7 +149,7 @@ function WorkerWorkspaceContent({
         />
       );
     if (accountView === "sponsored")
-      return <AccountShell profile={profile} title="Sponsored" description="Promote an eligible service profile or activity." onBack={() => setAccountView("account")}><SponsoredCampaignPanel types={['worker','experience']} /></AccountShell>;
+      return <AccountShell profile={profile} workspace="worker" title="Sponsored" description="Promote an eligible service profile or activity." onBack={() => setAccountView("account")}><SponsoredCampaignPanel types={['worker','experience']} /></AccountShell>;
     return (
       <AccountCenter
         profile={profile}
@@ -157,8 +158,8 @@ function WorkerWorkspaceContent({
         onGoToSaved={() => onNavigate?.("saved")}
         onGoToSecurity={() => {}}
         onGoToProfileEdit={() => setAccountView("profile")}
-        onGoToWorkerPaidTools={serviceReviewed ? () => setAccountView("paid_tools") : undefined}
-        onGoToSponsored={serviceReviewed ? () => setAccountView("sponsored") : undefined}
+        onGoToWorkerPaidTools={canManageJobs ? () => setAccountView("paid_tools") : undefined}
+        onGoToSponsored={access.capabilities?.can_apply_experiences ? () => setAccountView("sponsored") : undefined}
         onNavigate={(page) => onNavigate?.(page)}
         onLogout={onLogout}
         workspaceAccess={workspaceAccess}
@@ -320,6 +321,7 @@ function ServiceProviderPaidToolsAccount({
     <AccountShell
       profile={profile}
       title="WeHouse Pro · Work tools"
+      workspace="worker"
       description="Optional business tools for this Service Worker workspace. Review and trust are earned separately."
       onBack={onBack}
     >

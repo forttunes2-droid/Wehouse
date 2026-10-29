@@ -36,7 +36,7 @@ export default function IdentityAccessGate({
 
   if (loading)
     return (
-      <AccountShell profile={profile} title={workspace === 'property_partner' ? 'Property Partner' : 'Service Worker'} onWorkspaceSwitch={onWorkspaceSwitch}>
+      <AccountShell profile={profile} workspace={workspace} title={workspace === 'property_partner' ? 'Property Partner' : 'Service Worker'} onWorkspaceSwitch={onWorkspaceSwitch}>
         <section role="status" aria-live="polite" className="space-y-4 py-5">
           <p className="text-sm text-[var(--wh-text-secondary)]">Opening your workspace…</p>
           <div aria-hidden="true" className="space-y-3 animate-pulse">{[1, 2, 3].map(item => <div key={item} className="h-20 rounded-xl bg-[var(--wh-interactive)]" />)}</div>
@@ -51,6 +51,7 @@ export default function IdentityAccessGate({
     return (
       <AccountShell
         profile={profile}
+        workspace={workspace}
         title="Workspace check unavailable"
         description="WeHouse could not safely confirm this workspace right now."
         onWorkspaceSwitch={onWorkspaceSwitch}
@@ -83,6 +84,7 @@ export default function IdentityAccessGate({
     return (
       <AccountShell
         profile={profile}
+        workspace={workspace}
         title={pending ? 'Identity review pending' : expired ? 'Identity confirmation due' : 'Identity verification required'}
         description={
           pending
