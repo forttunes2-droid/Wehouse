@@ -188,13 +188,15 @@ export default function Search({
     });
   }, [sessionKey, query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity, homeStyle]);
 
+  const searchText = query.trim();
   const serverFilters = useMemo(() => ({
-    query, stayType, minPrice: priceMin, maxPrice: priceMax, bedrooms, bathrooms, homeStyle,
+    query: searchText, stayType, minPrice: priceMin, maxPrice: priceMax, bedrooms, bathrooms, homeStyle,
     state: filterState, city: filterCity,
-  }), [query, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity, homeStyle]);
+  }), [searchText, stayType, priceMin, priceMax, bedrooms, bathrooms, filterState, filterCity, homeStyle]);
 
   useEffect(() => {
     let live = true;
+    const controller = new AbortController();
     const generation = ++requestGeneration.current;
     setListings([]);
     setHasMore(false);
@@ -203,7 +205,7 @@ export default function Search({
     setLoading(true);
     setLoadError("");
     const timer = window.setTimeout(() => {
-      void getDiscoverableHomes(serverFilters).then(({ homes, hasMore: more, nextCursor, error }) => {
+      void getDiscoverableHomes(serverFilters, null, controller.signal).then(({ homes, hasMore: more, nextCursor, error }) => {
         if (!live || generation !== requestGeneration.current) return;
         if (error) setLoadError("Homes could not be loaded. Check your connection and try again.");
         else {
@@ -214,8 +216,8 @@ export default function Search({
       }).catch(() => {
         if (live && generation === requestGeneration.current) setLoadError("Homes could not be loaded. Check your connection and try again.");
       }).finally(() => { if (live && generation === requestGeneration.current) setLoading(false); });
-    }, query.trim() ? 250 : 0);
-    return () => { live = false; window.clearTimeout(timer); };
+    }, 300);
+    return () => { live = false; window.clearTimeout(timer); controller.abort(); };
   }, [serverFilters, reload]);
 
   async function loadMore() {
@@ -457,7 +459,7 @@ export default function Search({
                       : "Follow search"}
               </button>
             ) : null}
-            {hasFilters ? (
+            {hasFilters || query.trim() ? (
               <button
                 type="button"
                 onClick={clearFilters}

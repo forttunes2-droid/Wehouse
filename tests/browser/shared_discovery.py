@@ -5,6 +5,7 @@ import asyncio,json,os,subprocess
 from urllib.parse import urlparse,parse_qs
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
+from discovery_requests import settled_search,install_read_counter
 OUT=Path('test-results/experience');B=Path('test-results/shared-discovery-offline')
 HOME={'id':'public-home','title':'Courtyard apartment','sub_type':'long_stay','property_type':'apartment','availability_status':'available','city':'Lafia','state':'Nasarawa','address':'Test road','status':'available','price':400000,'images':['https://assets.wehouse.test/interior.jpg'],'amenities':[],'description':'Sample home','bedrooms':2,'bathrooms':1}
 RATES=[{'rate_plan_id':10,'room_id':9,'active':True,'name':'Room only','meal_plan':'room_only','payment_timing':'pay_now','refundable':False,'cancellation_hours':None,'price_per_night':30000,'included_features':[]},{'rate_plan_id':11,'room_id':9,'active':True,'name':'Breakfast stay','meal_plan':'breakfast','payment_timing':'pay_now','refundable':True,'cancellation_hours':48,'price_per_night':35000,'included_features':['Lounge access']}]
@@ -56,6 +57,7 @@ async def main():
      return await request.fulfill(status=200,content_type='image/svg+xml',body=Path('public/brand/v4',name).read_bytes())
     if request.request.url=='https://assets.wehouse.test/interior.jpg':return await request.fulfill(status=200,content_type='image/jpeg',body=Path('public/hero-interior.jpg').read_bytes())
     return await request.abort()
+   await install_read_counter(page)
    media_requests=[]
    page.on('request',lambda request:media_requests.append(request.url))
    await page.route('**/*',route)
@@ -107,6 +109,13 @@ async def main():
     await expect(shelf).to_have_count(0);await expect(page.locator('[data-home-card]')).to_have_count(4)
     await page.wait_for_function('window.__browse.gatewayRequests.some(q=>q.kind==="homes"&&q.p_stay_type==="long_stay")')
     await page.get_by_role('button',name='Clear',exact=True).click();await expect(page.get_by_role('group',name='Long Lets listings',exact=True)).to_be_visible()
+    await page.get_by_role('button',name='Open filters',exact=True).click()
+    await page.get_by_role('dialog',name='Home filters',exact=True).get_by_role('button',name='Long Let',exact=True).click()
+    await settled_search(page,page.locator('input[inputmode="numeric"]').first,['190000','200000','210000'],"(window.__discoveryReads.public_homes||0)")
+    await page.get_by_role('button',name='Reset',exact=True).click();await page.get_by_role('button',name='Close filters',exact=True).click()
+    await expect(page.get_by_role('group',name='Long Lets listings',exact=True)).to_be_visible()
+    await settled_search(page,page.get_by_placeholder('City, area or home'),['C','Courtyard','Courtyard apartment'],"window.__browse.calls.filter(c=>c.name==='rpc:search_discoverable_homes').length")
+    await page.get_by_role('button',name='Clear',exact=True).click();await expect(page.get_by_role('group',name='Long Lets listings',exact=True)).to_be_visible()
     await page.screenshot(path=str(OUT/f'homes-rail-{width}-{theme}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("locations")')
     await expect(page.get_by_role('button',name='Local Government Any local area',exact=True)).to_be_disabled()
@@ -131,6 +140,7 @@ async def main():
     await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}-{theme}.png'),full_page=True,timeout=15000)
     await page.evaluate('window.__switchBrowseMode("public");window.__browse.calls=[]')
     await page.get_by_role('button',name='Hotels',exact=True).click()
+    await settled_search(page,page.get_by_placeholder('Search hotel name or location'),['K','Keffi','Keffi Garden'],"window.__browse.calls.filter(c=>c.name==='getHotels').length")
     await page.get_by_placeholder('Search hotel name or location').fill('Keffi Garden')
     await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
     await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
@@ -190,7 +200,7 @@ async def main():
     assert not errors,errors
     row['passed']=True;row['checks']=['same Explore renderer','guest personal requests denied','same room and offers','selection survives sign-in','no guest save or booking write','Back retains search','searchable State/LGA and stale locality clearing','compact missing gallery','explicit failed thumbnails']
    except Exception as e:
-    row['error']=str(e);row['page_errors']=errors;row['unexpected']=await page.evaluate('window.__browse?.unexpected');await page.screenshot(path=str(OUT/f'shared-discovery-FAIL-{width}-{theme}.png'),full_page=True,timeout=15000)
+    row['error']=str(e);row['page_errors']=errors;row['unexpected']=await page.evaluate('window.__browse?.unexpected');row['last_reads']=await page.evaluate('window.__browse?.gatewayRequests.slice(-6)');await page.screenshot(path=str(OUT/f'shared-discovery-FAIL-{width}-{theme}.png'),full_page=True,timeout=15000)
    finally:results.append(row);print(json.dumps(row),flush=True);await context.close()
   await browser.close()
  (OUT/'shared-discovery-results.json').write_text(json.dumps(results,indent=2));assert all(row['passed'] for row in results)

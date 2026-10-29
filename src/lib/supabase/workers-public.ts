@@ -14,11 +14,12 @@ function providerRows(value:unknown,ids?:string[]):Profile[]{
     return {...row,role:'worker',profile_complete:true,worker_status:'verified',worker_verified:true,available:true,deleted:false,suspended:false,banned:false} as Profile;
   });
 }
-export async function searchServiceProviders(filters:ServiceProviderFilters,after?:ServiceProviderCursor|null){
-  const {data,error}=await withTimeout(supabase.rpc('search_service_providers',{
+export async function searchServiceProviders(filters:ServiceProviderFilters,after?:ServiceProviderCursor|null,signal?:AbortSignal){
+  const request=supabase.rpc('search_service_providers',{
     p_country:filters.country,p_query:Array.from(filters.query.trim()).slice(0,80).join('')||null,p_category:filters.category||null,p_specialty:filters.specialty||null,
     p_state:filters.state||null,p_city:filters.city||null,p_after_rating:after?.rating??null,p_after_reviews:after?.reviews??null,p_after_id:after?.id??null,
-  }),15000,'Service search took too long. Please retry.');
+  });
+  const {data,error}=await withTimeout(signal?request.abortSignal(signal):request,15000,'Service search took too long. Please retry.');
   if(error)throw Error(error.message||'Service search could not be loaded. Please retry.');
   if(!data||typeof data.has_more!=='boolean')throw Error('Service results could not be confirmed. Please retry.');
   const workers=providerRows(data.items),last=workers.at(-1),cursor=data.next_cursor;

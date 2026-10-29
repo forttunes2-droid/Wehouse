@@ -673,6 +673,7 @@ export type HotelBookingStatus =
   | "payment_conflict";
 
 export interface HotelBooking {
+  request_key?: string | null;
   booking_id: number;
   hotel_id: number;
   room_id: number;

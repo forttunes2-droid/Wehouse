@@ -2,6 +2,7 @@
 import asyncio,json,os
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
+from discovery_requests import settled_search,install_read_counter
 BASE=os.environ.get('QA_BASE_URL','http://127.0.0.1:4173')
 PROVIDERS=[{'user_id':'serves-keffi','full_name':'Keffi coverage provider','state':'Nasarawa','city':'Lafia','local_government':'Lafia','worker_occupation':'Cleaner','worker_skills':['Cleaning'],'worker_price':15000,'rating':4.8,'review_count':2,'coverage':[{'state':'Nasarawa','lga':'Keffi','areas':['University area']}]},{'user_id':'base-only','full_name':'Base-only provider','state':'Nasarawa','city':'Keffi','local_government':'Keffi','worker_occupation':'Cleaner','worker_skills':['Cleaning'],'worker_price':15000,'coverage':[{'state':'Nasarawa','lga':'Lafia','areas':[]}]}]
 for provider in PROVIDERS:
@@ -24,7 +25,10 @@ async def main():
   try:
    for theme,width in [('light',390),('dark',1280)]:
     context=await browser.new_context(viewport={'width':width,'height':900},service_workers='block');page=await context.new_page();calls=[];searches=[];errors=[];fail={'workers':False,'more':False,'another_viewer':False};slow_started=asyncio.Event()
+    failed_requests=[]
     page.on('pageerror',lambda error:errors.append(str(error)))
+    page.on('requestfailed',lambda request:failed_requests.append(request))
+    await install_read_counter(page)
     async def route(handler):
      request=handler.request
      if request.url.startswith(BASE):return await handler.continue_()
@@ -69,7 +73,7 @@ async def main():
      await page.get_by_role('option',name='Cleaning',exact=True).click()
      await page.get_by_role('button',name='Show results',exact=True).click()
      await expect(page.get_by_role('heading',name='Keffi coverage provider',exact=True)).to_be_visible()
-     await page.get_by_placeholder('Search service, skill or name').fill('Keffi cleaner')
+     await settled_search(page,page.get_by_placeholder('Search service, skill or name'),['K','Keffi','Keffi cleaner'],"(window.__discoveryReads.search_service_providers||0)")
      await expect(page.get_by_role('heading',name='Keffi coverage provider',exact=True)).to_be_visible()
      await page.get_by_role('button',name='Open filters',exact=True).click()
      await page.get_by_role('button',name='Reset',exact=True).click()
@@ -82,6 +86,7 @@ async def main():
      await page.get_by_placeholder('Search service, skill or name').fill('many')
      await expect(page.get_by_role('heading',name='Many provider 029',exact=True)).to_be_visible()
      await asyncio.sleep(1.1)
+     assert any('/rpc/search_service_providers' in request.url for request in failed_requests),'A superseded direct search was not cancelled'
      assert len(await page.get_by_role('heading',name='Many provider',exact=False).all())==24
      fail['more']=True
      await page.get_by_role('button',name='Show more Providers',exact=True).evaluate('(button)=>{button.click();button.click();}')

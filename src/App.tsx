@@ -1734,7 +1734,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             checkOut={hotelCheckOut}
             profile={profile}
             onBack={subpageBack}
-            onComplete={() => goTo("hotels")}
+            onComplete={(bookingId) => openUserDestination('hotel_booking',bookingId?String(bookingId):undefined)}
           />
         ) : (
           renderRoleRoot()

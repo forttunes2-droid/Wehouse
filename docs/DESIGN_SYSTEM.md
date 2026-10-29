@@ -71,6 +71,13 @@ and eligible Sponsored cards must open independently of the loaded results page.
 Account and verification shells take the active workspace explicitly; a person's
 primary role does not identify the workspace they are currently using.
 
+Discovery reads wait 300 ms after text or filter changes settle, including price
+slider movement. Local option searches (regions, areas, categories and banks)
+filter their loaded options without a new database request. Whitespace-only edits
+do not repeat an identical search. Cancel superseded direct reads and ignore stale
+results; shared public-feed requests retain their independent cache/deduplication
+ownership. Never put personalised search responses into the public feed cache.
+
 Use these existing components as implementation references:
 
 | Interaction | Shared reference |

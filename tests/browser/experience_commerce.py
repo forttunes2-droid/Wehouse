@@ -3,6 +3,7 @@ import asyncio,copy,json,uuid
 from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
+from discovery_requests import settled_search,install_read_counter
 BASE='http://127.0.0.1:4173'
 OUT=Path('test-results/experience-commerce');OUT.mkdir(parents=True,exist_ok=True)
 A='91000000-0000-4000-8000-000000000001';S='91000000-0000-4000-8000-000000000002';B='91000000-0000-4000-8000-000000000003';P='91000000-0000-4000-8000-000000000004';P2='91000000-0000-4000-8000-000000000005'
@@ -60,6 +61,7 @@ class Scenario:
   await route.fulfill(status=status,content_type='application/json',body=json.dumps(data),headers={'access-control-allow-origin':'*'})
 async def page_for(browser,mode,theme='light',width=390):
  s=Scenario(mode);ctx=await browser.new_context(viewport={'width':width,'height':844},service_workers='block');p=await ctx.new_page();errors=[];p.on('pageerror',lambda e:errors.append(str(e)))
+ await install_read_counter(p)
  await p.add_init_script("document.addEventListener('DOMContentLoaded',()=>{document.documentElement.dataset.whTheme="+json.dumps(theme)+";document.documentElement.classList.toggle('dark',"+json.dumps(theme=='dark')+");});")
  await p.route('**/*',s.route);await p.goto(BASE+'/tests/browser/experience-commerce.html?mode='+mode)
  return s,ctx,p,errors
@@ -99,6 +101,8 @@ async def main():
      assert await p.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--wh-bg').trim()") == ('#F7F8FB' if theme=='light' else '#090B10')
     await p.screenshot(path=str(OUT/f'{mode}-{theme}.png'),full_page=True);assert not errors,errors;results.append(mode+' '+theme);await ctx.close()
   s,ctx,p,errors=await page_for(browser,'discovery')
+  await expect(p.get_by_role('button',name='View activity and dates',exact=False)).to_be_visible()
+  await settled_search(p,p.get_by_placeholder('Activity, city or area'),['L','Local','Local walk'],"(window.__discoveryReads.search_experiences||0)")
   await p.get_by_role('button',name='View activity and dates',exact=False).click()
   gallery=p.get_by_role('region',name=DETAILS['title']+' media',exact=True)
   await gallery.get_by_role('button',name='Go to image 2',exact=True).click()

@@ -126,21 +126,23 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
     return () => { live = false; };
   }, [Boolean(guest)]);
 
+  const searchText = query.trim();
   const serverFilters = useMemo(() => ({
-    search: query, state, city, amenities,
+    search: searchText, state, city, amenities,
     minPrice: minPrice === '' ? undefined : minPrice,
     maxPrice: maxPrice === '' ? undefined : maxPrice,
     latitude: activeRadius === '' ? undefined : (followedOrigin || userLocation)?.lat,
     longitude: activeRadius === '' ? undefined : (followedOrigin || userLocation)?.lng,
     radiusKm: activeRadius === '' ? undefined : activeRadius,
-  }), [query, state, city, amenities, minPrice, maxPrice, activeRadius, followedOrigin, userLocation]);
+  }), [searchText, state, city, amenities, minPrice, maxPrice, activeRadius, followedOrigin, userLocation]);
   useEffect(() => {
     let live = true;
+    const controller = new AbortController();
     const generation = ++requestGeneration.current;
     setHotels([]); setCursor(null); setHasMore(false); setLoadingMore(false);
     setLoading(true); setLoadError(false);
     const timer = window.setTimeout(() => {
-      void getHotels(serverFilters).then(result => {
+      void getHotels(serverFilters, null, controller.signal).then(result => {
         if (!live || generation !== requestGeneration.current) return;
         setLoadError(Boolean(result.error));
         if (!result.error) {
@@ -149,8 +151,8 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
         }
       }).catch(() => { if (live && generation === requestGeneration.current) setLoadError(true); })
         .finally(() => { if (live && generation === requestGeneration.current) setLoading(false); });
-    }, query.trim() ? 250 : 0);
-    return () => { live = false; window.clearTimeout(timer); };
+    }, 300);
+    return () => { live = false; window.clearTimeout(timer); controller.abort(); };
   }, [serverFilters, attempt]);
 
   async function loadMore() {

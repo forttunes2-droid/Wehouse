@@ -17,7 +17,7 @@ export type HomeSearchFilters = {
 };
 export type HomePageCursor = { createdAt: string; id: string };
 
-export async function getDiscoverableHomes(filters: HomeSearchFilters = {}, cursor: HomePageCursor | null = null) {
+export async function getDiscoverableHomes(filters: HomeSearchFilters = {}, cursor: HomePageCursor | null = null, signal?: AbortSignal) {
   const body = {
     p_query: filters.query?.trim() || null,
     p_state: filters.state || null,
@@ -32,7 +32,10 @@ export async function getDiscoverableHomes(filters: HomeSearchFilters = {}, curs
     p_limit: 24,
     p_home_style: filters.homeStyle || null,
   };
-  const {data,error}=await publicCatalogRead('homes',body,()=>supabase.rpc('search_discoverable_homes',body));
+  const {data,error}=await publicCatalogRead('homes',body,()=>{
+    const request=supabase.rpc('search_discoverable_homes',body);
+    return signal?request.abortSignal(signal):request;
+  });
 
   // The server RPC is the publication/operational boundary. Short Let date
   // occupancy is checked separately for the requested interval; the client must

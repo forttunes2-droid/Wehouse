@@ -51,9 +51,9 @@ export function publicExperience(value:unknown):PublicExperience{
  if(p.next_session!=null){const s=record(p.next_session);if(!uuid(s.id)||!date(s.starts_at)||!date(s.ends_at)||!zone(s.timezone)||!positive(s.price_minor)||!validPublicPrice(s)||!positive(s.remaining)||typeof s.currency!=='string'||!/^[A-Z]{3}$/.test(s.currency))throw Error('Activity availability could not be confirmed.');}
  return p as unknown as PublicExperience;
 }
-async function rpc(name:string,args:Record<string,unknown>){const {data,error}=await withTimeout(supabase.rpc(name,args),15000,'Experience confirmation took too long. Refresh its status before retrying.');if(error)throw error;return data;}
-export async function searchExperiences(filters:{country:string;query:string;category:string;state:string;area:string},after?:PublicExperience){
- const data=record(await rpc('search_experiences',{p_country:filters.country,p_query:filters.query,p_category:filters.category,p_state:filters.state,p_area:filters.area,p_after:after?.cursor_at||null,p_after_id:after?.id||null}));
+async function rpc(name:string,args:Record<string,unknown>,signal?:AbortSignal){const request=supabase.rpc(name,args);const {data,error}=await withTimeout(signal?request.abortSignal(signal):request,15000,'Experience confirmation took too long. Refresh its status before retrying.');if(error)throw error;return data;}
+export async function searchExperiences(filters:{country:string;query:string;category:string;state:string;area:string},after?:PublicExperience,signal?:AbortSignal){
+ const data=record(await rpc('search_experiences',{p_country:filters.country,p_query:filters.query.trim(),p_category:filters.category,p_state:filters.state,p_area:filters.area,p_after:after?.cursor_at||null,p_after_id:after?.id||null},signal));
  if(!Array.isArray(data.items)||data.items.length>24||typeof data.has_more!=='boolean')throw Error('Activity results could not be confirmed.');
  const items=data.items.map(publicExperience);if(new Set(items.map(x=>x.id)).size!==items.length||items.some(x=>!date(x.cursor_at)))throw Error('Activity results could not be confirmed.');
  return{items,has_more:data.has_more};

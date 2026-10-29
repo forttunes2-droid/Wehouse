@@ -23,7 +23,7 @@ export async function getHotels(filters?: {
   latitude?: number;
   longitude?: number;
   radiusKm?: number;
-}, cursor: { featured: boolean; createdAt: string; id: number } | null = null) {
+}, cursor: { featured: boolean; createdAt: string; id: number } | null = null, signal?: AbortSignal) {
   const body = {
     p_query: filters?.search?.trim() || null,
     p_state: filters?.state || null,
@@ -39,7 +39,10 @@ export async function getHotels(filters?: {
     p_cursor_id: cursor?.id ?? null,
     p_limit: 24,
   };
-  const { data, error } = await readHotel(publicCatalogRead('hotels',body,()=>supabase.rpc('search_discoverable_hotels',body)));
+  const { data, error } = await readHotel(publicCatalogRead('hotels',body,()=>{
+    const request=supabase.rpc('search_discoverable_hotels',body);
+    return signal?request.abortSignal(signal):request;
+  }));
   const rows = (Array.isArray(data?.items) ? data.items : []) as (Hotel & { hotel_rooms: { room_id: number; price_per_night: number; room_type: string }[] })[];
   const includes = (value: unknown, query: string) => String(value || '').toLowerCase().includes(query.toLowerCase());
   const hotels = rows.filter((hotel) => {
@@ -108,8 +111,9 @@ export async function canReviewHotel(hotelId: number, userId: string) {
 
 // The browser supplies guest choices only. Identity, availability, room price,
 // nights, total and pending-hold status are computed again by Postgres.
-export async function createHotelBooking(booking: Omit<HotelBooking, 'booking_id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase.rpc('create_my_hotel_booking_with_rate', {
+export async function createHotelBooking(booking: Omit<HotelBooking, 'booking_id' | 'created_at' | 'updated_at'>,requestKey:string) {
+  const { data, error } = await withTimeout(supabase.rpc('create_my_hotel_booking_with_rate', {
+    p_request_key:requestKey,
     p_hotel_id: booking.hotel_id,
     p_room_id: booking.room_id,
     p_rate_plan_id: booking.rate_plan_id,
@@ -119,8 +123,17 @@ export async function createHotelBooking(booking: Omit<HotelBooking, 'booking_id
     p_guest_name: booking.guest_name,
     p_guest_phone: booking.guest_phone,
     p_special_requests: booking.special_requests || null,
-  });
+  }),15000,'The room hold result is unknown. Refresh this hold before retrying.');
   return { booking: data as HotelBooking | null, error };
+}
+
+export async function getMyHotelBookingHold(requestKey:string){
+  const {data,error}=await withTimeout(supabase.rpc('get_my_hotel_booking_hold',{p_request_key:requestKey}),15000,'The room hold could not be checked. Please retry.');
+  return{booking:data,error};
+}
+export async function releaseHotelBookingHold(bookingId:number){
+  const {data,error}=await withTimeout(supabase.rpc('release_my_hotel_booking_hold',{p_booking_id:bookingId}),15000,'The release result is unknown. Refresh this hold before retrying.');
+  return{error:error||(data!==true?new Error('The room hold release could not be confirmed. Please refresh.'):null)};
 }
 
 export async function quoteHotelRoomRate(input: {
@@ -130,27 +143,34 @@ export async function quoteHotelRoomRate(input: {
   checkIn: string;
   checkOut: string;
 }) {
-  const { data, error } = await supabase.rpc('quote_hotel_room_rate', {
+  const { data, error } = await readHotel(supabase.rpc('quote_hotel_room_rate', {
     p_hotel_id: input.hotelId,
     p_room_id: input.roomId,
     p_rate_plan_id: input.ratePlanId,
     p_check_in: input.checkIn,
     p_check_out: input.checkOut,
-  });
+  }));
   return { quote: data as { available: boolean; nights?: number; total_price?: number; blocked_date?: string; rate_plan_name?: string } | null, error };
 }
 
 export async function initializeHotelBookingPayment(bookingId: number) {
-  const { data: bootstrap, error: bootstrapError } = await supabase.rpc('create_hotel_booking_payment', {
+  const { data: bootstrap, error: bootstrapError } = await withTimeout(supabase.rpc('create_hotel_booking_payment', {
     p_booking_id: bookingId,
-  });
+  }),15000,'The payment reference could not be checked. Refresh this booking before retrying.');
   if (bootstrapError) return { result: null, error: bootstrapError };
-  if (!bootstrap?.success) return { result: bootstrap || null, error: null };
-  if (bootstrap.already_paid) return { result: bootstrap, error: null };
+  if (bootstrap?.success!==true) return { result: bootstrap || null, error: null };
+  if (bootstrap.already_paid===true) return { result: bootstrap, error: null };
 
   const reference = String(bootstrap.reference || '');
   if (!reference) return { result: { success: false, error: 'Hotel payment reference is missing' }, error: null };
-  const { data, error } = await supabase.functions.invoke('payment-init', { body: { reference } });
+  const { data, error } = await withTimeout(supabase.functions.invoke('payment-init', { body: { reference } }),25000,'The payment start result is unknown. Refresh this booking before retrying.');
+  if(!error&&data?.success===true){
+    if(data.reference!==reference)return{result:null,error:new Error('The checkout reference could not be confirmed.')};
+    if(data.already_paid!==true){
+      let url:URL;try{url=new URL(String(data.authorization_url||''));}catch{return{result:null,error:new Error('The payment destination could not be confirmed.')}}
+      if(url.protocol!=='https:'||url.hostname!=='checkout.paystack.com'||url.username||url.password)return{result:null,error:new Error('The payment destination could not be confirmed.')};
+    }
+  }
   return { result: data as any, error };
 }
 

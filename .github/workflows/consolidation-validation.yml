@@ -83,7 +83,9 @@ jobs:
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/arrival_dates_contract.sql
       - name: Exercise paid hotel cancellation and refund reconciliation
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
-        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_paid_cancellation_contract.sql
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_paid_cancellation_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_recorded_charge_guard_contract.sql
       - name: Verify accommodation policy prerequisites and immutable retry
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: |

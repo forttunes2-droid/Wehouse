@@ -120,6 +120,7 @@ export default function WorkerDiscovery({
   const [hasMore,setHasMore]=useState(false),[cursor,setCursor]=useState<ServiceProviderCursor|null>(null),[paging,setPaging]=useState(false),[categoryError,setCategoryError]=useState(''),[promotedWorkers,setPromotedWorkers]=useState<Profile[]>([]);
   const searchVersion=useRef(0),pagingLock=useRef(false);
   const appliedCategory=useRef<string|null>(null);
+  const searchText=search.trim();
   const sponsoredIds=JSON.stringify(sponsoredResults.map(row=>row.resource_id));
   useEffect(()=>{let live=true;setPromotedWorkers([]);const ids=JSON.parse(sponsoredIds) as string[];if(offering==='services'&&ids.length)void getServiceProvidersByIds(ids).then(rows=>{if(live)setPromotedWorkers(rows);}).catch(()=>{});return()=>{live=false;};},[sponsoredIds,offering,profile?.user_id]);
   useEffect(()=>{setViewWorker(null);setBookingWorker(null);setChat(null);setActive(new Set());},[profile?.user_id]);
@@ -136,12 +137,13 @@ export default function WorkerDiscovery({
   useEffect(() => {
     const request=++searchVersion.current;
     if(offering!=='services')return;
+    const controller=new AbortController();
     setLoading(true);
     setLoadError('');
     setWorkers([]);setHasMore(false);setCursor(null);setPaging(false);pagingLock.current=false;
     const timer=window.setTimeout(()=>{void (async () => {
       try {
-        const page=await searchServiceProviders({country,query:search,category,specialty,state,city});
+        const page=await searchServiceProviders({country,query:searchText,category,specialty,state,city},null,controller.signal);
         if(request!==searchVersion.current)return;
         setWorkers(page.workers);setHasMore(page.hasMore);setCursor(page.nextCursor);
       } catch (error: unknown) {
@@ -152,9 +154,9 @@ export default function WorkerDiscovery({
       } finally {
         if (request===searchVersion.current) setLoading(false);
       }
-    })();},250);
-    return()=>{window.clearTimeout(timer);searchVersion.current++;};
-  }, [reload,offering,country,search,category,specialty,state,city,profile?.user_id]);
+    })();},300);
+    return()=>{window.clearTimeout(timer);searchVersion.current++;controller.abort();};
+  }, [reload,offering,country,searchText,category,specialty,state,city,profile?.user_id]);
   async function moreProviders(){
     if(pagingLock.current||!cursor||!hasMore)return;
     pagingLock.current=true;setPaging(true);setLoadError('');const request=searchVersion.current;

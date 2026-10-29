@@ -61,12 +61,20 @@ where not exists(select 1 from public.creator_policy_versions where policy_key='
 update public.hotels set published_at=now(),timezone='Africa/Lagos',check_in_time='14:00' where hotel_id=-7966;
 select pg_temp.sign_in('79666666-0000-4000-8000-000000000002');
 set local role authenticated;
-do $$declare q jsonb;booking public.hotel_bookings;expected timestamptz;begin
+do $$declare q jsonb;booking public.hotel_bookings;retry public.hotel_bookings;expected timestamptz;begin
  q:=public.quote_hotel_room_rate(-7966,-7966,-7966,current_date+3,current_date+5);
  expected:=((current_date+2+time '14:00') at time zone 'Africa/Lagos');
  if (q->>'cancellation_deadline')::timestamptz is distinct from expected then raise exception 'Hotel-local quote deadline is wrong';end if;
- booking:=public.create_my_hotel_booking_with_rate(-7966,-7966,-7966,current_date+3,current_date+5,1,'Refund guest','08000000000',null);
+ booking:=public.create_my_hotel_booking_with_rate('79666666-5000-4000-8000-000000000001',-7966,-7966,-7966,current_date+3,current_date+5,1,'Refund guest','08000000000',null);
  if booking.total_price<>40000 or (booking.cancellation_snapshot->>'deadline')::timestamptz is distinct from expected or (booking.cancellation_snapshot->>'refund_amount_ngn')::numeric<>40000 then raise exception 'Real booking did not save its exact refund and local deadline';end if;
+ retry:=public.create_my_hotel_booking_with_rate('79666666-5000-4000-8000-000000000001',-7966,-7966,-7966,current_date+3,current_date+5,1,'Refund guest','08000000000',null);
+ if retry.booking_id<>booking.booking_id or retry.cancellation_snapshot<>booking.cancellation_snapshot then raise exception 'Retry created another room hold or changed accepted terms';end if;
+ if (public.get_my_hotel_booking_hold('79666666-5000-4000-8000-000000000001')->>'booking_id')::integer<>booking.booking_id then raise exception 'An interrupted checkout cannot recover its original hold';end if;
+ begin perform public.create_my_hotel_booking_with_rate('79666666-5000-4000-8000-000000000001',-7966,-7966,-7966,current_date+4,current_date+6,1,'Refund guest','08000000000',null);raise exception 'FAIL: request key reused with new dates';
+ exception when others then if sqlerrm not like 'These choices differ%' then raise;end if;end;
+ begin perform public.quote_hotel_room_rate(-7966,-7966,-7966,current_date+3,current_date+10000);raise exception 'FAIL: unbounded date range';exception when invalid_parameter_value then null;end;
+ begin perform public.quote_hotel_room_rate(-7966,-7966,-7966,current_date+3,'infinity'::date);raise exception 'FAIL: infinite date range';exception when invalid_parameter_value then null;end;
+ if has_function_privilege('authenticated','public.create_my_hotel_booking_with_rate(integer,integer,integer,date,date,integer,text,text,text)','EXECUTE') then raise exception 'Unkeyed creation still exposed';end if;
  perform set_config('test.hotel_booking_id',booking.booking_id::text,true);
 end$$;
 reset role;
@@ -82,6 +90,8 @@ delete from public.financial_action_outbox where payment_protection_id='79666666
 select pg_temp.sign_in('79666666-0000-4000-8000-000000000003');
 set local role authenticated;
 do $$begin
+ if public.get_my_hotel_booking_hold('79666666-5000-4000-8000-000000000001') is not null then raise exception 'Another guest read the hold';end if;
+ begin perform public.release_my_hotel_booking_hold(current_setting('test.hotel_booking_id')::integer);raise exception 'FAIL: another guest released the hold';exception when insufficient_privilege then null;end;
  begin perform public.cancel_my_hotel_booking(current_setting('test.hotel_booking_id')::integer);raise exception 'FAIL: another guest cancelled';
  exception when others then if sqlerrm like 'FAIL:%' then raise;end if;end;
 end$$;
@@ -89,6 +99,7 @@ reset role;
 select pg_temp.sign_in('79666666-0000-4000-8000-000000000002');
 set local role authenticated;
 do $$declare preview jsonb;begin
+ begin perform public.release_my_hotel_booking_hold(current_setting('test.hotel_booking_id')::integer);raise exception 'FAIL: paid stay used unpaid hold release';exception when others then if sqlerrm not like 'Payment is already recorded%' then raise;end if;end;
  preview:=public.get_my_hotel_cancellation_preview(current_setting('test.hotel_booking_id')::integer);
  if preview->>'kind'<>'full_refund' or (preview->>'refund_amount_ngn')::numeric<>40000 or not (preview->>'can_cancel')::boolean then raise exception 'Preview did not match the eligible locked cancellation';end if;
 end$$;
@@ -164,7 +175,7 @@ select set_config('test.pms_rate_id',rate_plan_id::text,true),set_config('test.p
 select pg_temp.sign_in('79666666-0000-4000-8000-000000000002');
 set local role authenticated;
 do $$declare booking public.hotel_bookings;rate integer:=current_setting('test.pms_rate_id')::integer;room integer:=current_setting('test.pms_room_id')::integer;begin
- booking:=public.create_my_hotel_booking_with_rate(-7966,room,rate,current_date+10,current_date+11,1,'Unit hold guest','08000000000',null);
+ booking:=public.create_my_hotel_booking_with_rate(gen_random_uuid(),-7966,room,rate,current_date+10,current_date+11,1,'Unit hold guest','08000000000',null);
  perform set_config('test.pms_unit_booking',booking.booking_id::text,true);
 end$$;
 reset role;
@@ -232,9 +243,9 @@ overriding system value values
 select pg_temp.sign_in('79666666-0000-4000-8000-000000000002');
 set local role authenticated;
 do $$declare booked public.hotel_bookings;begin
- booked:=public.create_my_hotel_booking_with_rate(-7966,-7966,-7967,current_date+6,current_date+8,1,'Refund guest','08000000000',null);
+ booked:=public.create_my_hotel_booking_with_rate(gen_random_uuid(),-7966,-7966,-7967,current_date+6,current_date+8,1,'Refund guest','08000000000',null);
  perform set_config('test.nonref_id',booked.booking_id::text,true);
- booked:=public.create_my_hotel_booking_with_rate(-7966,-7966,-7968,current_date+2,current_date+3,1,'Refund guest','08000000000',null);
+ booked:=public.create_my_hotel_booking_with_rate(gen_random_uuid(),-7966,-7966,-7968,current_date+2,current_date+3,1,'Refund guest','08000000000',null);
  perform set_config('test.late_id',booked.booking_id::text,true);
 end$$;
 reset role;

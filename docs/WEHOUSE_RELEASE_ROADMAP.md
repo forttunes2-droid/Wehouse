@@ -8,6 +8,64 @@ and history; they do not reopen settled rules or create additional workstreams.
 
 ## Current engineering checkpoints
 
+### Settled search reads and local option filtering — 29 October
+
+Homes, Hotels, Services and Experiences wait 300 ms after text or filter edits
+settle. Homes/Hotels previously fetched immediately during price edits when the
+search text was empty; that gap is repaired. Whitespace-only changes retain the
+same criteria. Superseded direct reads receive abort signals as well as stale
+response guards. Personalised/typed reads are not placed in the anonymous CDN
+cache; the existing public-feed cache and in-flight sharing retain their separate
+ownership. Local region, area, category and bank option searches operate over
+loaded options rather than issuing a query for each character. A genuine changed
+catalogue search still needs a bounded server read; this is not a claim that all
+search works offline or never reaches the database.
+
+The responsive browser suite now counts actual outgoing reads during rapid
+typing, price edits and whitespace-only edits, alongside existing dependent-filter,
+pagination and account-change checks. It also found and repaired the missing Clear
+action for a text-only Home search. Services checks observe the cancelled old
+HTTP request, not only ignored old results. The controlled clock is installed
+before application timers, and uses ISO timestamps; early fixture timing failures
+were repaired without weakening the request-count assertions.
+
+Final local verification: all eight Homes/Hotels width/theme journeys, both
+Services journeys and 24 Experience commerce journeys pass; all 838 source tests,
+focused type/lint checks and the production build pass. The 18 Hotel checkout
+recovery journeys also pass. Exact-commit replay and CI follow the push.
+
+### Retry-safe Hotel room holds and interrupted-payment recovery — 29 October
+
+Test `20261029161700` extends existing Hotel bookings with an owner-scoped
+checkout request key. Repeating the same request recovers the same room hold and
+accepted terms; changed choices cannot reuse it. New holds use the existing action
+budget, a ten-live-hold bound and finite date ranges checked before daily inventory
+generation. The old unkeyed browser command is revoked; trusted internal callers
+retain the existing inventory/price authority. No second booking or money engine
+was introduced.
+
+The customer checkout restores its owned hold after a lost response or reload.
+Editing explicitly releases an unpaid hold. Once any verified charge is recorded,
+neither that release nor another checkout payment is permitted, including the
+interval before fulfillment finishes. Read-only recovery keeps the original
+booking, payment and refund status visible; Open my bookings targets that exact
+record through the existing application destination. Expiry requires fresh
+availability. The review uses saved prices/cancellation terms, labels deadline
+timezones and keeps light/dark theme controls and usable Back/Retry paths.
+
+Applied-Test rollback proofs cover keyed recovery, finite dates, the shared action
+budget, recorded-charge denial, owner/session isolation and immutable request
+keys. The recorded-charge contract also confirms that recovery creates no refund
+or payout. All 838 source tests, build and focused type/lint checks pass. Eighteen
+local browser journeys pass, including recorded-charge recovery and the precise
+booking destination. The complete Hotel
+cancellation/PMS contract and new charge-guard contract are in the existing replay
+workflow for this commit. These fixture checks initiate no provider transfer.
+
+The preceding `1323ea3c` revision passed all seven CI workflows, including fresh
+and upgrade migration replay. That result is a baseline, not evidence for this
+new revision; exact-commit checks follow its push.
+
 ### Connected service filters, public links and Provider controls — 29 October
 
 Test `20261029140052` moves Services discovery from an unpaged national browser
