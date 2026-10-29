@@ -2,6 +2,7 @@ import CreatorCommissionRules from '@/components/CreatorCommissionRules';
 import CreatorRentCollection from '@/components/CreatorRentCollection';
 import {withTimeout} from '@/lib/withTimeout';
 import CreatorExperienceCommission from "@/components/CreatorExperienceCommission";
+import {CreatorExperienceDiscounts} from '@/components/ExperienceDiscountControls';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { currencySymbol } from "@/lib/regional";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -192,7 +193,7 @@ function readRules(response: PolicyResponse | null): Rules {
   };
 }
 
-export default function CreatorBookingMoneyRules(){return <div className="space-y-6"><CreatorCommissionRules/><CreatorExperienceCommission/><CreatorRentCollection/><ShortLetReserveDateRule/><section aria-label="Booking operating rules"><CreatorOperatingMoneyRules/></section></div>;}
+export default function CreatorBookingMoneyRules(){return <div className="space-y-6"><CreatorCommissionRules/><CreatorExperienceCommission/><CreatorExperienceDiscounts/><CreatorRentCollection/><ShortLetReserveDateRule/><section aria-label="Booking operating rules"><CreatorOperatingMoneyRules/></section></div>;}
 
 function CreatorOperatingMoneyRules() {
   const { requestElevation } = useCreatorAuth();

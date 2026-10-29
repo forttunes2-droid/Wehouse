@@ -4,6 +4,54 @@
 
 ## Current engineering checkpoints
 
+### Experience offers, host visibility and shared Provider entry — 29 October
+
+Test migration `20261029083450` adds optional session offers to the existing price
+authority and commission-funded offers to existing versioned Creator policies.
+The Creator chooses one activity or an existing state market, confirms the actual
+commission ceiling, and uses existing step-up controls. Host offers reduce the
+base before commission. WeHouse funding preserves host net, never exceeds the
+configured commission, and does not stack activity and state campaigns. Session
+dates use the activity timezone. Accepted bookings retain the original price,
+discount sources, fee/net and policy versions, including subsequent refunds.
+
+Test `20261029084306` exposes the current price/funding/earnings preview through
+the owned-session command. Both booking parties see accepted discounts; the host
+also sees actual net and an explanation of WeHouse funding. The existing protected
+payment gateway validates this frozen split. Partial releases use the saved actual
+fee rather than reapplying the undiscounted rate. The rollback contract passes
+version retries, stale quotes, local date cutoffs, offer precedence, immutable
+bookings, verified charge, partial release and refund allocation.
+
+The Owner confirmed all Experiences are host-guided, including garden visits.
+Test `20261029084815` and `20261029085146` keep these in the Outdoor category and
+repair category discovery: public labels no longer require a Provider workspace.
+Private creation/evidence/host controls retain their checks. New and existing
+Providers use the same offering entry, Services identity, Inbox, Team and earnings;
+an Experience does not require registering an unrelated requested service first.
+The earlier self-guided wording is superseded by the Owner's explicit correction.
+
+Test `20261029090227` permits commission-funded offers below 5% when the Creator's
+configured commission is small. The separate Host offer range is unchanged. The
+server and UI prove a 1% funded offer under a 2% commission, while rejecting excess
+funding. Those figures are rollback/fixture examples, not activated commercial rates.
+The shared account entry now describes both services and Experiences. Activation
+uses bounded requests and an immediate duplicate-click guard; network failure
+does not leave setup stuck. The existing workspace switcher uses the shared modal
+focus/isolation hook and legible theme text, rather than a second navigation model.
+
+Six offer UI journeys, 24 commerce journeys and both sharing themes pass, including
+lost-response recovery and host-visible funded pricing. The existing account motion
+suite also passes the added shared-entry, duplicate-click, failed-setup recovery,
+modal focus/selection/restoration and light/dark cases. All 825 source regressions,
+the final production build, TypeScript and focused lint pass; affected account and
+money source checks pass after the last edits. Exact-commit CI follows the push.
+The final hosted category/grant/range check matches the applied migrations. Two
+later full-contract replays lost their MCP transport response; the complete rollback
+contract had already passed on Test with the same pending DDL before application.
+Production rollout remains separate.
+The preceding Sponsored commit `30adcce7` passes all seven CI workflows.
+
 ### Activity promotion through existing Sponsored orders — 29 October
 
 Test migration `20261029080649` adds Experiences to the existing Sponsored market
@@ -3541,7 +3589,7 @@ event or scoped read projection is not another editable source of truth.
 |---|---|---|
 | Production rollout | `supabase/migrations`, hosted migration history, `scripts/coordinated-database-release.py`, existing Edge deploys and Vercel project | Platform owns history disposition, actual-baseline upgrade, configuration/job parity and rollback. Domain rows supply their affected endpoints/contracts; they do not create separate deploy pipelines or replay applied aliases |
 | Bookings and rent | `reservations`, `hotel_bookings`, existing inventory/physical spaces, `rent_plans`/contributions and canonical shared-payment commands | Finish Hotel sharing, arrears/exit and mixed-inventory recovery here. Keep one accepted obligation and booking identity; delegate provider settlement/charge/refund proof to Money |
-| Experiences | Existing Services workspace, activities/sessions/bookings, shared payments/protection/outbox, `worker_booking_reviews`, reports/cases | Finish optional discounts and Sponsored integration through existing pricing/campaign authorities. Sharing and tracked review appeals are implemented with evidence above; exact-commit checks still apply. Do not create an Experience account, workspace, wallet, refund dispatcher or general support queue |
+| Experiences | Existing Services workspace, activities/sessions/bookings, shared payments/protection/outbox, `worker_booking_reviews`, reports/cases | Optional discounts and Sponsored integration now use existing pricing/campaign authorities, alongside sharing and tracked review appeals, with evidence above. Remaining whole-journey checks still apply. Do not create an Experience account, workspace, wallet, refund dispatcher or general support queue |
 | Money and Pro | `booking_payments`, verified provider events, protection/ledger/wallet/withdrawal/outbox commands, Worker and Partner Pro entitlements | The booking-to-provider reconciliation row owns the shared provider/recovery matrix once across purposes. Pro adds subscription-specific lifecycle cases to the same receipts/entitlements. Other rows reference this evidence rather than duplicate it |
 | Account and operations | Auth + `profiles`, workspace grants, existing identity evidence, `operational_cases`, existing conversations/reports and audits | Complete privacy/retention, remaining sensitive-action scopes and recertification using existing case/evidence lifecycles. Creator/Admin/Staff see authorised projections of the same work, not copied queues or another person record |
 
@@ -3564,7 +3612,7 @@ event or scoped read projection is not another editable source of truth.
 | Connections | Private two-person plan card inside Friend chat | Production build passes on working tree; remaining real-account/browser, refresh, block/delete and pin/reaction engineering checks stay here; two-device encryption acceptance follows merge |
 | Connections | Roommate and Friend relationship overlap | Product contract documented: one account, independent relationship edges, permissions and conversations; code/UI cross-context review remains |
 | Connections | Private Friend Groups and group plan card | Deferred by owner on 20 October: do not build yet. Excluded from current release requirements; retain one-to-one Friend plans. Any later group proposal needs a separate reviewed encryption, membership and safety contract |
-| Marketplace | Provider-led Experiences | Implemented/Test verified: applications, activity-specific evidence, approval/publication, dated sessions/capacity, quotes, protected checkout/receipts, cancellation/refunds, attendance/completion, Provider earnings, earned reviews, moderation and tracked review appeals. Ordinary booking/payment/safety Help uses existing scoped queues; sharing uses Services discovery and the existing chats. Remaining implementation: optional discounts and sponsorship. Remaining verification: exact-commit CI and hosted whole-user/operator journeys, with provider charge/refund/settlement evidence owned by the Money reconciliation row. The 28 October hosted contracts and browser evidence are recorded above. Shows, parties and nightlife remain excluded. |
+| Marketplace | Provider-led Experiences | Implemented/Test verified: applications, activity-specific evidence, approval/publication, dated sessions/capacity, quotes, protected checkout/receipts, cancellation/refunds, attendance/completion, Provider earnings, earned reviews, moderation and tracked review appeals. Ordinary booking/payment/safety Help uses existing scoped queues; sharing uses Services discovery and the existing chats. Optional discounts and sponsorship now extend the existing quote, booking and Sponsored authorities. Remaining verification: exact-commit CI and hosted whole-user/operator journeys, with provider charge/refund/settlement evidence owned by the Money reconciliation row. The 28 October hosted contracts and browser evidence are recorded above. Shows, parties and nightlife remain excluded. |
 | Connections | Friend naming across product, API and schema | Canonical names implemented across active source, UI, API and contract fixtures. The forward migration renamed empty legacy Test objects and created Friend-first schema there; Production remains untouched. Only historical migration records, the migration-history register, and explicit upgrade references retain the retired term. Production rollout and role/browser checks remain |
 | Connections | Hotel and Friend conversation-info screens | Open |
 | Pricing | Short Let host discount 5-50% in the price pipeline, shown on listing | Built |

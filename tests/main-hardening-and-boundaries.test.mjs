@@ -164,7 +164,7 @@ test("Service Worker and Property Partner are additive workspaces on one Persona
   assert.match(account, /title="Get started"/);
   assert.match(account, /Service Worker/);
   assert.match(account, /Property Partner/);
-  assert.match(account, /title="Offer services"/);
+  assert.match(account, /title="Offer services or Experiences"/);
   assert.match(account, /title="List a property"/);
   assert.match(migration, /'worker','global','active'/);
   assert.match(migration, /'property_partner','global','active'/);

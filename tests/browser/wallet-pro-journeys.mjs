@@ -420,7 +420,7 @@ try {
           await checks.getByRole('alert').waitFor();assert.equal(await page.getByLabel('Feedback shared with the host',{exact:true}).inputValue(),'Activity evidence, photos and sessions independently reviewed.');
           await page.evaluate(()=>window.__walletPro.recover=true);await approve.click();
         }
-        await page.getByRole('status').filter({hasText:'Activity review approved. Public booking is not open.'}).waitFor();
+        await page.getByRole('status').filter({hasText:'Activity review approved. The host manages publication separately.'}).waitFor();
         assert.equal(await page.getByRole('button',{name:'Approve activity',exact:true}).count(),0);
         assert.equal(await page.getByRole('button',{name:'Revise document requirements',exact:true}).count(),0);
         assert.equal(await page.getByText(/Activity changed since this date was prepared/).count(),0);
@@ -479,7 +479,7 @@ try {
       await page.getByLabel('Category',{exact:true}).selectOption('culture_tours');
       await page.getByLabel('Activity name',{exact:true}).fill('Campus orientation walk');
       await page.getByLabel('What participants will do',{exact:true}).fill('Explore local landmarks with a guided route, useful orientation information and time to ask questions.');
-      await page.getByLabel('Your relevant expertise',{exact:true}).fill('I have led local orientation walks and know the route and meeting arrangements.');
+      await page.getByLabel('Your expertise or venue responsibility',{exact:true}).fill('I have led local orientation walks and know the route and meeting arrangements.');
       await page.getByLabel('Duration in minutes',{exact:true}).fill('60');await page.getByLabel('Maximum participants',{exact:true}).fill('8');
       for(const [label,value]of [['State or region','Nasarawa'],['Local government or district','Lafia'],['City or town','Lafia'],['Meeting area','Public main gate'],['Age, ability, equipment and participation requirements','Comfortable shoes; adults only.'],['Accessibility and assistance available','Step-free route with assistance available.']])await page.getByLabel(label,{exact:true}).fill(value);
       await page.getByRole('button',{name:'Save draft',exact:true}).click();await page.getByText('Draft saved.',{exact:true}).waitFor();

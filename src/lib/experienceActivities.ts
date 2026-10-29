@@ -22,7 +22,7 @@ export type ExperienceCursor = { updated_at: string; id: string };
 /** Shared wording for the saved application and its operational review. */
 export const EXPERIENCE_DETAIL_LABELS: Record<keyof ExperienceDraft, string> = {
   title: 'Activity name', category: 'Category', what_to_expect: 'What participants will do',
-  host_expertise: 'Relevant host expertise', country_code: 'Country', state: 'State or region',
+  host_expertise: 'Host expertise or venue responsibility', country_code: 'Country', state: 'State or region',
   local_area: 'Local government or district', city: 'City or town', meeting_area: 'Meeting area',
   timezone: 'Activity timezone', participation_requirements: 'Participation requirements',
   accessibility_information: 'Accessibility and assistance', duration_minutes: 'Duration in minutes',
@@ -135,7 +135,7 @@ export async function getExperienceActivityHistory(id: string): Promise<Experien
 }
 
 export const EXPERIENCE_APPROVAL_CHECKS = {
-  details:'Activity details and enabled category', provider_access:'Active provider workspace',
+  details:'Host-guided plan, activity details and enabled category', provider_access:'Active provider workspace',
   identity:'Current account identity verification', evidence:'Current independently reviewed evidence',
   photos:'All selected activity photos approved', sessions:'Current session dates, prices and capacity',
 };

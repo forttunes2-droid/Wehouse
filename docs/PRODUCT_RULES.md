@@ -224,7 +224,24 @@ supported option or no feature.
 ### Owner clarifications — 27 October 2026
 
 - Customer actions use **Request a service** for work agreed through chat and **Book an activity** for a dated Experience. Both belong to Services and the same provider workspace.
+
 - Later-year monthly rent has no new Payment Protection hold. Before choosing this arrangement the tenant must accept direct Partner settlement: each verified payment deducts the disclosed WeHouse fee and settles the Partner net through the provider; the customer's gross rent contribution remains their rent credit. Initial upfront rent, including a full multi-year payment, retains its accepted Payment Protection. Eight scheduled payments funding a complete later year represent twelve months of rent value. Released rent is not shown as money still held by WeHouse for automatic refunds. This clarification does not create an automatic forfeiture or eviction rule.
 - WeHouse-managed Homes carry a Creator-configured additional management percentage deducted from Partner earnings alongside base commission. Show the actual base rate, additional rate, combined deduction and expected net when choosing WeHouse management and submitting for inspection, and require Partner acceptance. Existing accepted bookings retain their saved rates. No numeric rate was approved by this clarification.
 
 - Later-year rent tracking must show gross verified rent by target contract year, complete months funded, partial-month credit, the amount needed to complete the next month, and remaining annual rent. One of eight equal contributions funds 1.5 months, not one month. Round cumulative month boundaries in minor currency units, not an approximate rounded monthly price. Pending/failed charges and platform fees do not reduce or create rent credit. Contact the Partner to resolve the balance or agree an early exit; no automatic eviction, refund promise, or waiver of mandatory rights. Do not relabel advance rent credit as current occupancy before its target year.
+
+### Owner clarification — 29 October 2026
+
+Every Experience is guided by its host. A guided garden visit belongs to Outdoor
+Experiences, using the same activity review, dated sessions, capacity and booking
+flow. A garden is a place to visit in this context. General self-guided admission
+is outside the agreed Experience offering. Requested services and Experiences
+share one Provider identity, Services workspace, Inbox, Team and earnings. An
+existing Provider adds an offering; a new Provider can start with either offering.
+Activity-specific expertise and evidence do not require an unrelated service first.
+
+Optional activity discounts use the accepted price snapshot. A host-funded offer
+reduces the base price before commission; a WeHouse-funded offer comes from
+WeHouse commission and preserves the host's net. Hosts see current pricing and
+funding in their session controls and accepted earnings on their bookings. Offer
+changes never reprice an existing booking or its refund basis.

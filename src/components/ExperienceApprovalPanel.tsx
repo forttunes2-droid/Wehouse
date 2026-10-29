@@ -25,7 +25,7 @@ export default function ExperienceApprovalPanel({activity,note,disabled=false,re
   {error&&<p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
   {readiness&&<ul className="grid gap-2 sm:grid-cols-2">{Object.entries(EXPERIENCE_APPROVAL_CHECKS).map(([key,label])=><li key={key} className="flex items-start justify-between gap-3 rounded-xl bg-[var(--wh-elevated)] p-3 text-sm"><span>{label}</span><span className={`shrink-0 font-medium ${readiness.checks[key as keyof typeof EXPERIENCE_APPROVAL_CHECKS]?'text-emerald-700 dark:text-emerald-300':'text-amber-800 dark:text-amber-200'}`}>{readiness.checks[key as keyof typeof EXPERIENCE_APPROVAL_CHECKS]?'Complete':'Needed'}</span></li>)}</ul>}
   {activity.status==='submitted'&&<><p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Use the shared feedback field above to record the approval basis in at least 20 characters. The server rechecks eligibility when you approve.</p><Button type="button" disabled={busy||disabled||loading||!readiness?.can_approve||note.trim().length<20} onClick={()=>void approve()}>{busy?'Approving...':'Approve activity'}</Button></>}
-  {activity.status==='approved'&&<p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Activity review approved. Public booking is not open.</p>}
+  {activity.status==='approved'&&<p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Activity review approved. The host manages publication separately.</p>}
  </section>;
 }
 function message(cause:unknown){return cause instanceof Error?cause.message:(cause as {message?:string})?.message||'Activity approval could not be confirmed. Refresh before retrying.';}

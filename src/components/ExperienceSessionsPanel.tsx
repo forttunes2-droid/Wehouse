@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import ExperienceSessionDiscount from '@/components/ExperienceDiscountControls';
 import type { ExperienceActivity } from '@/lib/experienceActivities';
 import { archiveExperienceSession, currencyScale, listExperienceSessions, saveExperienceSession, sessionCurrency, sessionPriceMinor, type ExperienceSession } from '@/lib/experienceSessions';
 import { dateTimeInputInZone, formatMoney, zonedInputToISO } from '@/lib/regional';
@@ -9,10 +10,11 @@ export default function ExperienceSessionsPanel({ activity, onDirtyChange, revie
   const [rows, setRows] = useState<ExperienceSession[]>([]), [currency, setCurrency] = useState('');
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<ExperienceSession | null>(null), [start, setStart] = useState(''), [capacity, setCapacity] = useState(''), [price, setPrice] = useState('');
+  const [discountSession,setDiscountSession]=useState<string|null>(null),[discountDirty,setDiscountDirty]=useState(false);
   const [hasMore, setHasMore] = useState(false), [attempt, setAttempt] = useState(0), [baseline, setBaseline] = useState('["","",""]');
   const cursor = useRef<ExperienceSession | undefined>(undefined);
   const lock = useRef(false), generation = useRef(0), requestId = useRef(crypto.randomUUID());
-  const dirty = JSON.stringify([start, capacity, price]) !== baseline;
+  const dirty = JSON.stringify([start, capacity, price]) !== baseline||discountDirty;
   useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
   useEffect(() => {
     const request = ++generation.current; setLoading(true); setError(''); setRows([]); setCurrency('');
@@ -55,7 +57,7 @@ export default function ExperienceSessionsPanel({ activity, onDirtyChange, revie
   }
   const editable = !review && ['draft','changes_required','withdrawn'].includes(activity.status);
   return <section aria-label="Experience sessions" className="space-y-4 rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4">
-    <header><h3 className="font-semibold">Dates and prices</h3><p className="mt-1 text-sm leading-6 text-[var(--wh-text-secondary)]">{review ? 'Review the dates, capacity and price prepared before this application was submitted.' : activity.status === 'submitted' ? 'Dates and prices are locked during review. Withdraw the application before changing them.' : 'Prepare individual sessions for this activity.'} Times use {activity.details.timezone}. These dates are not open for bookings.</p></header>
+    <header><h3 className="font-semibold">Dates and prices</h3><p className="mt-1 text-sm leading-6 text-[var(--wh-text-secondary)]">{review ? 'Review the dates, capacity and standard price prepared before this application was submitted.' : activity.status === 'submitted' ? 'Dates and standard prices are locked during review. Withdraw the application before changing them.' : 'Prepare individual sessions for this activity. Approved sessions can have an optional discount.'} Times use {activity.details.timezone}. Dates become bookable while the approved activity is published.</p></header>
     {loading && <p role="status">Loading prepared sessions...</p>}
     {error && <div role="alert" className="space-y-2 text-sm text-red-700 dark:text-red-300"><p>{error}</p><Button variant="outline" type="button" disabled={busy||dirty} onClick={() => setAttempt(n=>n+1)}>Refresh sessions</Button></div>}
     {notice && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">{notice}</p>}
@@ -71,9 +73,11 @@ export default function ExperienceSessionsPanel({ activity, onDirtyChange, revie
     {!loading && !error && rows.length===0 && <p className="text-sm text-[var(--wh-text-secondary)]">No prepared sessions yet.</p>}
     <ul className="divide-y divide-[var(--wh-border)]">{rows.map(row=><li key={row.id} className="space-y-2 py-4">
       <p className="font-medium">{new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short',timeZone:row.timezone}).format(new Date(row.starts_at))} ({row.timezone})</p>
-      <p className="text-sm text-[var(--wh-text-secondary)]">{row.capacity} places · {formatMoney(row.price_minor/currencyScale(row.currency),{currency:row.currency,maxFraction:Math.log10(currencyScale(row.currency))})} per participant · Private</p>
+      <p className="text-sm text-[var(--wh-text-secondary)]">{row.capacity} places · {formatMoney(row.price_minor/currencyScale(row.currency),{currency:row.currency,maxFraction:Math.log10(currencyScale(row.currency))})} per participant · {activity.status==='approved'?'Approved date':'Private'}</p>
       {row.activity_revision!==(activity.status==='approved'?(activity.approved_from_revision||activity.revision)-1:activity.status==='submitted'?activity.revision-1:activity.revision)&&<p className="text-sm text-amber-800 dark:text-amber-200">Activity changed since this date was prepared. {editable?'Review and save the session again.':'The host must withdraw the application and update this session before publication.'}</p>}
       {editable&&<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={busy||dirty} onClick={()=>edit(row)}>Edit session</Button><Button type="button" variant="outline" disabled={busy||dirty} onClick={()=>void archive(row)}>Archive prepared session</Button></div>}
+      {!review&&activity.status==='approved'&&Date.parse(row.starts_at)>Date.now()&&<Button type="button" variant="outline" disabled={busy||dirty} onClick={()=>setDiscountSession(current=>current===row.id?null:row.id)}>{discountSession===row.id?'Close session discount':'Manage session discount'}</Button>}
+      {discountSession===row.id&&!review&&activity.status==='approved'&&<ExperienceSessionDiscount key={row.id} sessionId={row.id} onDirtyChange={setDiscountDirty}/>}
     </li>)}</ul>
     {hasMore&&<Button type="button" variant="outline" disabled={busy||dirty} onClick={()=>void more()}>More sessions</Button>}
   </section>;

@@ -25,7 +25,7 @@ export default function ProviderOfferingEntry({ onService, onExperience }: {
         <div className="flex flex-col gap-3 rounded-xl border border-[var(--wh-border-subtle)] p-4">
           <h3 className="font-semibold">Experience</h3>
           <p className="flex-1 text-sm leading-6 text-[var(--wh-text-secondary)]">
-            Lead a class, tour or activity. Apply with details of the activity and your
+            Guide a class, garden visit, tour or activity. Apply with its details and your
             relevant expertise.
           </p>
           <Button type="button" variant="outline" onClick={onExperience}>Add an Experience</Button>

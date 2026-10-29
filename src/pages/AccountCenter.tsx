@@ -132,6 +132,7 @@ function AccountCenterContent({
   const [activatingWorkspace, setActivatingWorkspace] = useState<
     "worker" | "property_partner" | null
   >(null);
+  const activationLock=useRef(false);
   const [photoPreview, setPhotoPreview] = useState(false);
   const [workspaceUnread, setWorkspaceUnread] = useState<Record<string, number>>({});
 
@@ -190,7 +191,7 @@ function AccountCenterContent({
       items.push({
         role: "worker",
         label: "Service Worker",
-        detail: serviceProviderLive ? "Jobs, Showcase and earnings" : serviceProviderStatusText(profile.worker_status),
+        detail: "Services, Experiences, bookings and earnings",
       });
     if (hasPartnerWorkspace)
       items.push({
@@ -217,8 +218,6 @@ function AccountCenterContent({
     assignedWorkspaces,
     hasPartnerWorkspace,
     hasServiceProviderWorkspace,
-    profile.worker_status,
-    serviceProviderLive,
     ownAccess,
   ]);
   const workspaceRolesKey = switchableWorkspaces.map(item => item.role).join(',');
@@ -316,25 +315,27 @@ function AccountCenterContent({
   async function startProfessionalOnboarding(
     workspace: "worker" | "property_partner",
   ) {
-    if (activatingWorkspace) return;
+    if (activationLock.current) return;
+    activationLock.current=true;
     setActivatingWorkspace(workspace);
     const rpc =
       workspace === "worker"
         ? "activate_my_worker_workspace"
         : "activate_my_property_partner_workspace";
-    const { error } = await supabase.rpc(rpc);
-    setActivatingWorkspace(null);
-    if (error)
-      return toast.error(
-        error.message || "This onboarding flow could not be started",
-      );
-    window.dispatchEvent(new Event("wehouse:workspace-access-changed"));
-    toast.success(
-      workspace === "worker"
-        ? "Service Worker onboarding started"
-        : "Property Partner onboarding started",
-    );
-    onWorkspaceActivated?.(workspace);
+    try {
+      const { error } = await withTimeout(supabase.rpc(rpc),15000,
+        'Setup could not be confirmed. Refresh your workspaces before retrying.');
+      if(error)throw error;
+      if(!preferenceAlive.current)return;
+      window.dispatchEvent(new Event("wehouse:workspace-access-changed"));
+      toast.success(workspace === "worker" ? "Services setup started" : "Property Partner setup started");
+      onWorkspaceActivated?.(workspace);
+    } catch(cause) {
+      if(preferenceAlive.current)toast.error((cause as {message?:string})?.message||'Setup could not be confirmed. Refresh your workspaces before retrying.');
+    } finally {
+      activationLock.current=false;
+      if(preferenceAlive.current)setActivatingWorkspace(null);
+    }
   }
 
   function continueProfessionalOnboarding(
@@ -397,8 +398,8 @@ function AccountCenterContent({
           <AccountSection title="Get started">
             {!hasServiceProviderWorkspace ? (
               <AccountRow
-                title="Offer services"
-                detail="Create your Service Worker profile"
+                title="Offer services or Experiences"
+                detail="Set up your Services workspace"
                 onClick={() => void startProfessionalOnboarding("worker")}
                 disabled={activatingWorkspace !== null}
                 icon={<AccountIcon name="offerServices" />}
@@ -697,14 +698,6 @@ function AccountCenterContent({
       </AccountSection>
     </AccountShell>
   );
-}
-
-function serviceProviderStatusText(status?: string | null) {
-  if (status === "profile_under_review")
-    return "Your Service Worker profile is under WeHouse review.";
-  if (status === "pending")
-    return "Finish your services, coverage and required onboarding steps.";
-  return "Continue your Service Worker onboarding.";
 }
 
 function Toggle({

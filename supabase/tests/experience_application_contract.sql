@@ -2,6 +2,14 @@ begin;
 create function pg_temp.expect(value boolean,description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAIL: %',description;end if;end$$;
 create function pg_temp.rejects(statement text) returns boolean language plpgsql as $$begin execute statement;return false;exception when others then return true;end$$;
 grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text) to authenticated;
+grant execute on function pg_temp.expect(boolean,text),pg_temp.rejects(text) to anon;
+set local role anon;
+select pg_temp.expect(exists(select 1 from jsonb_array_elements(public.get_experience_categories('NG')) c where c->>'code'='outdoor' and c->'examples' ? 'Guided garden visits'),'guest discovery can read guided garden visit categories without becoming a Provider');
+select pg_temp.expect(pg_temp.rejects('select * from public.experience_categories'),'public category metadata does not grant direct table access');
+reset role;
+set local role authenticated;
+select pg_temp.expect(jsonb_array_length(public.get_experience_categories('NG'))>0,'customer discovery does not require Provider identity');
+reset role;
 
 -- Review proof uses the real confirmed payment and protected ledger created by
 -- this contract. Only the synthetic booking's clock/fulfillment receipt is moved
@@ -146,6 +154,89 @@ begin
  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
 end $$;
 
+create function pg_temp.exercise_experience_discounts(aid uuid,session_id uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,eg uuid) returns void language plpgsql as $$
+declare before_quote jsonb;q jsonb;saved jsonb;checkout jsonb;result jsonb;held uuid:=gen_random_uuid();protection uuid;action uuid;updated timestamptz;refund_reference text;
+begin
+ -- This subtransaction deliberately rolls the whole funded-price scenario back
+ -- before the wider application contract continues its independent assertions.
+ begin
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+  before_quote:=public.get_experience_booking_quote(session_id,1);
+  perform pg_temp.expect(pg_temp.rejects(format('select public.set_my_experience_session_discount(%L,0,10,null)',session_id)),'customer cannot discount another provider session');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+  begin
+   perform public.set_my_experience_session_discount(session_id,0,10,(select (starts_at at time zone timezone)::date-1 from public.experience_sessions where id=session_id));
+   perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+   perform pg_temp.expect((public.get_experience_booking_quote(session_id,1)->'contract'->>'total_minor')::bigint=250000,'offer end date follows the session local date, not the purchase date');
+   raise exception using errcode='ZX002',message='rollback end-date fixture';
+  exception when sqlstate 'ZX002' then null;
+  end;
+  saved:=public.set_my_experience_session_discount(session_id,0,10,null);
+  perform pg_temp.expect(public.set_my_experience_session_discount(session_id,0,10,null)=saved,'host discount lost-response retry returns same revision');
+  perform pg_temp.expect(pg_temp.rejects(format('select public.set_my_experience_session_discount(%L,0,15,null)',session_id)),'stale host discount cannot overwrite a newer offer');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+  perform pg_temp.expect(pg_temp.rejects(format('select public.hold_experience_booking(%L,%L,1,%L)',held,session_id,before_quote->>'contract_hash')),'old price quote cannot accept a changed discount');
+  q:=public.get_experience_booking_quote(session_id,1);
+  perform pg_temp.expect((q->'contract'->>'total_minor')::bigint=225000 and (q->'contract'->>'host_discount_minor')::bigint=25000,'host offer changes the canonical per-person charge');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+  perform pg_temp.expect(pg_temp.rejects(format('select public.creator_set_experience_discount(%L,%L,0,11,null,%L,%L)','activity',aid::text,eg,'Too much funding is rejected')),'Creator cannot spend more than the applicable commission');
+  begin
+   perform public.creator_publish_experience_commission(eg,(public.creator_get_experience_commission()->'policy'->>'version')::integer,2,'Disposable small commission offer verification');
+   perform public.creator_set_experience_discount('activity',aid::text,0,1,null,eg,'One percent offer funded within a two percent commission');
+   saved:=public.creator_get_experience_discount('activity',aid::text);
+   perform pg_temp.expect((saved->>'percent')::numeric=1 and (saved->>'commission_percent')::numeric=2,'small commissions can fund a smaller offer without an invented five percent minimum');
+   perform pg_temp.expect(pg_temp.rejects(format('select public.creator_set_experience_discount(%L,%L,1,3,null,%L,%L)','activity',aid::text,eg,'Excess low-rate funding is rejected')),'low-rate offers remain capped by the actual commission');
+   raise exception using errcode='ZX002',message='roll back the small commission offer';
+  exception when sqlstate 'ZX002' then null;
+  end;
+  perform public.creator_set_experience_discount('state',(select details->>'state' from public.experience_activities where id=aid),0,5,null,eg,'Disposable state campaign; rolled back.');
+  saved:=public.creator_set_experience_discount('activity',aid::text,0,5,null,eg,'Disposable activity offer; rolled back.');
+  perform pg_temp.expect(public.creator_set_experience_discount('activity',aid::text,0,5,null,eg,'Disposable activity offer; rolled back.')=saved,'Creator policy publication is idempotent');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+  q:=public.get_experience_booking_quote(session_id,1);
+  perform pg_temp.expect((q->'contract'->>'total_minor')::bigint=213750 and (q->'contract'->>'commission_minor')::bigint=11250 and (q->'contract'->>'host_receives_minor')::bigint=202500,'WeHouse funding comes only from its commission, leaving accepted Host net unchanged');
+  perform pg_temp.expect((public.get_published_experience_sessions(aid)->0->>'price_minor')::bigint=213750,'public date selection displays the same discounted unit price');
+  perform pg_temp.expect((public.get_published_experience(aid)->'next_session'->>'price_minor')::bigint=213750,'ordinary and Sponsored activity cards share the quote price');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+  saved:=public.get_my_experience_session_discount(session_id);
+  perform pg_temp.expect((saved->'pricing'->>'wehouse_discount_minor')::bigint=11250 and (saved->'pricing'->>'host_receives_minor')::bigint=202500 and saved->'pricing'->>'total_minor'=q->'contract'->>'total_minor','host sees the same funded offer, customer price and preserved earnings before another booking');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+  perform public.hold_experience_booking(held,session_id,1,q->>'contract_hash');
+  checkout:=public.create_experience_checkout(held);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',h,'session_id',hs,'role','authenticated')::text,true);
+  perform public.set_my_experience_session_discount(session_id,1,0,null);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+  perform public.creator_set_experience_discount('activity',aid::text,1,0,null,eg,'Stop new funded offers; old booking unchanged.');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+  perform pg_temp.expect(public.get_my_experience_booking(held)->'contract'=q->'contract','stopping both discounts never reprices an accepted booking');
+  perform pg_temp.expect((public.get_experience_booking_quote(session_id,1)->'contract'->>'total_minor')::bigint=250000,'activity-specific zero offer opts out of the wider state campaign');
+  perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+  result:=public.process_verified_paystack_charge('charge.success:'||(checkout->>'reference'),'charge.success',checkout->>'reference',repeat('a',64),now(),213750,'NGN','discounted-'||held);
+  perform pg_temp.expect((result->>'success')::boolean,'shared charge gateway accepts the exact frozen funded split: '||result::text);
+  select payment_protection_id into protection from public.experience_bookings where id=held;
+  perform pg_temp.expect(exists(select 1 from public.payment_protection_transactions where id=protection and amount_total=2137.50 and amount_commission=112.50 and amount_payee=2025),'Payment Protection retains discounted charge and exact fee/net');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
+  perform public.request_experience_booking_review(held,'payment_issue','Disposable discounted payment review');
+  update public.creator_elevation_grants set action_classes=array['finance_exception'] where creator_elevation_id=eg;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',c,'session_id',cs,'role','authenticated')::text,true);
+  updated:=(public.get_experience_finance_reviews(eg,null,null,held)->0->>'updated_at')::timestamptz;
+  perform public.decide_experience_booking_review(held,updated,50,'Half retained and half refunded under the recorded review',eg);
+  perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+  select financial_action_id into action from public.financial_action_outbox where subject_id=held::text and action_type='release_experience_payment';
+  update public.financial_action_outbox set status='processing' where financial_action_id=action;
+  result:=public.complete_internal_release_action(action);
+  perform pg_temp.expect((result->>'commission')::numeric=56.25 and (result->>'payee_amount')::numeric=1012.50,'partial release prorates the frozen net commission rather than charging the undiscounted rate again');
+  select financial_action_id into action from public.financial_action_outbox where subject_id=held::text and action_type='refund_experience_booking';
+  update public.financial_action_outbox set status='processing' where financial_action_id=action;
+  refund_reference:='discount-refund-'||held;
+  perform public.record_refund_provider_submission(action,refund_reference,'pending',repeat('b',64));
+  perform public.process_verified_paystack_refund_event('refund.processed:'||refund_reference,'refund.processed',checkout->>'reference',refund_reference,refund_reference,repeat('c',64),now(),106875,'NGN');
+  perform pg_temp.expect(exists(select 1 from public.payment_protection_transactions where id=protection and released_amount=1068.75 and refunded_amount=1068.75 and commission_recognized_amount=56.25),'discounted refund and release reconcile to the original verified charge');
+  raise exception using errcode='ZX001',message='rollback disposable discount scenario';
+ exception when sqlstate 'ZX001' then null;
+ end;
+end $$;
+
 create function pg_temp.exercise_experience_publication(aid uuid,session_id uuid,h uuid,c uuid,s uuid,hs uuid,cs uuid,ss uuid,hid text,cid text,sid text) returns void language plpgsql as $$
 declare eg uuid;ep integer;pub jsonb;q jsonb;held jsonb;bid uuid:=gen_random_uuid();other_id uuid:=gen_random_uuid();before_contract jsonb;
  checkout jsonb;paid_checkout jsonb;confirmation jsonb;protection uuid;action_id uuid;refund_booking uuid;refund_reference text;review_updated timestamptz;
@@ -160,6 +251,7 @@ begin
  pub:=public.set_my_experience_publication(aid,3,0,true);
  perform pg_temp.expect((pub->>'visible')::boolean and (pub->>'revision')::integer=1,'host explicitly publishes the approved revision');
  perform pg_temp.exercise_experience_sponsored(aid,h,c,s,hs,cs,ss,hid,eg);
+ perform pg_temp.exercise_experience_discounts(aid,session_id,h,c,s,hs,cs,ss,eg);
  perform pg_temp.expect(public.set_my_experience_publication(aid,3,0,true)=pub,'lost publish response returns the same publication');
  perform pg_temp.expect(pg_temp.rejects(format('select public.get_experience_booking_quote(%L,1)',session_id)),'host cannot book their own session');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);

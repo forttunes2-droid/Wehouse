@@ -31,3 +31,17 @@ test('checkout accepts only its canonical reference and an HTTPS Paystack destin
  for(const init of [{success:true,reference:'other',authorization_url:'https://checkout.paystack.com/synthetic'},{success:true,reference:ref,authorization_url:'https://checkout.paystack.com.attacker.invalid/synthetic'},{success:true,reference:ref,authorization_url:'http://checkout.paystack.com/synthetic'},{success:false,error:'Hold expired'}]){h.setInit(init);await assert.rejects(h.api.initializeExperiencePayment(bid));}
  h.set({...booking(),booking_id:aid,payment_id:pid,reference:ref,already_paid:true});await assert.rejects(h.api.initializeExperiencePayment(bid));
 });
+
+test('funded activity offers preserve Host earnings and reject inconsistent discount receipts',()=>{
+ const {api}=harness();
+ const q={...contract(),price_per_participant_minor:213750,total_minor:427500,commission_minor:22500,host_receives_minor:405000,original_price_per_participant_minor:250000,original_total_minor:500000,host_discount_percent:10,host_discount_minor:50000,wehouse_discount_percent:5,wehouse_discount_minor:22500,discount_policy_version_id:pid,discount_revision:1,commission_base_minor:450000,commission_gross_minor:45000};
+ assert.equal(api.experienceContract(q).host_receives_minor,405000);
+ const onlyHost={...q,price_per_participant_minor:225000,total_minor:450000,commission_minor:45000,wehouse_discount_percent:0,wehouse_discount_minor:0,discount_policy_version_id:null};
+ assert.equal(api.experienceContract(onlyHost).host_receives_minor,q.host_receives_minor);
+ for(const patch of [{commission_minor:42750},{host_receives_minor:384750},{host_discount_minor:49999},{wehouse_discount_minor:22501},{original_total_minor:500001},{wehouse_discount_percent:11},{host_discount_percent:1},{discount_policy_version_id:'bad'},{discount_revision:-1},{commission_gross_minor:44999}])assert.throws(()=>api.experienceContract({...q,...patch}));
+ const capped={...q,host_discount_percent:50,host_discount_minor:250000,commission_base_minor:250000,commission_gross_minor:25000,wehouse_discount_minor:0,price_per_participant_minor:125000,total_minor:250000,commission_minor:25000,host_receives_minor:225000};
+ assert.equal(api.experienceContract(capped).total_minor,250000);
+ assert.throws(()=>api.experienceContract({...capped,wehouse_discount_minor:1,total_minor:249999}));
+ const odd={...capped,participants:1,original_price_per_participant_minor:3,original_total_minor:3,host_discount_minor:1,commission_base_minor:2,commission_gross_minor:0,price_per_participant_minor:2,total_minor:2,commission_minor:0,host_receives_minor:2};
+ assert.equal(api.experienceContract(odd).total_minor,2,'minor-unit rounding cannot make a payable session free or exceed the 50% cap');
+});
