@@ -1,4 +1,5 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
+import DiscoveryRail from '@/components/DiscoveryRail';
 import {matchesDiscoveryText} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
@@ -366,9 +367,8 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
           onClearLocation={() => { setFollowedOrigin(null); clearLocation(); setRadius(''); }}
         />
         {sponsoredHotels.length > 0 && <section aria-label="Sponsored hotels" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored hotels</p>
           <p className="mb-3 text-xs text-muted-foreground">Paid placement among matching hotels. WeHouse checks and organic order are separate.</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <DiscoveryRail title="Sponsored">
             {sponsoredHotels.map(({ campaignId, entry: { hotel, distance } }) => <SponsoredPlacement key={campaignId} campaignId={campaignId} context="hotel_discovery">
               <span className="mb-2 inline-block rounded-full border border-amber-300/30 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Sponsored</span>
               <HotelCard hotel={hotel} distance={distance} saved={savedHotelIds.has(Number(hotel.hotel_id))}
@@ -376,7 +376,7 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
                 onToggleSave={() => void toggleHotelSave(Number(hotel.hotel_id))}
                 onOpen={() => { recordSponsoredOpen(campaignId); onNavigate('hotel_detail', String(hotel.hotel_id)); }} />
             </SponsoredPlacement>)}
-          </div>
+          </DiscoveryRail>
         </section>}
 
         <div className="flex items-center justify-between gap-3">

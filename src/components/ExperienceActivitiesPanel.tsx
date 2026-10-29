@@ -26,7 +26,7 @@ export default function ExperienceActivitiesPanel(props: Props) {
  return <Activities key={props.profile.user_id} {...props} />;
 }
 function Activities({ profile, initialApplication }: Props) {
- const categoryDescriptionId=useId();
+ const categoryDescriptionId=useId(),participationDescriptionId=useId();
  const [rows,setRows]=useState<ExperienceActivity[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');
  const [editor,setEditor]=useState(false),[selected,setSelected]=useState<ExperienceActivity|null>(null);
  const [draft,setDraft]=useState<ExperienceDraft>(emptyExperienceDraft),[savedDraft,setSavedDraft]=useState('');
@@ -92,7 +92,7 @@ function Activities({ profile, initialApplication }: Props) {
     <legend className="px-1 font-semibold">Activity details</legend>
     <Field label="Activity name"><input className={control} maxLength={120} value={draft.title} onChange={event=>field('title',event.target.value)}/></Field>
     <Field label="Category"><select aria-label="Category" aria-describedby={categories.some(item=>item.code===draft.category)?categoryDescriptionId:undefined} className={control} value={draft.category} onChange={event=>field('category',event.target.value)}><option value="">Choose a category</option>{draft.category&&!categories.some(item=>item.code===draft.category)&&<option value={draft.category}>{draft.category.replaceAll('_',' ')} (not accepting submissions)</option>}{categories.map(item=><option key={item.code} value={item.code}>{item.name}</option>)}</select>{categories.find(item=>item.code===draft.category)&&<span id={categoryDescriptionId} className="block text-sm leading-6 text-[var(--wh-text-secondary)]">{categories.find(item=>item.code===draft.category)?.description} Examples: {categories.find(item=>item.code===draft.category)?.examples.join(', ')}.</span>}</Field>
-    <Field label="What participants will do" wide><textarea className={control} rows={5} maxLength={6000} value={draft.what_to_expect} onChange={event=>field('what_to_expect',event.target.value)}/><span className="text-sm leading-6 text-[var(--wh-text-secondary)]">For a garden visit or tour, explain what you will guide participants through, the access included and how the booked time is used.</span></Field>
+    <Field label="What participants will do" wide><textarea aria-label="What participants will do" aria-describedby={participationDescriptionId} className={control} rows={5} maxLength={6000} value={draft.what_to_expect} onChange={event=>field('what_to_expect',event.target.value)}/><span id={participationDescriptionId} className="text-sm leading-6 text-[var(--wh-text-secondary)]">For a garden visit or tour, explain what you will guide participants through, the access included and how the booked time is used.</span></Field>
     <Field label="Your expertise or venue responsibility" wide><textarea className={control} rows={4} maxLength={4000} value={draft.host_expertise} onChange={event=>field('host_expertise',event.target.value)}/></Field>
     <Field label="Duration in minutes"><input className={control} type="number" min={15} max={1440} step={1} value={draft.duration_minutes??''} onChange={event=>field('duration_minutes',event.target.value?Number(event.target.value):null)}/></Field>
     <Field label="Maximum participants"><input className={control} type="number" min={1} max={100} step={1} value={draft.max_group_size??''} onChange={event=>field('max_group_size',event.target.value?Number(event.target.value):null)}/></Field>

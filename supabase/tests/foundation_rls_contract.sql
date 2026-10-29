@@ -23,6 +23,9 @@ begin
       'get_public_hotel_detail(integer)', 'get_public_listing_detail(text)',
       -- Explicit setting-key allowlist and published-only, 12-offer site page.
       'get_public_discovery_settings()',
+      -- Bounded enabled category labels for guest/customer discovery; no host
+      -- status, private evidence, table access or activity creation authority.
+      'get_experience_categories(text)',
       -- Published support address only; no arguments or account lookup.
       -- account_sanction_session_contract verifies its anonymous projection.
       'get_public_account_support()',
@@ -46,6 +49,22 @@ begin
   end if;
 end;
 $$;
+
+set local role anon;
+do $$
+declare rows jsonb;entry jsonb;
+begin
+ rows:=public.get_experience_categories('NG');
+ if jsonb_typeof(rows) is distinct from 'array' or jsonb_array_length(rows)>100 then raise exception 'Public Experience categories must be bounded metadata';end if;
+ for entry in select * from jsonb_array_elements(rows) loop
+  if (select count(*) from jsonb_object_keys(entry))<>4 or not entry ?& array['code','name','description','examples']
+   or exists(select 1 from jsonb_object_keys(entry) key where key not in('code','name','description','examples')) then
+   raise exception 'Public Experience categories exposed unexpected fields';
+  end if;
+ end loop;
+ if has_table_privilege('anon','public.experience_categories','select') then raise exception 'Public category labels must not expose the base table';end if;
+end $$;
+reset role;
 
 -- Browser roles must not retain direct table privileges where RLS has no policies.
 -- Also prevent broad default grants from silently reopening future tables.

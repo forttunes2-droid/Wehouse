@@ -1,4 +1,5 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
+import DiscoveryRail from '@/components/DiscoveryRail';
 import {matchesDiscoveryText, homeDiscoveryFields} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { homeStyleValue } from '@/lib/homeStyles';
@@ -411,12 +412,11 @@ export default function Search({
           locationBusy={locating}
           onLocation={requestLocation}
           onClearLocation={clearLocation}
-          locationDetail={locationError || "Optional: WeHouse uses your location to estimate distances and show nearby homes first. It is not saved to your profile. You can clear it or search by place without sharing device location."}
-        />
+          locationDetail={locationError || (location ? "Distances use this location. Clear it any time; your profile is unchanged." : undefined)}
+        ><div role="group" aria-label="Stay type" className="flex min-w-0 flex-wrap gap-2">{([['all','All homes'],['short_let','Short Lets'],['long_stay','Long Lets']] as const).map(([type,label])=><button key={type} type="button" aria-pressed={stayType===type} onClick={()=>chooseStay(type)} className={`min-h-11 rounded-full border px-4 text-sm font-medium ${stayType===type?'border-violet-500/30 bg-violet-500/10 text-[var(--wh-accent-text)]':'border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text-secondary)]'}`}>{label}</button>)}</div></DiscoveryToolbar>
         {sponsoredHomes.length > 0 && <section aria-label="Sponsored homes" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored homes</p>
           <p className="mb-3 text-xs text-muted-foreground">Paid placement among matching homes. WeHouse checks and organic order are separate.</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <DiscoveryRail title="Sponsored">
             {sponsoredHomes.map(({ campaignId, entry: { listing, distance } }) => <SponsoredPlacement key={campaignId} campaignId={campaignId} context="home_discovery">
               <span className="mb-2 inline-block rounded-full border border-amber-300/30 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Sponsored</span>
               <ListingCard listing={listing} distanceKm={distance}
@@ -424,7 +424,7 @@ export default function Search({
                 isSaved={savedIds.has(listing.id)}
                 onToggleSave={event => { event.preventDefault(); event.stopPropagation(); onToggleSave(listing.id); }} />
             </SponsoredPlacement>)}
-          </div>
+          </DiscoveryRail>
         </section>}
 
         <div className="flex items-center justify-between gap-3">
@@ -490,7 +490,7 @@ export default function Search({
           />
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {!query.trim()&&!hasFilters&&!location?<div className="space-y-8">{(['short_let','long_stay'] as const).map(type=>{const rows=filtered.filter(item=>item.listing.sub_type===type);return rows.length>0&&<DiscoveryRail key={type} title={type==='short_let'?'Short Lets':'Long Lets'} onSeeAll={()=>chooseStay(type)}>{rows.map(({listing,distance})=><ListingCard key={listing.id} listing={listing} distanceKm={distance} onClick={()=>onNavigate('detail',listing.id)} isSaved={savedIds.has(listing.id)} onToggleSave={event=>{event.preventDefault();event.stopPropagation();onToggleSave(listing.id);}}/>)}</DiscoveryRail>;})}</div>:<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filtered.map(({ listing, distance }) => (
               <ListingCard
                 key={listing.id}
@@ -505,7 +505,7 @@ export default function Search({
                 }}
               />
               ))}
-            </div>
+            </div>}
             {hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()}
               className="mx-auto mt-4 block min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-5 text-xs font-semibold text-violet-300 disabled:opacity-50">
               {loadingMore ? "Loading more…" : "Show more homes"}

@@ -4,6 +4,33 @@
 
 ## Current engineering checkpoints
 
+### Connected catalogue shelves and CI repairs — 29 October
+
+Homes now browse real Short Let and Long Let sections with the existing listing
+card, plus always-visible stay choices. Experience shelves use actual category
+names. “See all” applies the existing server filter; typed/filtered results keep
+their grid and pagination. Hotel results retain the normal grid. Labelled Sponsored
+shelves share the same controls and cannot form a long wall before organic results.
+No new feed, ranking, booking or money authority was added; requests remain bounded
+and use the existing public web cache where eligible. Motion respects reduced motion;
+keyboard controls, next/previous boundaries and viewport overflow are checked.
+
+All eight shared discovery width/theme journeys pass, now including shelf scrolling,
+the real cached stay filter and returning to browsing. Twenty-four Experience
+commerce and four Sponsored journeys pass. All 825 source regressions, TypeScript,
+focused lint and the production build pass before the final small stay-chip copy
+adjustment; type/lint and all eight discovery journeys pass after that adjustment.
+Screenshots were inspected for the phone light layout.
+
+CI on `b79a74a1` replayed all migrations and passed the Experience application SQL
+contract, but the foundation gate rejected the newly intentional public category
+reader because its exact anonymous API allowlist was not updated. The reviewed
+entry now also checks that the reader exposes only its four metadata fields and
+does not grant table reads; the full foundation contract passes on Test. The
+application-browser check found helper text included in a textarea's accessible
+name. Its label/description are now separate, and the exact 32 application and 10
+session browser scenarios pass. Fresh CI on the next pushed commit remains required.
+
 ### Experience offers, host visibility and shared Provider entry — 29 October
 
 Test migration `20261029083450` adds optional session offers to the existing price

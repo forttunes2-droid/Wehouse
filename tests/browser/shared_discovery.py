@@ -46,7 +46,8 @@ async def main():
      assert not request.request.headers.get('authorization') and not request.request.headers.get('cookie')
      kind=parse_qs(urlparse(request.request.url).query)['kind'][0]
      assert kind in ['homes','hotels']
-     await page.evaluate('(kind)=>window.__browse.gatewayRequests.push(kind)',kind)
+     params={key:values[0] for key,values in parse_qs(urlparse(request.request.url).query).items()}
+     await page.evaluate('(params)=>window.__browse.gatewayRequests.push(params)',params)
      count=await page.evaluate('window.__browse.homeCount||1') if kind=='homes' else 1
      homes=[HOME]+[{**HOME,'id':f'public-home-{n}','title':f'Courtyard apartment {n}'} for n in range(2,count+1)]
      return await request.fulfill(status=200,content_type='application/json',body=json.dumps({'items':homes if kind=='homes' else [HOTEL],'has_more':False}))
@@ -94,6 +95,19 @@ async def main():
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
     await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
     await expect(page.locator('[data-home-card]').first).to_contain_text('₦400,000')
+    shelf=page.get_by_role('group',name='Long Lets listings',exact=True)
+    await expect(shelf).to_be_visible()
+    next_homes=page.get_by_role('button',name='Next Long Lets',exact=True)
+    if width<1024:
+     await expect(next_homes).to_be_enabled();await next_homes.click()
+     await page.wait_for_function('document.querySelector(\'[aria-label="Long Lets listings"]\').scrollLeft>0')
+     await shelf.focus();await page.keyboard.press('ArrowLeft')
+    assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth')
+    await page.get_by_role('button',name='See all Long Lets',exact=True).click()
+    await expect(shelf).to_have_count(0);await expect(page.locator('[data-home-card]')).to_have_count(4)
+    await page.wait_for_function('window.__browse.gatewayRequests.some(q=>q.kind==="homes"&&q.p_stay_type==="long_stay")')
+    await page.get_by_role('button',name='Clear',exact=True).click();await expect(page.get_by_role('group',name='Long Lets listings',exact=True)).to_be_visible()
+    await page.screenshot(path=str(OUT/f'homes-rail-{width}-{theme}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("locations")')
     await expect(page.get_by_role('button',name='Local Government Any local area',exact=True)).to_be_disabled()
     await page.get_by_role('button',name='State Any region',exact=True).click()
