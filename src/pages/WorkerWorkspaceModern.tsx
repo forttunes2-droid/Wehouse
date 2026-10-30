@@ -263,6 +263,11 @@ function WorkerWorkspaceContent({
     >
       {access.error&&<section role="alert" className="mb-4 space-y-2 rounded-xl border border-[var(--wh-border)] p-4"><p className="text-sm text-red-700 dark:text-red-300">{access.error}</p><button type="button" disabled={access.loading} onClick={access.refresh} className="wh-motion-control min-h-11 rounded-xl border border-[var(--wh-border)] px-3 text-sm font-semibold">Retry workspace access</button></section>}
       {access.loading&&<p role="status" className="mb-3 text-sm text-[var(--wh-text-secondary)]">Checking workspace access...</p>}
+      {!canManageJobs && safeTab==='home' && workspaceAccess?.personal_workspace && onSwitchWorkspace && (
+        <button type="button" onClick={()=>onSwitchWorkspace('personal')} className="mb-4 flex min-h-11 items-center gap-2 rounded-lg pr-3 text-sm font-semibold text-[var(--wh-accent-text)]">
+          <span aria-hidden="true">←</span> Back to Personal
+        </button>
+      )}
       {content}
     </WorkspaceFrameV2>
   );

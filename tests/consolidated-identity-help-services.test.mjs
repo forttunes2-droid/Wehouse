@@ -51,7 +51,7 @@ test("Worker setup manages several canonical services and booking prefers that l
   assert.match(migration, /service_subcategories/);
   assert.match(migration, /Choose an active WeHouse service from the approved catalog/);
   assert.match(setup, /Services you offer/);
-  assert.match(setup, /set_my_worker_services/);
+  assert.match(setup, /saveMyWorkerProfile/);
   assert.match(setup, /Add service/);
   assert.match(setup, /services\.length >= 10/);
   assert.match(booking, /canonical\.length[\s\S]*canonical[\s\S]*skills/);

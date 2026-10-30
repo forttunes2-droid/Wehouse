@@ -147,9 +147,15 @@ jobs:
       - name: Exercise team scope and Operation capacity
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/team_scope_capacity_contract.sql
+      - name: Verify professional evidence survives private location changes
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_credential_contract.sql
       - name: Exercise identity routing, Partner gate and Worker services
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/identity_partner_service_contract.sql
+      - name: Verify personal and professional location isolation and atomic profile saves
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/profile_location_workspace_contract.sql
       - name: Exercise Worker Operations and Admin canonical identity
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_operations_and_admin_identity_contract.sql

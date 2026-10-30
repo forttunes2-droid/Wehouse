@@ -27,6 +27,11 @@ async def main():
     return await handler.fulfill(status=200,content_type='application/json',body=json.dumps(data),headers={'access-control-allow-origin':'*'})
    await page.route('**/*',route);await page.goto(BASE+'/tests/browser/experience-commerce.html?mode=provider-account')
    await expect(page.get_by_role('heading',name='What would you like to offer?',exact=True)).to_be_visible()
+   await page.get_by_role('button',name='Back to Personal',exact=True).click()
+   await expect(page.get_by_role('heading',name='Personal workspace',exact=True)).to_be_visible()
+   assert not any(name.startswith(('activate_my_','save_my_','submit_','create_')) for name in calls),calls
+   await page.reload()
+   await expect(page.get_by_role('heading',name='What would you like to offer?',exact=True)).to_be_visible()
    await page.get_by_label('Account',exact=True).click()
    await expect(page.get_by_role('button',name='Sponsored',exact=False)).to_be_visible()
    await expect(page.get_by_role('button',name='WeHouse Pro · Work tools',exact=False)).to_have_count(0)

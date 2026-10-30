@@ -5,15 +5,18 @@ import {
   getServiceCategories,
   getServiceSubcategories,
   supabase,
-  updateProfile,
+  getMyWorkerServiceCoverage,
+  getProfile,
+  saveMyWorkerProfile,
 } from "@/lib/supabase";
-import LocationSelector from "@/legacy/LocationSelector";
+import LocationSelector from "@/components/LocationSelector";
 import SearchableSelect from "@/components/SearchableSelect";
 import BackButton from "@/components/BackButton";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
 import ProfilePhotoEditor from "@/components/ProfilePhotoEditor";
 import { occupationForService, workerOccupation } from "@/lib/workerTaxonomy";
 import { formatMoney } from "@/lib/regional";
+import {withTimeout} from '@/lib/withTimeout';
 
 type Props = {
   profile: Profile;
@@ -42,6 +45,7 @@ export default function WorkerSetupProfessional({
   const [servicePrice, setServicePrice] = useState("");
   const [services, setServices] = useState<SelectedService[]>([]);
   const [initialServicesKey, setInitialServicesKey] = useState("");
+  const [baselineProfile,setBaselineProfile]=useState(profile);
   const initialOccupation = workerOccupation(profile);
   const [occupation, setOccupation] = useState(
     initialOccupation === "Service professional" ? "" : initialOccupation,
@@ -52,11 +56,13 @@ export default function WorkerSetupProfessional({
   const [phone, setPhone] = useState(profile.phone || "");
   const [avatar, setAvatar] = useState(profile.avatar_url || "");
   const [location, setLocation] = useState({
-    country: profile.country || getRegionalDefaults().countryName,
-    state: profile.state || "",
-    city: profile.local_government || profile.city || "",
-    area: profile.area || "",
+    country: getRegionalDefaults().countryName,
+    state: "",
+    city: "",
+    area: "",
   });
+  const [initialLocationKey,setInitialLocationKey]=useState('');
+  const [loadError,setLoadError]=useState(''),[saveError,setSaveError]=useState(''),[loadAttempt,setLoadAttempt]=useState(0);
   const [busy, setBusy] = useState(false);
   const [servicesLoading, setServicesLoading] = useState(true);
 
@@ -64,25 +70,37 @@ export default function WorkerSetupProfessional({
     let active = true;
     void (async () => {
       setServicesLoading(true);
-      const { categories: rows } = await getServiceCategories();
+      setLoadError('');
+      const [{ categories: rows,error:categoryError },coverageResult,freshProfile] = await withTimeout(Promise.all([getServiceCategories(),getMyWorkerServiceCoverage(),getProfile(profile.user_id)]),15000,'Your work profile took too long to load. Refresh before editing.');
       if (!active) return;
+      if(categoryError||coverageResult.error||freshProfile.error)throw categoryError||coverageResult.error||freshProfile.error;
+      if(!freshProfile.profile||freshProfile.profile.user_id!==profile.user_id)throw Error('Your current work profile could not be confirmed.');
+      const current=freshProfile.profile;
+      setBaselineProfile(current);setName(current.full_name||'');setPhone(current.phone||'');setAvatar(current.avatar_url||'');
+      setBio(current.worker_bio||'');setExperience(current.worker_experience||'');
+      const currentOccupation=workerOccupation(current);setOccupation(currentOccupation==='Service professional'?'':currentOccupation);
+      const coverage=coverageResult.coverage;
+      const savedLocation={country:coverage?.country||getRegionalDefaults().countryName,state:coverage?.state||'',city:coverage?.city||'',area:coverage?.area||''};
+      setLocation(savedLocation);setInitialLocationKey(JSON.stringify(savedLocation));
       const categoryRows = rows || [];
       setCategories(categoryRows);
 
       const catalogs = await Promise.all(
         categoryRows.map(async (item) => {
-          const { subcategories } = await getServiceSubcategories(item.id);
+          const { subcategories,error } = await getServiceSubcategories(item.id);
+          if(error)throw error;
           return { category: item, subcategories: subcategories || [] };
         }),
       );
       if (!active) return;
 
-      const canonical = await supabase
+      const canonical = await withTimeout(supabase
         .from("worker_services")
         .select("service_name,price")
         .eq("worker_id", profile.user_id)
-        .order("created_at");
+        .order("created_at"),15000,'Your saved services took too long to load. Refresh before editing.');
       if (!active) return;
+      if(canonical.error)throw canonical.error;
 
       const canonicalRows = (canonical.data || []) as Array<{
         service_name: string;
@@ -105,8 +123,8 @@ export default function WorkerSetupProfessional({
       });
 
       if (!next.length) {
-        const legacySkills = Array.isArray(profile.worker_skills)
-          ? profile.worker_skills.filter(
+        const legacySkills = Array.isArray(current.worker_skills)
+          ? current.worker_skills.filter(
               (item): item is string =>
                 typeof item === "string" && Boolean(item.trim()),
             )
@@ -124,7 +142,7 @@ export default function WorkerSetupProfessional({
               categoryId: catalog.category.id,
               categoryName: catalog.category.name,
               name: specialtyName,
-              price: profile.worker_price ? String(profile.worker_price) : "",
+              price: current.worker_price ? String(current.worker_price) : "",
             },
           ];
           break;
@@ -134,11 +152,11 @@ export default function WorkerSetupProfessional({
       setServices(next);
       setInitialServicesKey(servicesKey(next));
       setServicesLoading(false);
-    })();
+    })().catch(cause=>{if(active)setLoadError((cause as {message?:string})?.message||'Your work profile could not be loaded. Refresh before editing.');}).finally(()=>{if(active)setServicesLoading(false);});
     return () => {
       active = false;
     };
-  }, [profile.user_id, profile.worker_price, profile.worker_skills]);
+  }, [profile.user_id, profile.worker_price, profile.worker_skills,loadAttempt]);
 
   useEffect(() => {
     if (!category) {
@@ -160,30 +178,28 @@ export default function WorkerSetupProfessional({
   );
 
   const hasChanges = useMemo(() => {
-    if (!profile.profile_complete) return true;
+    if (!baselineProfile.profile_complete) return true;
     return (
-      name.trim() !== (profile.full_name || "") ||
-      avatar !== (profile.avatar_url || "") ||
-      phone.trim() !== (profile.phone || "") ||
-      occupation.trim() !== workerOccupation(profile) ||
+      name.trim() !== (baselineProfile.full_name || "") ||
+      avatar !== (baselineProfile.avatar_url || "") ||
+      phone.trim() !== (baselineProfile.phone || "") ||
+      occupation.trim() !== workerOccupation(baselineProfile) ||
       servicesKey(services) !== initialServicesKey ||
-      bio.trim() !== (profile.worker_bio || "") ||
-      experience.trim() !== (profile.worker_experience || "") ||
-      location.country !== (profile.country || getRegionalDefaults().countryName) ||
-      location.state !== (profile.state || "") ||
-      location.city !== (profile.local_government || profile.city || "") ||
-      location.area !== (profile.area || "")
+      bio.trim() !== (baselineProfile.worker_bio || "") ||
+      experience.trim() !== (baselineProfile.worker_experience || "") ||
+      JSON.stringify(location) !== initialLocationKey
     );
   }, [
     avatar,
     bio,
     experience,
     initialServicesKey,
+    initialLocationKey,
     location,
     name,
     occupation,
     phone,
-    profile,
+    baselineProfile,
     services,
   ]);
 
@@ -219,14 +235,16 @@ export default function WorkerSetupProfessional({
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
-    if (!name.trim()) return toast.error("Add your full name");
-    if (!services.length) return toast.error("Add at least one service");
+    if(busy||servicesLoading||loadError)return;
+    setSaveError('');
+    if (!name.trim()) return setSaveError("Add your full name");
+    if (!services.length) return setSaveError("Add at least one service");
     if (services.some((item) => !item.categoryName || !item.name))
-      return toast.error("Choose a category for every service");
-    if (!occupation.trim()) return toast.error("Add your work title");
-    if (!experience.trim()) return toast.error("Add your work experience");
+      return setSaveError("Choose a category for every service");
+    if (!occupation.trim()) return setSaveError("Add your work title");
+    if (!experience.trim()) return setSaveError("Add your work experience");
     if (!location.state || !location.city)
-      return toast.error("Choose your state or region and city or area");
+      return setSaveError("Choose your state or region and city or area");
 
     setBusy(true);
     const servicePayload = services.map((item) => ({
@@ -235,20 +253,12 @@ export default function WorkerSetupProfessional({
       price: item.price ? Number(item.price) : 0,
       price_type: item.price ? "starting_from" : "negotiable",
     }));
-    const serviceResult = await supabase.rpc("set_my_worker_services", {
-      p_services: servicePayload,
-    });
-    if (serviceResult.error) {
-      setBusy(false);
-      return toast.error(
-        serviceResult.error.message || "Could not save your services",
-      );
-    }
-
     const positivePrices = services
       .map((item) => Number(item.price || 0))
       .filter((value) => value > 0);
-    const { error } = await updateProfile(profile.user_id, {
+    let error: {message?:string}|null=null;
+    let savedProfile:Profile|null=null;
+    try { const result = await saveMyWorkerProfile(servicePayload, {
       full_name: name.trim(),
       avatar_url: avatar || null,
       phone: phone.trim() || null,
@@ -262,17 +272,21 @@ export default function WorkerSetupProfessional({
       local_government: location.city,
       area: location.area || null,
       profile_complete: true,
-    });
+    }); error=result.error;savedProfile=result.profile;
+      if(!error&&savedProfile?.user_id!==profile.user_id)error={message:'The saved profile could not be confirmed. Refresh your work profile before retrying.'};
+    } catch(cause) {error={message:(cause as {message?:string})?.message||'The save result could not be confirmed. Refresh before retrying.'};}
     setBusy(false);
     if (error)
-      return toast.error(
-        "Your services were saved, but your profile details could not be saved. Try again.",
+      return setSaveError(
+        error.message || "Your work profile could not be saved. Refresh before retrying.",
       );
 
     setInitialServicesKey(servicesKey(services));
+    setInitialLocationKey(JSON.stringify(location));
+    if(savedProfile)setBaselineProfile(savedProfile);
     toast.success("Service Worker profile saved");
 
-    if (!profile.worker_verified) {
+    if (!savedProfile?.worker_verified) {
       if (onContinueVerification) {
         onContinueVerification();
         return;
@@ -296,7 +310,7 @@ export default function WorkerSetupProfessional({
     <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-8 text-[var(--wh-text)]">
       <main className="mx-auto max-w-2xl px-4 py-5 sm:px-5">
         <header className="mb-5 flex items-start gap-3 border-b border-[var(--wh-border-subtle)] pb-4">
-          {onBack && <BackButton onClick={onBack} />}
+          {onBack && <BackButton onClick={onBack} disabled={busy} />}
           <div className="min-w-0 flex-1">
             <p className="text-[9px] font-bold tracking-[.18em] text-violet-300">
               WEHOUSE · WORKER
@@ -312,7 +326,10 @@ export default function WorkerSetupProfessional({
           </div>
         </header>
 
+        {(loadError||saveError)&&<section role="alert" className="mb-4 rounded-xl border border-[var(--wh-border)] p-4 text-sm"><p>{loadError||saveError}</p><button type="button" disabled={busy} onClick={()=>{setSaveError('');setLoadAttempt(value=>value+1);}} className="min-h-11 font-semibold text-[var(--wh-accent-text)]">Refresh work profile</button></section>}
+        {servicesLoading&&<p role="status" className="mb-4 text-sm text-[var(--wh-text-secondary)]">Loading your work profile…</p>}
         <form onSubmit={save} className="space-y-3">
+          <fieldset disabled={busy||servicesLoading||Boolean(loadError)} className="contents">
           <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
             <ProfilePhotoEditor
               avatar={avatar}
@@ -456,7 +473,7 @@ export default function WorkerSetupProfessional({
           {hasChanges && (
             <button
               type="submit"
-              disabled={busy || servicesLoading}
+              disabled={busy || servicesLoading || Boolean(loadError)}
               className="h-12 w-full rounded-xl bg-violet-500 text-sm font-semibold text-white disabled:opacity-40"
             >
               {busy
@@ -466,6 +483,7 @@ export default function WorkerSetupProfessional({
                   : "Save & continue"}
             </button>
           )}
+          </fieldset>
         </form>
       </main>
     </div>

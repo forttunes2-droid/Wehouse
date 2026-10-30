@@ -1,6 +1,7 @@
 import { supabase } from './client';
 import type { Profile } from '@/types';
 import { compressImageFile } from './utils';
+import {withTimeout} from '@/lib/withTimeout';
 
 export type SafeProfileUpdates = Pick<Partial<Profile>,
   | 'username' | 'full_name' | 'avatar_url' | 'bio' | 'phone' | 'occupation'
@@ -26,5 +27,29 @@ const RESERVED_USERNAMES=['admin','creator','support','system','api','wehouse','
 export function validateUsername(username:string){const t=username.trim().toLowerCase();if(!t)return{valid:false,error:'Username is required'};if(t.length<3)return{valid:false,error:'Minimum 3 characters'};if(t.length>20)return{valid:false,error:'Maximum 20 characters'};if(!/^[a-z0-9_]+$/.test(t))return{valid:false,error:'Letters, numbers, underscores only'};if(RESERVED_USERNAMES.includes(t))return{valid:false,error:'This username is reserved'};return{valid:true};}
 export async function checkUsernameAvailable(username:string,currentUserId?:string){void currentUserId;const t=username.trim().toLowerCase();const{data,error}=await supabase.rpc('is_username_available',{p_username:t});if(error)return{available:false,taken:false,error};const available=data===true;return{available,taken:!available,error:null};}
 export async function removeAvatar(userId:string){void userId;const{data,error}=await supabase.rpc('update_my_profile',{p_updates:{avatar_url:null}});return{profile:data as Profile|null,error};}
-export async function updateProfile(userId:string,updates:SafeProfileUpdates){void userId;const normalized:Record<string,unknown>={...updates};const hasPrecise=['precise_latitude','precise_longitude','precise_address','precise_location_accuracy_m'].some(key=>key in normalized);const latitude=normalized.precise_latitude as number|null|undefined,longitude=normalized.precise_longitude as number|null|undefined,address=normalized.precise_address as string|null|undefined,accuracy=normalized.precise_location_accuracy_m as number|null|undefined;delete normalized.precise_latitude;delete normalized.precise_longitude;delete normalized.precise_address;delete normalized.precise_location_accuracy_m;if('city'in normalized&&!('local_government'in normalized))normalized.local_government=normalized.city;const{data,error}=await supabase.rpc('update_my_profile',{p_updates:normalized});if(error||!hasPrecise)return{profile:data as Profile|null,error};const location=await supabase.rpc('update_my_precise_location',{p_latitude:latitude??null,p_longitude:longitude??null,p_address:address??null,p_accuracy_m:accuracy??null});return{profile:location.data as Profile|null,error:location.error};}
+export async function updateProfile(userId:string,updates:SafeProfileUpdates){
+ void userId;
+ const normalized:Record<string,unknown>={...updates};
+ const hasPrecise=['precise_latitude','precise_longitude','precise_address','precise_location_accuracy_m'].some(key=>key in normalized);
+ const latitude=normalized.precise_latitude,longitude=normalized.precise_longitude,address=normalized.precise_address,accuracy=normalized.precise_location_accuracy_m;
+ delete normalized.precise_latitude;delete normalized.precise_longitude;delete normalized.precise_address;delete normalized.precise_location_accuracy_m;
+ if('city'in normalized&&!('local_government'in normalized))normalized.local_government=normalized.city;
+ const {data,error}=hasPrecise
+  ?await supabase.rpc('update_my_profile_with_location',{p_updates:normalized,p_latitude:latitude??null,p_longitude:longitude??null,p_address:address??null,p_accuracy_m:accuracy??null})
+  :await supabase.rpc('update_my_profile',{p_updates:normalized});
+ return{profile:data as Profile|null,error};
+}
+export type WorkerServiceCoverage={country_code:string|null;country:string|null;state:string;city:string;area:string};
+export async function getMyWorkerServiceCoverage(){
+ const {data,error}=await withTimeout(supabase.rpc('get_my_worker_service_coverage'),15000,'Your service location took too long to load. Refresh before editing.');
+ if(error||data==null)return{coverage:null as WorkerServiceCoverage|null,error};
+ if(Array.isArray(data)||typeof data!=='object'||['state','city','area'].some(key=>typeof data[key]!=='string')||
+  data.country!=null&&typeof data.country!=='string'||data.country_code!=null&&(typeof data.country_code!=='string'||!/^[A-Z]{2}$/.test(data.country_code)))
+  return{coverage:null,error:{message:'Your service location could not be confirmed. Refresh before editing.'}};
+ return{coverage:data as WorkerServiceCoverage,error:null};
+}
+export async function saveMyWorkerProfile(services:unknown[],updates:SafeProfileUpdates){
+ const {data,error}=await withTimeout(supabase.rpc('save_my_worker_profile',{p_services:services,p_updates:updates}),15000,'The save result could not be confirmed. Refresh your work profile before retrying.');
+ return{profile:data as Profile|null,error};
+}
 export async function updatePrivacySettings(userId:string,settings:SafePrivacyUpdates){void userId;const{data,error}=await supabase.rpc('update_my_privacy',{p_updates:settings});return{profile:data as Profile|null,error};}

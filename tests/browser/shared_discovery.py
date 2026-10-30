@@ -26,6 +26,13 @@ SCRIPT="""s=>{
   }
   if(name==='getHotelById')return{hotel:s.hotel,error:null};
   if(name==='getListing')return{listing:s.home,error:null};
+  if(name==='getProfile')return{profile:{...s.profile,user_id:args[0],profile_complete:true,worker_occupation:'Carpenter',worker_skills:['Carpentry'],worker_price:1000,worker_bio:'Existing work biography',worker_experience:'4 years',worker_verified:true},error:null};
+  if(name==='getMyWorkerServiceCoverage')return{coverage:s.failWorkLoad?null:{country_code:'NG',country:'Nigeria',state:'Nasarawa',city:'Lafia',area:'Work service area'},error:s.failWorkLoad?{message:'Synthetic saved work location unavailable'}:null};
+  if(name==='getServiceCategories')return{categories:[{id:'category-1',name:'Repairs'}],error:null};
+  if(name==='getServiceSubcategories')return{subcategories:[{name:'Carpentry'}],error:null};
+  if(name==='table:worker_services')return{data:[{service_name:'Carpentry',price:1000}],error:null};
+  if(name==='saveMyWorkerProfile'){s.workSave=args;return{profile:s.badWorkReceipt?null:{...s.profile,user_id:'qa-viewer',worker_verified:!s.workNeedsReview},error:s.failWorkSave?{message:'Synthetic work save failed'}:null};}
+  if(name==='updateProfile'){s.profileUpdates=args[1];return{profile:{user_id:args[0],...s.profile,...args[1]},error:null};}
   if(name==='getHotelReviews')return{reviews:[],eligible:false,error:null};
   if(name==='updatePrivacySettings'){s.privacy={...(s.privacy||{}),...args[1]};return{profile:{user_id:args[0],...s.privacy},error:null};}
   if(name==='rpc:get_my_private_call_preferences')return{data:{allow_audio_calls:true,allow_video_calls:true},error:null};
@@ -196,6 +203,64 @@ async def main():
     await page.get_by_placeholder('Search regions').fill('lagos')
     await page.get_by_role('option',name='Lagos',exact=True).click()
     await expect(page.get_by_label('Chosen local area')).to_have_text('')
+    # Existing profiles keep their own country when display defaults differ.
+    await page.evaluate("window.__browse.profile={username:'viewer',full_name:'Synthetic member',country:'Ghana',state:'Greater Accra',city:'Accra',local_government:'Accra',gender:'female',is_student:true,school:'Existing overseas institution',precise_address:'Old test street',precise_latitude:5.6,precise_longitude:-0.1};window.__switchBrowseMode('profile-edit')")
+    await page.get_by_role('button',name='Edit profile',exact=True).click()
+    await expect(page.get_by_text('Country · Ghana',exact=True)).to_be_visible()
+    await expect(page.get_by_role('textbox',name='State / region',exact=True)).to_have_value('Greater Accra')
+    await expect(page.get_by_role('textbox',name='Institution',exact=True)).to_have_value('Existing overseas institution')
+    await page.get_by_role('textbox',name='State / region',exact=True).fill('Ashanti')
+    await expect(page.get_by_role('textbox',name='City / area',exact=True)).to_have_value('')
+    await page.get_by_role('textbox',name='City / area',exact=True).fill('Kumasi')
+    await page.get_by_role('button',name='Save changes',exact=True).click()
+    await expect(page.get_by_role('button',name='Edit profile',exact=True)).to_be_visible()
+    updates=await page.evaluate('window.__browse.profileUpdates')
+    assert updates['state']=='Ashanti' and updates['city']=='Kumasi' and updates['precise_address'] is None
+    assert await page.evaluate('window.__browse.updatedProfile.country')=='Ghana'
+    assert updates['school']=='Existing overseas institution'
+    await page.evaluate("window.__switchBrowseMode('profile-other-default')")
+    await page.get_by_role('button',name='Edit profile',exact=True).click()
+    await page.get_by_role('button',name='State / region Nasarawa',exact=True).click()
+    await expect(page.get_by_role('option',name='Nasarawa',exact=False)).to_have_attribute('aria-selected','true')
+    await page.keyboard.press('Escape')
+    await page.evaluate("window.__switchBrowseMode('profile-location')")
+    await expect(page.get_by_role('textbox',name='State / region *',exact=True)).to_have_value('Greater Accra')
+    await page.get_by_role('textbox',name='State / region *',exact=True).fill('Ashanti')
+    await expect(page.get_by_role('textbox',name='City *',exact=True)).to_have_value('')
+    await page.evaluate("window.__browse.calls=[];window.__browse.failWorkLoad=true;window.__switchBrowseMode('worker-setup')")
+    await expect(page.get_by_text('Synthetic saved work location unavailable',exact=True)).to_be_visible()
+    await expect(page.get_by_role('textbox',name='Full name',exact=True)).to_be_disabled()
+    await expect(page.get_by_role('button',name='Back',exact=True)).to_be_enabled()
+    await page.evaluate('window.__browse.failWorkLoad=false')
+    await page.get_by_role('button',name='Refresh work profile',exact=True).click()
+    await expect(page.get_by_role('status').filter(has_text='Loading your work profile')).to_have_count(0)
+    await expect(page.get_by_role('button',name='State * Nasarawa',exact=True)).to_be_visible()
+    await expect(page.get_by_role('textbox',name='Full name',exact=True)).to_have_value('Synthetic member')
+    await page.get_by_role('button',name='Back',exact=True).click()
+    await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
+    assert not any(c['name'].startswith(('activate_','saveMyWorker','updateProfile')) for c in await page.evaluate('window.__browse.calls'))
+    await page.evaluate("window.__browse.failWorkSave=true;window.__switchBrowseMode('worker-setup')")
+    await expect(page.get_by_role('button',name='State * Nasarawa',exact=True)).to_be_visible()
+    await page.get_by_role('textbox',name='Full name',exact=True).fill('Edited work name')
+    await page.get_by_role('button',name='Save changes',exact=True).click()
+    await expect(page.get_by_text('Synthetic work save failed',exact=True)).to_be_visible()
+    assert not await page.evaluate('Boolean(window.__browse.workerComplete)')
+    await page.evaluate('window.__browse.failWorkSave=false;window.__browse.badWorkReceipt=true')
+    await page.get_by_role('button',name='Save changes',exact=True).click()
+    await expect(page.get_by_text('The saved profile could not be confirmed. Refresh your work profile before retrying.',exact=True)).to_be_visible()
+    assert not await page.evaluate('Boolean(window.__browse.workerComplete)')
+    await page.evaluate('window.__browse.badWorkReceipt=false')
+    await page.get_by_role('button',name='Save changes',exact=True).click()
+    await page.wait_for_function('window.__browse.workerComplete===true')
+    work=await page.evaluate('window.__browse.workSave')
+    assert work[1]['country']=='Nigeria' and work[1]['state']=='Nasarawa' and work[1]['city']=='Lafia'
+    assert not any(c['name']=='rpc:set_my_worker_services' for c in await page.evaluate('window.__browse.calls'))
+    await page.evaluate("window.__browse.workerComplete=false;window.__browse.workNeedsReview=true;window.__switchBrowseMode('homes');window.__switchBrowseMode('worker-setup')")
+    await expect(page.get_by_role('button',name='State * Nasarawa',exact=True)).to_be_visible()
+    await page.get_by_role('textbox',name='Full name',exact=True).fill('Changed service professional')
+    await page.get_by_role('button',name='Save changes',exact=True).click()
+    await page.wait_for_function('window.__browse.workerReview===true')
+    assert not await page.evaluate('Boolean(window.__browse.workerComplete)')
     await page.evaluate('window.__switchBrowseMode("privacy")')
     await page.get_by_role('button',name='Privacy & calls',exact=False).click()
     online=page.get_by_role('switch',name='Online and last seen',exact=True)

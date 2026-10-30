@@ -29,9 +29,9 @@ function ProviderHome({onOpen}:{onOpen:(id?:string)=>void}){
  return <WorkerActivationHome profile={{...fixtureProfile,user_id:'host'}} onProfile={()=>{}} onVerification={()=>{}} onExperiences={()=>{}} activityBookings={access.capabilities?.experience_next} hasActivityBookings={access.capabilities?.has_activity_bookings} onActivityBooking={onOpen} onRefresh={access.refresh}/>;
 }
 function Fixture(){
- const [booking,setBooking]=useState<string|null>(mode.startsWith('customer')||mode==='host-ready'?bid:null),[hostList,setHostList]=useState(false);
+ const [booking,setBooking]=useState<string|null>(mode.startsWith('customer')||mode==='host-ready'?bid:null),[hostList,setHostList]=useState(false),[personal,setPersonal]=useState(false);
  let body;
- if(mode==='provider-account')body=<WorkerWorkspaceModern profile={{...fixtureProfile,user_id:'host',role:'user',full_name:'Activity Provider',worker_status:null}} onGoToSetup={()=>{}} onLogout={()=>{}} activeWorkspace="worker"/>;
+ if(mode==='provider-account')body=personal?<h1>Personal workspace</h1>:<WorkerWorkspaceModern profile={{...fixtureProfile,user_id:'host',role:'user',full_name:'Activity Provider',worker_status:null}} onGoToSetup={()=>{}} onLogout={()=>{}} activeWorkspace="worker" workspaceAccess={{identity:{user_id:'host',account_kind:'consumer'},personal_workspace:true,privileged_workspaces:[{role:'worker'}]}} onSwitchWorkspace={workspace=>{if(workspace==='personal')setPersonal(true);}}/>;
  else if(mode==='provider-overview')body=booking?<ExperienceBookingDetail id={booking} viewerId="host" onClose={()=>setBooking(null)}/>:hostList?<ExperienceHostBookings userId="host" onBack={()=>setHostList(false)}/>:<ProviderHome onOpen={id=>{if(id)setBooking(id);else setHostList(true);}}/>;
  else if(mode==='discount-host'||mode==='approved-dates')body=<ExperienceSessionsPanel activity={approvedActivity} onDirtyChange={dirty=>{(window as unknown as {__dateDirty:boolean}).__dateDirty=dirty;}}/>;
  else if(mode==='discount-creator')body=<CreatorExperienceDiscounts/>;

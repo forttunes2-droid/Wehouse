@@ -1371,7 +1371,12 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     return (
       <WorkerSetup
         profile={profile}
-        onComplete={() => auth.handleSetupComplete(profile)}
+        onBack={() => {
+          auth.handleSetupComplete(baseProfile || profile);
+          if (workspaceAccess?.personal_workspace) switchWorkspace('personal');
+          else goTo(roleRoot());
+        }}
+        onComplete={() => auth.handleSetupComplete(baseProfile || profile)}
         onContinueVerification={() => {
           try {
             localStorage.setItem(NAV_STORAGE_KEY, "worker_verification");

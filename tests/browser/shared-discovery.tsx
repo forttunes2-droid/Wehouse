@@ -8,6 +8,10 @@ import HotelDetail from '@/pages/HotelDetailExperience';
 import ShowcaseMediaThumbnail from '@/components/ShowcaseMediaThumbnail';
 import LocationFilterFields from '@/components/LocationFilterFields';
 import PrivacySecuritySettings from '@/pages/PrivacySecuritySettings';
+import ProfileEditAccount from '@/pages/ProfileEditAccount';
+import LocationSelector from '@/components/LocationSelector';
+import {setRegionalDefaults} from '@/lib/regional';
+import WorkerSetup from '@/pages/WorkerSetup';
 import type { Profile } from '@/types';
 
 function Fixture() {
@@ -15,10 +19,15 @@ function Fixture() {
   const [region,setRegion]=useState('');
   const [locality,setLocality]=useState('');
   const [savedIds, setSavedIds] = useState(new Set<string>());
+  const [profileLocation,setProfileLocation]=useState({country:'Ghana',state:'Greater Accra',city:'Accra',area:'Osu'});
   const actor = { user_id: 'qa-viewer', username: 'viewer', role: 'user' } as Profile;
   const signIn = () => { (window as any).__browse.requested = true; };
-  (window as any).__switchBrowseMode = setMode;
+  (window as any).__switchBrowseMode = (next:string) => {setRegionalDefaults(next==='profile-other-default'?{countryCode:'GH',countryName:'Ghana'}:{countryCode:'NG',countryName:'Nigeria'});setMode(next);};
   const navigate = (page: string, id?: string) => { (window as any).__browse.destination = { page, id }; };
+  if(mode==='profile-edit')return <ProfileEditAccount key={mode} profile={{...actor,...(window as any).__browse.profile}} onUpdate={profile=>{(window as any).__browse.updatedProfile=profile;}} onBack={()=>setMode('homes')}/>;
+  if(mode==='profile-location')return <LocationSelector value={profileLocation} onChange={setProfileLocation}/>;
+  if(mode==='worker-setup')return <WorkerSetup profile={{...actor,...(window as any).__browse.profile,role:'worker',profile_complete:true,worker_occupation:'Carpenter',worker_skills:['Carpentry'],worker_price:1000,worker_bio:'Existing work biography',worker_experience:'4 years',worker_verified:true}} onComplete={()=>{(window as any).__browse.workerComplete=true;}} onContinueVerification={()=>{(window as any).__browse.workerReview=true;}} onBack={()=>setMode('homes')}/>;
+  if(mode==='profile-other-default')return <ProfileEditAccount key={mode} profile={{...actor,...(window as any).__browse.profile,is_student:false,country:'Nigeria',state:'Nasarawa',city:'Lafia',local_government:'Lafia'}} onUpdate={()=>{}} onBack={()=>{setRegionalDefaults({countryCode:'NG',countryName:'Nigeria'});setMode('homes');}}/>;
   if (mode === 'privacy') return <PrivacySecuritySettings profile={actor} onUpdate={()=>{}} onBack={()=>setMode('homes')}/>;
   if (mode === 'locations') return <main className="p-4"><LocationFilterFields region={region} locality={locality} onRegionChange={setRegion} onLocalityChange={setLocality}/><output aria-label="Chosen region">{region}</output><output aria-label="Chosen local area">{locality}</output></main>;
   if (mode === 'thumbnail') return <main className="grid grid-cols-3 gap-1 p-4"><div className="aspect-[3/4]"><ShowcaseMediaThumbnail alt="Missing photo" mediaType="image" /></div><div className="aspect-[3/4]"><ShowcaseMediaThumbnail alt="Failed photo" mediaType="image" src="https://assets.wehouse.test/broken.jpg" /></div><div className="aspect-[3/4]"><ShowcaseMediaThumbnail alt="Failed video" mediaType="video" src="https://assets.wehouse.test/broken.mp4" /></div></main>;

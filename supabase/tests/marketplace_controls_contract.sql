@@ -79,6 +79,8 @@ insert into public.worker_market_capacity(
   target_count,hard_limit,approvals_paused,updated_by
 ) values('Lagos',public.wehouse_state_key('Lagos'),'Ikeja',public.worker_market_text_key('Ikeja'),
   'Plumber',public.worker_market_text_key('Plumber'),1,1,false,'mkt-owner');
+insert into public.worker_service_coverage(worker_id,country_code,state,lga)
+select user_id,'NG','Lagos','Ikeja' from public.profiles where user_id in('mkt-worker-a','mkt-worker-b','mkt-worker-c');
 insert into public.sponsored_market_rules(
   resource_type,scope_type,scope_key,enabled,slot_count,daily_price_ngn,allowed_durations,updated_by
 ) values('property','global','global',true,3,10,array[7],'mkt-owner')
@@ -202,6 +204,19 @@ end $$;
 reset role;
 
 -- A hard cap blocks both verification and already-verified Workspace reactivation.
+-- Moving a private home does not vacate an occupied professional market slot.
+update public.profiles set country='Ghana',state='Greater Accra',city='Accra',local_government='Accra' where user_id='mkt-worker-a';
+insert into public.worker_market_capacity(state_name,state_key,lga_name,lga_key,occupation_name,occupation_key,target_count,hard_limit,approvals_paused,updated_by)
+values('Nasarawa',public.wehouse_state_key('Nasarawa'),'Lafia',public.worker_market_text_key('Lafia'),'Plumber',public.worker_market_text_key('Plumber'),1,1,true,'mkt-owner');
+do $$begin
+ begin
+  update public.worker_service_coverage set state='Nasarawa',lga='Lafia' where worker_id='mkt-worker-a';
+  set constraints worker_coverage_market_capacity_guard immediate;
+  raise exception 'An operating-area change bypassed paused market approvals';
+ exception when raise_exception then if sqlerrm not like 'New % approvals are paused%' then raise;end if;end;
+ if not exists(select 1 from public.worker_service_coverage where worker_id='mkt-worker-a' and state='Lagos' and lga='Ikeja') then
+  raise exception 'A rejected operating-area change did not roll back';end if;
+end $$;
 do $$ begin
   begin
     update public.profiles set worker_status='verified',worker_verified=true where user_id='mkt-worker-b';

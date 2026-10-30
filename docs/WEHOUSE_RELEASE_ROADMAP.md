@@ -55,6 +55,29 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 ## Latest scoped evidence — 30 October
 
+WR-08/09/15/16: an unfinished Service Worker workspace has a direct return to
+Personal, including the legacy setup route. Visiting or leaving it does not
+submit a professional profile. Personal edits no longer require unrelated work
+details; profile/private-address and professional/service changes each use one
+atomic command, with failed-save rollback and ended-session denial verified on
+Test. The saved country selects the region dataset; an unknown foreign country
+never inherits Nigeria's State/LGA or institution list. Existing foreign values
+remain editable. Additional authoritative country directories/identifiers remain
+FX-01, not an implemented global-location claim.
+Service coverage now stores its configured country code independently of the
+private home. Search, staff review scopes, Admin Worker counts, credentials and
+capacity use that coverage; changing home does not invalidate approved work
+evidence. A real service-area/country change still requires review. Scoped work
+projections omit the private home address/coordinates. Test rollback cases cover
+these boundaries, document correction/expiry, out-of-area reviewers and capacity
+after a private move. The new Test migrations are `20261030124330`,
+`20261030130909`, `20261030131105` and `20261030132753`; no Production apply.
+The full source suite passes 863 tests; the production build and focused lint
+pass. Provider Account Back-to-Personal browser checks pass in light/dark modes;
+the shared discovery/profile scenarios also cover failed loads, refresh, failed
+and malformed save receipts, dependent locality clearing and server-required
+re-review. Fresh/upgrade CI and preview results must match the pushed commit.
+
 WR-15/16: Homes and Hotels each use one ordered collection: a six-card browsing
 row followed by the remaining results in a responsive grid. The Homes row mixes
 Short Let and Long Let rather than creating separate sections; both let types

@@ -40,6 +40,8 @@ export {
   checkUsernameAvailable,
   removeAvatar,
   updateProfile,
+  getMyWorkerServiceCoverage,
+  saveMyWorkerProfile,
   updatePrivacySettings,
 } from "./profile";
 
