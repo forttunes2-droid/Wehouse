@@ -3,7 +3,7 @@ import * as tus from 'tus-js-client';
 import { Capacitor } from '@capacitor/core';
 import { resolveSupabaseEnvironment } from './environment';
 import {createStorageUploadQuota} from '../storageUploadQuota';
-import {observePrivateMessagingAuth} from '../privateMessagingSession';
+import {observePrivateMessagingAuth,privateMessagingAuthIdentity} from '../privateMessagingSession';
 
 // ─── SUPABASE CONFIG ───────────────────────────────
 // Browser publishable keys are intentionally public. Real authorization lives in
@@ -50,7 +50,7 @@ supabase.auth.onAuthStateChange((_event,session)=>{
   const identity=session?.user.id||'';
   if(uploadAuthIdentity!==undefined&&uploadAuthIdentity!==identity)storageQuota.reset();
   uploadAuthIdentity=identity;
-  if(observePrivateMessagingAuth(identity,_event==='SIGNED_OUT')&&typeof window!=='undefined'){
+  if(observePrivateMessagingAuth(privateMessagingAuthIdentity(identity,session?.access_token),_event==='SIGNED_OUT')&&typeof window!=='undefined'){
     // Readiness listeners may use Auth/RPCs; run only after this callback returns.
     window.setTimeout(()=>window.dispatchEvent(new Event('wehouse:private-message-access')),0);
   }

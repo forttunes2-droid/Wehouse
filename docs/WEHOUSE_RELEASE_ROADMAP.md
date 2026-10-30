@@ -103,8 +103,12 @@ the checks were not waived. Further Test review found that an ended device could
 still call older ciphertext readers with an unexpired token. Forward migration
 `20261030191912` adds the same trusted-session check to private reads, peer keys,
 Friend access/reactions and message-table policies, preserving the existing DTOs.
-Test revoked-read/reaction denials and actual Friend signal isolation pass. Its
-exact-candidate CI remains pending. Roommate/Service full-history retrieval and
+Test revoked-read/reaction denials and actual Friend signal isolation pass; the
+final guards also pass fresh replay, migration contracts, existing-account
+upgrade and mixed Auth/HTTP/WebSocket checks at `c1f9dbf6`. The client auth-context
+marker additionally distinguishes a new login by the same person from a normal
+token refresh, including across reload; the new isolated case remains pending
+CI. Roommate/Service full-history retrieval and
 automatic media loading still need the WR-13/19 paging/resource follow-up; the
 Friend reader already has a 50-message page. These checks do not close actual
 Production parity or certify all chat lifecycles.

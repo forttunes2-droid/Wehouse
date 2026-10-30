@@ -8,7 +8,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 const root=new URL('../../',import.meta.url);
 const modules={
- './privateMessagingSession':['src/lib/privateMessagingSession.ts','PrivateMessagingSessionChanged','assertPrivateMessagingSession','privateMessagingSessionVersion','invalidatePrivateMessagingSession','onPrivateMessagingSessionInvalidated','observePrivateMessagingAuth','rememberPrivateMessagingKeyVersion','storedPrivateMessagingKeyVersion'],
+ './privateMessagingSession':['src/lib/privateMessagingSession.ts','PrivateMessagingSessionChanged','assertPrivateMessagingSession','privateMessagingSessionVersion','invalidatePrivateMessagingSession','onPrivateMessagingSessionInvalidated','observePrivateMessagingAuth','rememberPrivateMessagingKeyVersion','storedPrivateMessagingKeyVersion','privateMessagingAuthIdentity'],
  './byteCache':['src/lib/byteCache.ts','ByteCache'],
  './e2ee':['src/lib/e2ee.ts','rememberPrivateMessagingProfile','createEncryptionIdentity','unlockEncryptionIdentity','lockEncryptionIdentity','changeEncryptionRecoveryPin','encryptionIdentityStatus','privateConversationReadiness','encryptPrivateMessage','decryptPrivateMessage','encryptPrivateAttachment','decryptPrivateAttachment','encryptedAttachmentsForSend'],
  './e2eeRecovery':['src/lib/e2eeRecovery.ts','resetEncryptionRecoveryPin'],
@@ -22,9 +22,9 @@ const tick=()=>new Promise(r=>setImmediate(r));
 async function until(condition){for(let i=0;i<100&&!condition();i++)await new Promise(r=>setTimeout(r,2));assert.ok(condition(),'bounded fixture did not reach its expected state');}
 const thread='99700000-1000-4000-8000-000000000001';
 function database(){return {identities:new Map(),envelopes:new Map(),files:new Map()};}
-function device(db,actor){
+function device(db,actor,storage=new Map(),authContext=actor){
  const controls={actor,identityReads:0,envelopeReads:0,peerReads:0,profileGate:null,decryptGate:null,fetchGate:null,rejectUpdate:false,downloads:0,activeDownloads:0,peakDownloads:0,oversized:false};
- const storage=new Map(),objects=[],moduleCache=new Map();
+ const objects=[],moduleCache=new Map();
  const storageAPI={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k),key:i=>[...storage.keys()][i]??null,get length(){return storage.size;}};
  class Query {
   constructor(table){this.table=table;this.actor=controls.actor;this.filters={};}
@@ -68,7 +68,7 @@ function device(db,actor){
   const require=target=>target==='@/lib/supabase'?{supabase}:target==='@/lib/chatMediaPolicy'?{validateMessageMedia:async()=>{},normaliseChatMediaType:type=>type}:load(target);
   vm.runInContext('(function(exports,require){'+compiled.get(name)+'\n})',context,{timeout:3000})(exports,require);return exports;
  }
- const e2ee=load('./e2ee'),session=load('./privateMessagingSession'),recovery=load('./e2eeRecovery');session.observePrivateMessagingAuth(actor);if(actor)e2ee.rememberPrivateMessagingProfile(actor);
+ const e2ee=load('./e2ee'),session=load('./privateMessagingSession'),recovery=load('./e2eeRecovery');session.observePrivateMessagingAuth(authContext||'');if(actor)e2ee.rememberPrivateMessagingProfile(actor);
  return {e2ee,session,recovery,controls,storage,objects};
 }
 test('private messaging key and resource lifecycle with real WebCrypto and dummy transport',async t=>{
@@ -116,6 +116,21 @@ test('private messaging key and resource lifecycle with real WebCrypto and dummy
  });
  await t.test('stale passcode-backup update cannot report success without a matching receipt',async()=>{
   a.controls.rejectUpdate=true;await assert.rejects(a.e2ee.changeEncryptionRecoveryPin('123456','222222'),/changed in another session/);a.controls.rejectUpdate=false;
+ });
+ await t.test('same-account login sessions lock old keys while refresh and reload retain the same unlock',async()=>{
+  const d=device(db,'alice');
+  const token=(sid,exp=1)=>'fixture.'+Buffer.from(JSON.stringify({session_id:sid,exp})).toString('base64url')+'.fixture';
+  const context=d.session.privateMessagingAuthIdentity('alice',token('first-session'));
+  d.session.observePrivateMessagingAuth(context);await d.e2ee.unlockEncryptionIdentity('123456');
+  const refreshed=d.session.privateMessagingAuthIdentity('alice',token('first-session',2));assert.equal(refreshed,context);
+  assert.equal(d.session.observePrivateMessagingAuth(refreshed),false);assert.equal((await d.e2ee.encryptionIdentityStatus()).unlocked,true);
+  // A fresh module context reads the same browser-session marker before Auth initializes.
+  const reloaded=device(db,'alice',d.storage,context);assert.equal(reloaded.session.observePrivateMessagingAuth(context),false);
+  assert.equal((await reloaded.e2ee.encryptionIdentityStatus()).unlocked,true);
+  const newContext=reloaded.session.privateMessagingAuthIdentity('alice',token('second-session'));
+  const relogged=device(db,'alice',d.storage,newContext);assert.equal((await relogged.e2ee.encryptionIdentityStatus()).unlocked,false);
+  await relogged.e2ee.unlockEncryptionIdentity('123456');relogged.session.observePrivateMessagingAuth(newContext,true);
+  assert.equal((await relogged.e2ee.encryptionIdentityStatus()).unlocked,false);
  });
  await t.test('forgotten passcode discards cached Friend keys and permits a fresh exchange',async()=>{
   const fileBeforeReset=await a.e2ee.encryptPrivateAttachment('friend',thread,'bob',new Blob(['before reset']),{name:'example.pdf',type:'application/pdf'});
