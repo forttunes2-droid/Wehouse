@@ -48,7 +48,7 @@ select pg_temp.expect(pg_temp.rejects(format('select public.send_friend_encrypte
 
 -- The sender reads it back; the stored value is exactly the ciphertext.
 select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000001","session_id":"96000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
-select pg_temp.expect((select count(*) from public.get_friend_encrypted_messages(current_setting('test.cid')::uuid))=2,'participant reads the thread');
+select pg_temp.expect((select count(*) from public.get_friend_encrypted_messages_page(current_setting('test.cid')::uuid))=2,'participant reads the thread');
 select pg_temp.expect(pg_temp.rejects('select 1 from public.friend_messages'),'no direct table read');
 
 -- Cancel: either side can end it; the chat closes; a new request waits 30 days.
@@ -63,7 +63,7 @@ values(current_setting('test.cid')::uuid,'cb-a','ZmFrZQ==','aXY=',now()-interval
 select pg_temp.prepare_private_message_fixture(array['96000000']);
 set local session_replication_role=origin;
 set local role authenticated;
-select pg_temp.expect((select count(*) from public.get_friend_encrypted_messages(current_setting('test.cid')::uuid))=50,'legacy read is bounded');
+select pg_temp.expect((select count(*) from public.get_friend_encrypted_messages_page(current_setting('test.cid')::uuid,p_limit=>50))=50,'explicit history page is bounded');
 select pg_temp.expect((select count(*) from public.get_friend_encrypted_messages_page(current_setting('test.cid')::uuid))=51,'page includes one lookahead');
 select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_encrypted_messages_page(%L::uuid,null,null,1000)',current_setting('test.cid'))),'oversized page is rejected');
 select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_encrypted_messages_page(%L::uuid,now(),null,50)',current_setting('test.cid'))),'partial cursor is rejected');
