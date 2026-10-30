@@ -43,7 +43,7 @@ select pg_temp.expect(pg_temp.rejects(format('select public.send_friend_encrypte
 
 -- Outsider cannot read or write the thread.
 select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000004","session_id":"96000000-0000-4000-8000-000000000004","role":"authenticated"}',true);
-select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_encrypted_messages(%L::uuid)',current_setting('test.cid'))),'outsider cannot read');
+select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_encrypted_messages_page(%L::uuid,null,null,50)',current_setting('test.cid'))),'outsider cannot read');
 select pg_temp.expect(pg_temp.rejects(format('select public.send_friend_encrypted_message(%L::uuid,%L,%L)',current_setting('test.cid'),'a','b')),'outsider cannot send');
 
 -- The sender reads it back; the stored value is exactly the ciphertext.
@@ -89,7 +89,7 @@ select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_en
 select pg_temp.expect(pg_temp.rejects(format('select public.get_friend_message_history_cursor(%L::uuid,%L::uuid)',current_setting('test.cid'),current_setting('test.history_target'))),'outsider cannot locate a pinned message');
 select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000001","session_id":"96000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 select public.remove_friend('cb-b');
-select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_encrypted_messages(%L::uuid)',current_setting('test.cid'))),'cancelled chat is closed');
+select pg_temp.expect(pg_temp.rejects(format('select * from public.get_friend_encrypted_messages_page(%L::uuid,null,null,50)',current_setting('test.cid'))),'cancelled chat is closed');
 select pg_temp.expect(pg_temp.rejects(format('select public.send_friend_encrypted_message(%L::uuid,%L,%L)',current_setting('test.cid'),'a','b')),'cannot send after cancelling');
 select pg_temp.expect(pg_temp.rejects($$select public.send_friend_request('cb-b')$$),'canceller cannot re-request within 30 days');
 select set_config('request.jwt.claims','{"sub":"96000000-0000-4000-8000-000000000002","session_id":"96000000-0000-4000-8000-000000000002","role":"authenticated"}',true);

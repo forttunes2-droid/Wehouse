@@ -33,7 +33,7 @@ export default function SecureInboxLock({
           )}
         </span>
         <h2 className="mt-4 text-base font-bold">
-          {status ? "Encrypted chat is locked" : "Checking encrypted chat…"}
+          {status ? "Private chat access" : "Checking encrypted chat…"}
         </h2>
         <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-muted)]">
           {status?.message || "Checking this device before opening the encrypted conversation."}

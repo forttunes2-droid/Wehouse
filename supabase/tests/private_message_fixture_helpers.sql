@@ -30,8 +30,8 @@ begin
  'sender_ephemeral_public_key_jwk','{}'::jsonb,'wrapped_key','k','wrap_iv','i')) into envelopes
  from public.user_encryption_identities i where i.user_id in(a,b);
  perform public.establish_private_conversation_key(kind,conversation_id,envelopes);
- select e.recipient_key_version::text||':'||e.wrap_iv||':'||e.wrapped_key into token
- from public.conversation_key_envelopes e where e.conversation_kind=kind and e.conversation_id=current_envelope_token.conversation_id and e.recipient_user_id=actor
+ select e.key_id::text||':'||e.recipient_key_version::text||':'||e.wrap_iv||':'||e.wrapped_key into token
+ from public.conversation_key_envelopes e where e.conversation_kind=kind and e.conversation_id=current_envelope_token.conversation_id and e.recipient_user_id=actor and e.is_current
  order by recipient_key_version desc limit 1;
  return token;
 end $$;

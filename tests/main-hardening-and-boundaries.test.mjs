@@ -124,24 +124,19 @@ test("private messaging unlock is profile-session scoped, not route or conversat
     read("src/hooks/useAuth.ts"),
   ]);
   assert.match(e2ee, /SESSION_KEY_PREFIX = "wehouse:e2ee:private-key:"/);
-  assert.match(e2ee, /sessionStorage\.setItem\(sessionKey\(identity\.user_id\)/);
+  assert.match(e2ee, /keepPrivateDeviceJwk/);
+  assert.doesNotMatch(e2ee, /sessionStorage\.setItem/);
   assert.match(e2ee, /sessionStorage\.getItem\(sessionKey\(identity\.user_id\)\)/);
   assert.match(hook, /rememberPrivateMessagingProfile\(profileId\)/);
   assert.doesNotMatch(hook, /conversationId|peerUserId|workspace/);
   assert.match(auth, /sessionStorage\.clear\(\)/);
 });
 
-test("forgotten Inbox passcode resets with new six digits and no old-passcode requirement", async () => {
-  const [onboarding, recovery] = await Promise.all([
-    read("src/components/SecureChatOnboarding.tsx"),
-    read("src/lib/e2eeRecovery.ts"),
-  ]);
-  assert.match(onboarding, /Forgot passcode\?/);
-  assert.match(onboarding, /You do not need the old passcode/);
-  assert.match(onboarding, /Confirm your passcode/);
-  assert.match(onboarding, /resetEncryptionRecoveryPin\(pin\)/);
-  assert.match(recovery, /reset_my_encryption_identity/);
-  assert.doesNotMatch(recovery, /currentPin/);
+test("private chat recovery does not create new PIN backups", async () => {
+ const [panel,e2ee] = await Promise.all([read("src/components/SecureMessagesPanel.tsx"),read("src/lib/e2ee.ts")]);
+ assert.match(panel,/startPrivateChatsWithoutHistory/);assert.match(panel,/Optional history backup/);
+ assert.match(e2ee,/Compatibility only: restore a pre-existing PIN backup once/);
+ assert.doesNotMatch(e2ee,/changeEncryptionRecoveryPin|resetEncryptionRecoveryPin/);
 });
 
 test("Inbox surfaces do not expose a permanent PIN settings control", async () => {

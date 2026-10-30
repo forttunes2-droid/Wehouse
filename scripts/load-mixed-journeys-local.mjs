@@ -67,8 +67,17 @@ for (let i = 0; i < 10; i++) {
     p_device_id: `capacity-${suffix}-${i}`, p_device: 'Synthetic CI browser',
     p_os: 'Linux', p_browser: 'Capacity runner', p_location: null, p_existing_session_id: null,
   });
-  if (device.error || device.data?.trust_status !== 'trusted')
-    throw new Error(`Synthetic device registration failed: ${device.error?.message || 'first device not trusted'}`);
+  if (device.error || device.data?.trust_status !== 'pending')throw new Error('Synthetic new device must await verified approval');
+  // Local-only synthetic proof: exercise the actual service-only completion,
+  // without delivering mail or treating a copied device label as verification.
+  const authSessionId=JSON.parse(Buffer.from(signed.data.session.access_token.split('.')[1],'base64url').toString()).session_id;
+  const challengeId=randomUUID();
+  const proof=await admin.from('email_account_challenges').insert({id:challengeId,auth_id:actor.authId,purpose:'device_confirmation',
+    device_session_id:device.data.session_id,device_id:`capacity-${suffix}-${i}`,auth_session_id:authSessionId,
+    code_hash:'0'.repeat(64),expires_at:new Date(Date.now()+60000).toISOString(),status:'processing',proof_verified_at:new Date().toISOString()});
+  if(proof.error)throw new Error('Synthetic email proof setup failed: '+proof.error.message);
+  const confirmed=await admin.rpc('finish_email_device_confirmation',{p_id:challengeId,p_auth_session_id:authSessionId});
+  if(confirmed.error||confirmed.data?.trust_status!=='trusted')throw new Error('Synthetic device confirmation failed: '+confirmed.error?.message);
   actor.checkoutKey=randomUUID();actor.checkoutSequence=20000+i;
   actor.bookingId = await booking(actor, actor.checkoutSequence, undefined, actor.checkoutKey);
   const conversation = await client.rpc('create_my_support_case', {

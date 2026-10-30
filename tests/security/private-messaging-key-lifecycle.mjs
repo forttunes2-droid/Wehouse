@@ -1,149 +1,140 @@
-// Run only through scripts/run-isolated-crypto-check.py. No real accounts,
-// network, database, filesystem output or providers are used by these cases.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {stripTypeScriptTypes} from 'node:module';
-import {webcrypto} from 'node:crypto';
 import vm from 'node:vm';
+import {stripTypeScriptTypes} from 'node:module';
+import {webcrypto,randomUUID} from 'node:crypto';
 import test from 'node:test';
+
+// Invoked only by run-isolated-crypto-check.py: no network/credentials, bounded
+// CPU/memory/time, read-only source/toolchain and scratch-only writes.
 const root=new URL('../../',import.meta.url);
 const modules={
- './privateMessagingSession':['src/lib/privateMessagingSession.ts','PrivateMessagingSessionChanged','assertPrivateMessagingSession','privateMessagingSessionVersion','invalidatePrivateMessagingSession','onPrivateMessagingSessionInvalidated','observePrivateMessagingAuth','rememberPrivateMessagingKeyVersion','storedPrivateMessagingKeyVersion','privateMessagingAuthIdentity'],
+ './privateMessagingSession':['src/lib/privateMessagingSession.ts','privateMessagingSessionVersion','assertPrivateMessagingSession','onPrivateMessagingSessionInvalidated','invalidatePrivateMessagingSession','PrivateMessagingSessionChanged','observePrivateMessagingAuth','rememberPrivateMessagingKeyVersion','storedPrivateMessagingKeyVersion','privateMessagingAuthIdentity'],
  './byteCache':['src/lib/byteCache.ts','ByteCache'],
- './e2ee':['src/lib/e2ee.ts','rememberPrivateMessagingProfile','createEncryptionIdentity','unlockEncryptionIdentity','lockEncryptionIdentity','changeEncryptionRecoveryPin','encryptionIdentityStatus','privateConversationReadiness','encryptPrivateMessage','decryptPrivateMessage','encryptPrivateAttachment','decryptPrivateAttachment','encryptedAttachmentsForSend'],
- './e2eeRecovery':['src/lib/e2eeRecovery.ts','resetEncryptionRecoveryPin'],
+ './privateDeviceKeys':['src/lib/privateDeviceKeys.ts','readPrivateDeviceJwk','keepPrivateDeviceJwk','preparePrivateDeviceIdentity','samePrivatePublicKey','validatePrivateJwk'],
+ './privatePasskeyBackup':['src/lib/privatePasskeyBackup.ts','passkeyBackupAvailable','privatePrfResult','publicPasskeyRegistration','sealPasskeyBackup','openPasskeyBackup','createPasskeyBackup'],
+ './e2ee':['src/lib/e2ee.ts','rememberPrivateMessagingProfile','createEncryptionIdentity','unlockEncryptionIdentity','encryptionIdentityStatus','privateConversationReadiness','encryptPrivateMessage','decryptPrivateMessage','encryptPrivateAttachment','decryptPrivateAttachment','encryptedAttachmentsForSend','refreshPrivateMessageKeys','savePrivateChatPasskeyBackup','restorePrivateChatPasskeyBackup','removePrivateChatBackup','startPrivateChatsWithoutHistory'],
 };
 const compiled=new Map(Object.entries(modules).map(([name,[path,...names]])=>{
- const source=stripTypeScriptTypes(readFileSync(new URL(path,root),'utf8'),{mode:'strip'}).replace(/^import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"];?/gm,(_,bindings,target)=>`const {${bindings}} = require(${JSON.stringify(target)});`).replace(/^export\s+/gm,'');
+ const source=stripTypeScriptTypes(readFileSync(new URL(path,root),'utf8'),{mode:'strip'}).replace(/^import\s+\{([^}]+)\}\s+from\s+['"]([^'"]+)['"];?/gm,(_,bindings,target)=>`const {${bindings}}=require(${JSON.stringify(target)});`).replace(/^export\s+/gm,'');
  return [name,source+'\nObject.assign(exports,{'+names.join(',')+'});'];
 }));
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
-const tick=()=>new Promise(r=>setImmediate(r));
-async function until(condition){for(let i=0;i<100&&!condition();i++)await new Promise(r=>setTimeout(r,2));assert.ok(condition(),'bounded fixture did not reach its expected state');}
+async function until(condition){for(let i=0;i<100&&!condition();i++)await new Promise(r=>setTimeout(r,2));assert.ok(condition(),'bounded fixture did not reach expected state');}
 const thread='99700000-1000-4000-8000-000000000001';
-function database(){return {identities:new Map(),envelopes:new Map(),files:new Map()};}
-function device(db,actor,storage=new Map(),authContext=actor){
- const controls={actor,identityReads:0,envelopeReads:0,peerReads:0,profileGate:null,decryptGate:null,fetchGate:null,rejectUpdate:false,downloads:0,activeDownloads:0,peakDownloads:0,oversized:false};
+const pub={kty:'EC',crv:'P-256',x:'A'.repeat(43),y:'A'.repeat(43)};
+function device(db,actor,{storage=new Map(),localKeys=new Map(),authContext=actor}={}){
+ const controls={actor,identityReads:0,envelopeReads:0,profileGate:null,decryptGate:null,fetchGate:null,rejectUpdate:false,downloads:0,activeDownloads:0,peakDownloads:0,oversized:false,prf:true,cancel:false,registered:[],passkeys:[]};
  const objects=[],moduleCache=new Map();
  const storageAPI={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k),key:i=>[...storage.keys()][i]??null,get length(){return storage.size;}};
- class Query {
-  constructor(table){this.table=table;this.actor=controls.actor;this.filters={};}
-  select(){return this;}eq(k,v){this.filters[k]=v;return this;}order(){return this;}limit(){return this;}
-  update(patch){this.patch=patch;return this;}
-  async insert(row){if(row.user_id!==this.actor)return {error:Error('fixture ownership denied')};db.identities.set(row.user_id,{...row});return {error:null};}
-  async maybeSingle(){
-   if(this.table==='user_encryption_identities'){
-    controls.identityReads++;
-    let row=db.identities.get(this.actor);
-    if(this.filters.user_id!==undefined&&this.filters.user_id!==this.actor)row=null;
-    if(this.patch){if(controls.rejectUpdate||!row||row.key_version!==this.filters.key_version)return {data:null,error:null};Object.assign(row,this.patch);}
-    return {data:row?{...row}:null,error:null};
-   }
+ class Query{
+  constructor(table){this.table=table;this.actor=controls.actor;this.filters={};}select(){return this;}eq(k,v){this.filters[k]=v;return this;}limit(){return this;}
+  async maybeSingle(){if(this.table==='user_encryption_identities'){controls.identityReads++;return {data:db.identities.has(this.actor)?{...db.identities.get(this.actor)}:null,error:null};}
    assert.equal(this.table,'conversation_key_envelopes');controls.envelopeReads++;
-   return {data:db.envelopes.get(`${this.filters.conversation_kind}:${this.filters.conversation_id}:${this.filters.recipient_user_id}`)||null,error:null};
-  }
+   return {data:[...db.envelopes.values()].find(row=>Object.entries(this.filters).every(([k,v])=>row[k]===v))??null,error:null};}
  }
- const supabase={from:t=>new Query(t),storage:{from:()=>({createSignedUrl:async path=>({data:{signedUrl:'https://fixture.invalid/'+path},error:null})})},rpc:async(name,args)=>{
+ const credential=id=>({id,type:'public-key',rawId:Uint8Array.from(atob(id),c=>c.charCodeAt(0)).buffer,response:{clientDataJSON:new Uint8Array([1]).buffer,attestationObject:new Uint8Array([2]).buffer,getTransports:()=>['internal']},getClientExtensionResults:()=>controls.prf?{credProps:{rk:true},prf:{enabled:true,results:{first:new Uint8Array(32).fill(7).buffer}}}:{prf:{}}});
+ const credentials={async create(){if(controls.cancel)throw new DOMException('cancelled','NotAllowedError');const id=btoa('synthetic-passkey').replace(/=+$/,'');controls.passkeys.push(id);return credential(id);},async get(options){if(controls.cancel)throw new DOMException('cancelled','NotAllowedError');return credential(btoa(String.fromCharCode(...new Uint8Array(options.publicKey.allowCredentials[0].id))));}};
+ const supabase={from:t=>new Query(t),storage:{from:()=>({createSignedUrl:async path=>({data:{signedUrl:'https://fixture.invalid/'+path},error:null})})},auth:{passkey:{
+  startRegistration:async()=>({data:{challenge_id:'synthetic-challenge',options:{rp:{id:'fixture.invalid',name:'Synthetic'},user:{id:'dXNlcg',name:'Synthetic',displayName:'Synthetic'},challenge:'Y2hhbGxlbmdl',pubKeyCredParams:[{type:'public-key',alg:-7}],excludeCredentials:controls.passkeys.map(id=>({id,type:'public-key'}))}},error:null}),
+  verifyRegistration:async args=>{assert.ok(!JSON.stringify(args).includes('prf'),'PRF secret sent to Auth');controls.registered.push(args);return {data:{id:'99700000-0000-4000-8000-000000000055'},error:null};},
+ }},rpc:async(name,args)=>{
   if(name==='current_profile_user_id'){const value=controls.actor;if(controls.profileGate)await controls.profileGate.promise;return {data:value,error:null};}
-  if(name==='get_private_chat_peer_public_key'){controls.peerReads++;return {data:[db.identities.get(args.p_peer_user_id)],error:null};}
-  if(name==='establish_private_conversation_key'){
-   const prefix=args.p_conversation_kind+':'+args.p_conversation_id+':';if([...db.envelopes.keys()].some(k=>k.startsWith(prefix)))return {data:false,error:null};
-   for(const e of args.p_envelopes)db.envelopes.set(prefix+e.recipient_user_id,{...e});return {data:true,error:null};
+  if(name==='create_my_automatic_private_identity'){
+   if(!db.identities.has(controls.actor))db.identities.set(controls.actor,{user_id:controls.actor,key_version:1,public_key_jwk:args.p_public_key_jwk,backup_scheme:'device_only',updated_at:'revision-1'});
+   return {data:{...db.identities.get(controls.actor)},error:null};
   }
-  if(name==='reset_my_encryption_identity'){
-   const identity=db.identities.get(controls.actor),next=identity.key_version+1;
-   for(const k of db.envelopes.keys())db.envelopes.delete(k);
-   db.identities.set(controls.actor,{user_id:controls.actor,key_version:next,public_key_jwk:args.p_public_key_jwk,encrypted_private_key:args.p_encrypted_private_key,backup_iv:args.p_backup_iv,backup_salt:args.p_backup_salt,kdf_iterations:args.p_kdf_iterations});return {data:next,error:null};
+  if(name==='get_private_chat_peer_public_key'){if(!['alice','bob'].includes(controls.actor))return {data:null,error:Error('access denied')};return {data:[db.identities.get(args.p_peer_user_id)],error:null};}
+  if(name==='establish_private_conversation_key'){
+   if(!['alice','bob'].includes(controls.actor))return {data:null,error:Error('access denied')};
+   if([...db.envelopes.values()].some(e=>e.conversation_id===args.p_conversation_id&&e.is_current))return {data:false,error:null};
+   for(const e of args.p_envelopes)db.envelopes.set(args.p_key_id+':'+e.recipient_user_id,{...e,conversation_kind:args.p_conversation_kind,conversation_id:args.p_conversation_id,key_id:args.p_key_id,is_current:true});return {data:true,error:null};
+  }
+  if(name==='set_my_private_chat_backup'){
+   const row=db.identities.get(controls.actor);if(controls.rejectUpdate||row.updated_at!==args.p_revision)return {data:null,error:Error('stale backup revision')};
+   Object.assign(row,{backup_scheme:args.p_scheme,encrypted_private_key:args.p_encrypted_private_key,backup_iv:args.p_backup_iv,backup_salt:args.p_backup_salt,backup_credential_id:args.p_credential_id,backup_rp_id:args.p_rp_id,backup_auth_passkey_id:args.p_auth_passkey_id,updated_at:randomUUID()});
+   return {data:{user_id:row.user_id,key_version:row.key_version,backup_scheme:row.backup_scheme,request_id:args.p_request_id},error:null};
+  }
+  if(name==='start_my_new_private_identity'){
+   const row=db.identities.get(controls.actor);assert.equal(row.key_version,args.p_expected_version);
+   for(const e of db.envelopes.values())e.is_current=false;
+   Object.assign(row,{key_version:row.key_version+1,public_key_jwk:args.p_public_key_jwk,backup_scheme:'device_only',encrypted_private_key:null,updated_at:randomUUID()});return {data:{...row},error:null};
   }
   throw Error('Unexpected fixture RPC '+name);
  }};
+ const privateKeyStorage={async confirm(profile,version,publicKey){for(const [key,row]of localKeys)if(row.profileId===profile&&row.keyVersion===version){if(row.publicKey.x===publicKey.x)row.confirmed=true;else localKeys.delete(key);}},async get(profile,version,expected){return [...localKeys.values()].find(k=>k.profileId===profile&&k.keyVersion===version&&(!expected||k.publicKey.x===expected.x&&k.publicKey.y===expected.y));},async add(row){const key=row.profileId+':'+row.keyVersion+':'+row.publicKey.x;if(localKeys.has(key))return false;localKeys.set(key,row);return true;},async remove(profile,version){for(const [key,row]of localKeys)if(row.profileId===profile&&row.keyVersion===version)localKeys.delete(key);}};
  const subtle=new Proxy(webcrypto.subtle,{get(target,key){if(key==='decrypt')return async(...args)=>{const result=await target.decrypt(...args);if(controls.decryptGate)await controls.decryptGate.promise;return result;};const value=target[key];return typeof value==='function'?value.bind(target):value;}});
- const context=vm.createContext({TextEncoder,TextDecoder,Uint8Array,ArrayBuffer,Blob,Response,Request,AbortController,Event,atob,btoa,setTimeout,clearTimeout,console,sessionStorage:storageAPI,window:{dispatchEvent(){},setTimeout,clearTimeout},URL:{createObjectURL(blob){objects.push(blob);return 'blob:fixture/'+objects.length;}},crypto:{subtle,getRandomValues:bytes=>webcrypto.getRandomValues(bytes)},fetch:async(url,{signal})=>{
+ const context=vm.createContext({TextEncoder,TextDecoder,Uint8Array,ArrayBuffer,Blob,Response,Request,AbortController,DOMException,Event,atob,btoa,setTimeout,clearTimeout,console,sessionStorage:storageAPI,navigator:{credentials},window:{dispatchEvent(){},setTimeout,clearTimeout},URL:{createObjectURL(blob){objects.push(blob);return 'blob:fixture/'+objects.length;}},crypto:{subtle,randomUUID,getRandomValues:bytes=>webcrypto.getRandomValues(bytes)},fetch:async(url,{signal})=>{
   controls.downloads++;controls.activeDownloads++;controls.peakDownloads=Math.max(controls.peakDownloads,controls.activeDownloads);
-  try{if(controls.fetchGate)await Promise.race([controls.fetchGate.promise,new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(Error('aborted')),{once:true}))]);
-   const file=db.files.get(url.replace('https://fixture.invalid/',''));return new Response(file,{headers:{'content-length':String(controls.oversized?999999999:file.byteLength)}});
-  }finally{controls.activeDownloads--;}
+  try{if(controls.fetchGate)await Promise.race([controls.fetchGate.promise,new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(Error('aborted')),{once:true}))]);const file=db.files.get(url.replace('https://fixture.invalid/',''));return new Response(file,{headers:{'content-length':String(controls.oversized?999999999:file.byteLength)}});}finally{controls.activeDownloads--;}
  }});
  function load(name){if(moduleCache.has(name))return moduleCache.get(name);const exports={};moduleCache.set(name,exports);
-  const require=target=>target==='@/lib/supabase'?{supabase}:target==='@/lib/chatMediaPolicy'?{validateMessageMedia:async()=>{},normaliseChatMediaType:type=>type}:load(target);
+  const require=target=>target==='@/lib/supabase'?{supabase,isWebPasskeyEnabled:true}:target==='./privateKeyStorage'?{privateKeyStorage}:target==='@/lib/chatMediaPolicy'?{validateMessageMedia:async()=>{},normaliseChatMediaType:type=>type}:load(target);
   vm.runInContext('(function(exports,require){'+compiled.get(name)+'\n})',context,{timeout:3000})(exports,require);return exports;
  }
- const e2ee=load('./e2ee'),session=load('./privateMessagingSession'),recovery=load('./e2eeRecovery');session.observePrivateMessagingAuth(authContext||'');if(actor)e2ee.rememberPrivateMessagingProfile(actor);
- return {e2ee,session,recovery,controls,storage,objects};
+ const e2ee=load('./e2ee'),session=load('./privateMessagingSession'),backup=load('./privatePasskeyBackup');session.observePrivateMessagingAuth(authContext||'');if(actor)e2ee.rememberPrivateMessagingProfile(actor);
+ return {e2ee,session,backup,controls,storage,localKeys,objects};
 }
-test('private messaging key and resource lifecycle with real WebCrypto and dummy transport',async t=>{
- const db=database(),a=device(db,'alice'),b=device(db,'bob');
- await a.e2ee.createEncryptionIdentity('123456');await b.e2ee.createEncryptionIdentity('654321');
- let oldMessage;
- await t.test('browser encrypts text and reuses one established conversation key',async()=>{
-  oldMessage=await a.e2ee.encryptPrivateMessage('friend',thread,'bob','synthetic confidential text');
-  assert.equal(await b.e2ee.decryptPrivateMessage('friend',thread,'alice',oldMessage.ciphertext,oldMessage.iv),'synthetic confidential text');
-  const reads=b.controls.envelopeReads;
-  await Promise.all(Array.from({length:6},()=>b.e2ee.decryptPrivateMessage('friend',thread,'alice',oldMessage.ciphertext,oldMessage.iv)));
-  assert.equal(b.controls.envelopeReads,reads);assert.ok(!JSON.stringify([...db.identities.values(),...db.envelopes.values()]).includes('synthetic confidential text'));
+
+test('automatic private chats, recovery and bounded media with real WebCrypto',async t=>{
+ const db={identities:new Map(),envelopes:new Map(),files:new Map()},a=device(db,'alice'),b=device(db,'bob');let oldMessage;
+ await t.test('fresh trusted profiles automatically store only locally wrapped private keys',async()=>{
+  assert.equal((await a.e2ee.encryptionIdentityStatus()).unlocked,true);assert.equal((await b.e2ee.encryptionIdentityStatus()).unlocked,true);
+  for(const row of db.identities.values()){assert.equal(row.backup_scheme,'device_only');assert.equal(row.encrypted_private_key,undefined);assert.ok(!row.public_key_jwk.d);}
+  assert.ok([...a.localKeys.values()].every(row=>!row.deviceKey.extractable&&!row.jwk));assert.ok(![...a.storage.keys()].some(k=>k.startsWith('wehouse:e2ee:private-key:')));
  });
- await t.test('readiness hints do not repeat identity and envelope reads for each message refresh',async()=>{
-  assert.equal((await b.e2ee.privateConversationReadiness('friend',thread,'alice')).state,'ready');const identities=b.controls.identityReads,envelopes=b.controls.envelopeReads;
-  for(let i=0;i<8;i++)assert.equal((await b.e2ee.privateConversationReadiness('friend',thread,'alice')).state,'ready');
-  assert.equal(b.controls.identityReads,identities);assert.equal(b.controls.envelopeReads,envelopes);
+ await t.test('property-share text decrypts only for the intended participant and reuses one key',async()=>{
+  const clear=JSON.stringify({kind:'property_share',listing_id:'synthetic-42'});oldMessage=await a.e2ee.encryptPrivateMessage('friend',thread,'bob',clear);
+  assert.equal(await b.e2ee.decryptPrivateMessage('friend',thread,'alice',oldMessage.ciphertext,oldMessage.iv,oldMessage.keyId),clear);
+  const reads=b.controls.envelopeReads;await Promise.all(Array.from({length:6},()=>b.e2ee.decryptPrivateMessage('friend',thread,'alice',oldMessage.ciphertext,oldMessage.iv,oldMessage.keyId)));assert.equal(b.controls.envelopeReads,reads);
+  const outsider=device(db,'carol');await outsider.e2ee.encryptionIdentityStatus();await assert.rejects(outsider.e2ee.decryptPrivateMessage('friend',thread,'alice',oldMessage.ciphertext,oldMessage.iv,oldMessage.keyId));
  });
- await t.test('concurrent attachment opens share ciphertext fetch; new opens reuse encrypted cache',async()=>{
-  const encrypted=await a.e2ee.encryptPrivateAttachment('friend',thread,'bob',new Blob(['synthetic file']),{name:'example.pdf',type:'application/pdf'});
-  const item={...encrypted,path:'same-file'};db.files.set(item.path,await encrypted.blob.arrayBuffer());
-  const before=b.controls.downloads;const opened=await Promise.all([b.e2ee.decryptPrivateAttachment('friend',thread,'alice',item),b.e2ee.decryptPrivateAttachment('friend',thread,'alice',item)]);
-  assert.equal(b.controls.downloads-before,1);assert.equal(await b.objects.at(-1).text(),'synthetic file');assert.equal(opened.length,2);
-  await b.e2ee.decryptPrivateAttachment('friend',thread,'alice',item);assert.equal(b.controls.downloads-before,1);
+ await t.test('readiness hints stay bounded instead of querying on every message refresh',async()=>{
+  assert.equal((await b.e2ee.privateConversationReadiness('friend',thread,'alice')).state,'ready');const reads=b.controls.identityReads;
+  for(let i=0;i<8;i++)assert.equal((await b.e2ee.privateConversationReadiness('friend',thread,'alice')).state,'ready');assert.equal(b.controls.identityReads,reads);
  });
- await t.test('media work stays within two active fetch/decrypt slots',async()=>{
-  const encrypted=await a.e2ee.encryptPrivateAttachment('friend',thread,'bob',new Blob(['bounded']),{name:'example.pdf',type:'application/pdf'});
-  for(let i=0;i<4;i++)db.files.set('parallel-'+i,await encrypted.blob.arrayBuffer());
-  const gate=deferred();b.controls.fetchGate=gate;const pending=Array.from({length:4},(_,i)=>b.e2ee.decryptPrivateAttachment('friend',thread,'alice',{...encrypted,path:'parallel-'+i}));
-  await until(()=>b.controls.activeDownloads===2);assert.equal(b.controls.peakDownloads,2);gate.resolve();await Promise.all(pending);b.controls.fetchGate=null;assert.equal(b.controls.peakDownloads,2);
+ await t.test('same device reload and new verified login restore automatically; a different device does not',async()=>{
+  const reloaded=device(db,'bob',{storage:b.storage,localKeys:b.localKeys,authContext:'bob:new-auth-session'});assert.equal((await reloaded.e2ee.encryptionIdentityStatus()).unlocked,true);
+  assert.equal((await device(db,'bob').e2ee.encryptionIdentityStatus()).unlocked,false);
  });
- await t.test('declared oversized ciphertext is rejected before a large response is buffered',async()=>{
-  b.controls.oversized=true;db.files.set('oversized',new Uint8Array([1]).buffer);
-  await assert.rejects(b.e2ee.decryptPrivateAttachment('friend',thread,'alice',{path:'oversized',file_iv:'',metadata_ciphertext:'',metadata_iv:''}),/too large/);b.controls.oversized=false;
+ await t.test('cancelled or unsupported passkeys never replace the current recovery method',async()=>{
+  a.controls.cancel=true;await assert.rejects(a.e2ee.savePrivateChatPasskeyBackup(true),/not completed/);a.controls.cancel=false;
+  a.controls.prf=false;await assert.rejects(a.e2ee.savePrivateChatPasskeyBackup(true),/no backup has been saved/);assert.equal(db.identities.get('alice').backup_scheme,'device_only');a.controls.prf=true;
  });
- await t.test('locking cancels a decrypt result already in flight and clears the unlock',async()=>{
-  const gate=deferred();b.controls.decryptGate=gate;
-  const pending=b.e2ee.decryptPrivateMessage('friend',thread,'alice',oldMessage.ciphertext,oldMessage.iv);await tick();await b.e2ee.lockEncryptionIdentity();gate.resolve();await assert.rejects(pending,/access changed/);b.controls.decryptGate=null;
-  assert.equal((await b.e2ee.encryptionIdentityStatus()).unlocked,false);await b.e2ee.unlockEncryptionIdentity('654321');
+ await t.test('passkey backup encrypts locally, strips PRF output from Auth and restores the same public identity',async()=>{
+  await a.e2ee.savePrivateChatPasskeyBackup();const identity=db.identities.get('alice');assert.equal(identity.backup_scheme,'passkey_prf_v1');assert.ok(!JSON.stringify(a.controls.registered).includes('prf'));
+  const other=device(db,'alice');await other.e2ee.restorePrivateChatPasskeyBackup();assert.equal((await other.e2ee.encryptionIdentityStatus()).unlocked,true);
+  assert.equal(await other.e2ee.decryptPrivateMessage('friend',thread,'bob',oldMessage.ciphertext,oldMessage.iv,oldMessage.keyId),JSON.stringify({kind:'property_share',listing_id:'synthetic-42'}));
  });
- await t.test('account switch rejects a late profile lookup and cannot reuse previous account keys',async()=>{
-  const d=device(db,null),gate=deferred();d.controls.actor='alice';d.controls.profileGate=gate;
-  const pending=d.e2ee.encryptionIdentityStatus();await tick();d.controls.actor='bob';d.session.observePrivateMessagingAuth('bob');d.e2ee.rememberPrivateMessagingProfile('bob');gate.resolve();await assert.rejects(pending,/access changed/);d.controls.profileGate=null;
-  assert.equal((await d.e2ee.encryptionIdentityStatus()).unlocked,false);
+ await t.test('tampered backup cannot install a key and stale saves cannot report success',async()=>{
+  const row=db.identities.get('alice'),saved=row.encrypted_private_key;row.encrypted_private_key='A'.repeat(saved.length);const other=device(db,'alice');await assert.rejects(other.e2ee.restorePrivateChatPasskeyBackup());assert.equal(other.localKeys.size,0);row.encrypted_private_key=saved;
+  a.controls.rejectUpdate=true;await assert.rejects(a.e2ee.savePrivateChatPasskeyBackup(),/stale/);a.controls.rejectUpdate=false;assert.equal(row.encrypted_private_key,saved);
  });
- await t.test('stale passcode-backup update cannot report success without a matching receipt',async()=>{
-  a.controls.rejectUpdate=true;await assert.rejects(a.e2ee.changeEncryptionRecoveryPin('123456','222222'),/changed in another session/);a.controls.rejectUpdate=false;
+ await t.test('account changes cancel in-flight private reads and cannot use another profile’s device key',async()=>{
+  const d=device(db,null),gate=deferred();d.controls.actor='alice';d.controls.profileGate=gate;const pending=d.e2ee.encryptionIdentityStatus();await new Promise(r=>setImmediate(r));d.controls.actor='bob';d.session.observePrivateMessagingAuth('bob');d.e2ee.rememberPrivateMessagingProfile('bob');gate.resolve();await assert.rejects(pending,/access changed/);d.controls.profileGate=null;assert.equal((await d.e2ee.encryptionIdentityStatus()).unlocked,false);
+  const decryptGate=deferred();b.controls.decryptGate=decryptGate;const read=b.e2ee.decryptPrivateMessage('friend',thread,'alice',oldMessage.ciphertext,oldMessage.iv,oldMessage.keyId);await new Promise(r=>setImmediate(r));b.session.observePrivateMessagingAuth('',true);decryptGate.resolve();await assert.rejects(read,/access changed/);b.controls.decryptGate=null;b.controls.actor='bob';b.session.observePrivateMessagingAuth('bob:next');b.e2ee.rememberPrivateMessagingProfile('bob');
  });
- await t.test('same-account login sessions lock old keys while refresh and reload retain the same unlock',async()=>{
-  const d=device(db,'alice');
-  const token=(sid,exp=1)=>'fixture.'+Buffer.from(JSON.stringify({session_id:sid,exp})).toString('base64url')+'.fixture';
-  const context=d.session.privateMessagingAuthIdentity('alice',token('first-session'));
-  d.session.observePrivateMessagingAuth(context);await d.e2ee.unlockEncryptionIdentity('123456');
-  const refreshed=d.session.privateMessagingAuthIdentity('alice',token('first-session',2));assert.equal(refreshed,context);
-  assert.equal(d.session.observePrivateMessagingAuth(refreshed),false);assert.equal((await d.e2ee.encryptionIdentityStatus()).unlocked,true);
-  // A fresh module context reads the same browser-session marker before Auth initializes.
-  const reloaded=device(db,'alice',d.storage,context);assert.equal(reloaded.session.observePrivateMessagingAuth(context),false);
-  assert.equal((await reloaded.e2ee.encryptionIdentityStatus()).unlocked,true);
-  const newContext=reloaded.session.privateMessagingAuthIdentity('alice',token('second-session'));
-  const relogged=device(db,'alice',d.storage,newContext);assert.equal((await relogged.e2ee.encryptionIdentityStatus()).unlocked,false);
-  await relogged.e2ee.unlockEncryptionIdentity('123456');relogged.session.observePrivateMessagingAuth(newContext,true);
-  assert.equal((await relogged.e2ee.encryptionIdentityStatus()).unlocked,false);
+ await t.test('file opens share ciphertext and stay within two active download slots',async()=>{
+  const encrypted=await a.e2ee.encryptPrivateAttachment('friend',thread,'bob',new Blob(['synthetic file']),{name:'example.pdf',type:'application/pdf'}),item={...encrypted,key_id:encrypted.keyId,path:'same-file'};db.files.set(item.path,await encrypted.blob.arrayBuffer());
+  const before=b.controls.downloads;await Promise.all([b.e2ee.decryptPrivateAttachment('friend',thread,'alice',item),b.e2ee.decryptPrivateAttachment('friend',thread,'alice',item)]);assert.equal(b.controls.downloads-before,1);assert.equal(await b.objects.at(-1).text(),'synthetic file');
+  for(let i=0;i<4;i++)db.files.set('parallel-'+i,await encrypted.blob.arrayBuffer());const gate=deferred();b.controls.fetchGate=gate;
+  const pending=Array.from({length:4},(_,i)=>b.e2ee.decryptPrivateAttachment('friend',thread,'alice',{...item,path:'parallel-'+i}));await until(()=>b.controls.activeDownloads===2);gate.resolve();await Promise.all(pending);b.controls.fetchGate=null;assert.equal(b.controls.peakDownloads,2);
+  b.controls.oversized=true;db.files.set('oversized',new Uint8Array([1]).buffer);await assert.rejects(b.e2ee.decryptPrivateAttachment('friend',thread,'alice',{...item,path:'oversized'}),/too large/);b.controls.oversized=false;
  });
- await t.test('forgotten passcode discards cached Friend keys and permits a fresh exchange',async()=>{
-  const fileBeforeReset=await a.e2ee.encryptPrivateAttachment('friend',thread,'bob',new Blob(['before reset']),{name:'example.pdf',type:'application/pdf'});
-  const prepared={path:'old-upload',file_iv:fileBeforeReset.file_iv,metadata_ciphertext:fileBeforeReset.metadata_ciphertext,metadata_iv:fileBeforeReset.metadata_iv,prepared_envelope_token:fileBeforeReset.envelopeToken};
-  const sendable=a.e2ee.encryptedAttachmentsForSend([prepared],oldMessage.envelopeToken);
-  assert.equal(sendable.length,1);assert.ok(!('prepared_envelope_token' in sendable[0]));
-  const version=await a.recovery.resetEncryptionRecoveryPin('333333');assert.equal(version,2);assert.equal(a.session.storedPrivateMessagingKeyVersion('alice'),2);
-  b.session.invalidatePrivateMessagingSession('identity');
-  const next=await b.e2ee.encryptPrivateMessage('friend',thread,'alice','after key replacement');
-  assert.equal(await a.e2ee.decryptPrivateMessage('friend',thread,'bob',next.ciphertext,next.iv),'after key replacement');
-  const ownNext=await a.e2ee.encryptPrivateMessage('friend',thread,'bob','send with current key');
-  assert.throws(()=>a.e2ee.encryptedAttachmentsForSend([prepared],ownNext.envelopeToken),/changed while this file was uploading/);
-  assert.throws(()=>a.e2ee.encryptedAttachmentsForSend([{...prepared,prepared_envelope_token:undefined}],ownNext.envelopeToken),/changed while this file was uploading/);
-  await assert.rejects(a.e2ee.decryptPrivateMessage('friend',thread,'bob',oldMessage.ciphertext,oldMessage.iv));
+ await t.test('explicit restart preserves the peer’s historical text/files and uses a new generation',async()=>{
+  const prepared=await a.e2ee.encryptPrivateAttachment('friend',thread,'bob',new Blob(['old file']),{name:'old.pdf',type:'application/pdf'});db.files.set('historical',await prepared.blob.arrayBuffer());
+  const missing=device(db,'alice');assert.equal((await missing.e2ee.encryptionIdentityStatus()).unlocked,false);await missing.e2ee.startPrivateChatsWithoutHistory();assert.equal((await missing.e2ee.encryptionIdentityStatus()).unlocked,true);
+  await b.e2ee.refreshPrivateMessageKeys();assert.equal(await b.e2ee.decryptPrivateMessage('friend',thread,'alice',oldMessage.ciphertext,oldMessage.iv,oldMessage.keyId),JSON.stringify({kind:'property_share',listing_id:'synthetic-42'}));
+  await b.e2ee.decryptPrivateAttachment('friend',thread,'alice',{...prepared,key_id:prepared.keyId,path:'historical'});assert.equal(await b.objects.at(-1).text(),'old file');
+  await assert.rejects(missing.e2ee.decryptPrivateMessage('friend',thread,'bob',oldMessage.ciphertext,oldMessage.iv,oldMessage.keyId));
+  const next=await b.e2ee.encryptPrivateMessage('friend',thread,'alice','new generation');assert.notEqual(next.keyId,oldMessage.keyId);assert.equal(await missing.e2ee.decryptPrivateMessage('friend',thread,'bob',next.ciphertext,next.iv,next.keyId),'new generation');
+  const ownNext=await missing.e2ee.encryptPrivateMessage('friend',thread,'bob','send');assert.throws(()=>missing.e2ee.encryptedAttachmentsForSend([{...prepared,prepared_envelope_token:prepared.envelopeToken,path:'historical'}],ownNext.envelopeToken),/changed while this file was uploading/);
+ });
+ await t.test('backup derivation binds person, version and credential; missing PRF is a failure',async()=>{
+  const identity=db.identities.get('bob'),other=device(db,'bob');const secret=new Uint8Array(32).fill(7),salt=new Uint8Array(32).fill(9);
+  const local=[...b.localKeys.values()][0];assert.ok(local);const saved=await b.e2ee.encryptionIdentityStatus();assert.equal(saved.unlocked,true);
+  assert.throws(()=>other.backup.privatePrfResult({getClientExtensionResults:()=>({prf:{}})}),/cannot encrypt/);
+  const sealed=await other.backup.sealPasskeyBackup('bob',1,pub,secret,salt,btoa('synthetic-passkey'),'fixture.invalid');assert.ok(secret.every(x=>x===0));
+  await assert.rejects(other.backup.openPasskeyBackup('alice',1,identity.public_key_jwk,sealed));
  });
 });

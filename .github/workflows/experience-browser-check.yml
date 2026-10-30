@@ -140,6 +140,10 @@ jobs:
         run: python scripts/prepare-browser-encoder.py
       - name: Capture Account phone screens and verify workspace tab motion
         run: python tests/browser/account_motion_preview.py
+      - name: Verify automatic private-chat setup and optional backup in both themes
+        run: |
+          node tests/browser/build-private-chat.mjs
+          python tests/browser/private_chat.py
       - name: Run isolated browser interactions
         run: |
           node node_modules/vite/bin/vite.js build

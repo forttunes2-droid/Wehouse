@@ -10,6 +10,16 @@ scope acceptance. Vercel automatic custom-domain promotion is paused while the
 actual Production backend remains on its older configuration. Subsequent work
 continues from this merged version; no second release register is introduced.
 
+The current candidate continues in **PR #119** on
+`codex/production-readiness-20261030`. Its exact source is the PR head, not the
+previous #118 merge or an older preview. `/version.json` now identifies the build
+SHA, private-chat protocol, expected latest migration and normalized migration
+digest. These are build requirements, not proof that another backend matches.
+The release owner must pair that head's CI/preview with the actual Test schema
+and then approve an ordered Production backend/frontend rollout. Read-only alias
+verification on 30 October still found `wehouse.com.ng` on
+`dpl_8BjJisMWjXqUT4ii74KzKcjMjaUr`; Production has not received these Test repairs.
+
 This is the only current work register. The [historical evidence snapshot](WEHOUSE_RELEASE_HISTORY_2026-10-30.md)
 preserves prior checkpoints, decisions and failures; its old “open”, “current” and
 “next push” statements are not instructions to restart work. The reorganization
@@ -63,6 +73,37 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 ## Latest scoped evidence — 30 October
 
+WR-08/09/13/17/19: the approved replacement for new chat PINs is implemented:
+automatic per-person device keys wrapped by a non-extractable local AES key in
+IndexedDB, optional WebAuthn PRF/HKDF-encrypted backup, and one-time restoration
+of an existing legacy backup. No new PIN creation/change/reset flow remains.
+Passkey secret output is explicitly excluded from the public Auth registration
+response. Unsupported/cancelled PRF never enables backup. New-device history
+loss requires confirmation; historical envelope generations retain the peer's
+readable text/files. No history rewrite or new message store was introduced.
+Test migrations `20261030211710` and `20261030211716` are applied; actual
+rollback contracts pass for versioned reset, stale/retry backup writes, retained
+history, copied-device labels, denied browser trust writes, revoked private-file
+reads and abandoned-upload recovery. The latter serializes Storage final writes
+and reclaim, rejects expired paths and refreshes the existing fail-closed upload
+authority. The retired browser approval RPC remains retired; new sessions use
+the existing verified email flow. Previously writable, unproven trust flags need
+one confirmation again; independently consumed email proofs are preserved.
+
+The source regression suite passes 869 checks; an obsolete unsandboxed PIN-era
+crypto case moved into the expanded isolated real-WebCrypto fixture. Ten
+synthetic browser journeys pass at 320/768 pixels in both themes, exercising
+actual IndexedDB/WebCrypto, cancelled/unsupported backup, same-device reload,
+new-device restore and explicit history-loss confirmation. The PR's fresh replay,
+isolated crypto and exact-head CI still need their result before acceptance.
+Physical passkey/phone and two-device acceptance remain PM-01. Hosted passkey
+activation additionally needs the stable RP/origin configuration and supported
+Auth feature; normal automatic chats remain available without optional backup.
+Already-issued file links can survive until expiry; fresh private chat links now
+use five minutes. Downloaded ciphertext cannot be recalled. Provider-managed
+leaked-password protection/default-role configuration remain explicit rollout
+hardening checks; this change does not certify all permissions or public launch.
+
 WR-12: reviewed access requests now have a real paginated account-record
 download, tied to the existing case, assigned independent reviewer and fresh
 confirmation. Ownership, 25-record pages, cursor continuity, unknown-result
@@ -107,8 +148,9 @@ Test revoked-read/reaction denials and actual Friend signal isolation pass; the
 final guards also pass fresh replay, migration contracts, existing-account
 upgrade and mixed Auth/HTTP/WebSocket checks at `c1f9dbf6`. The client auth-context
 marker additionally distinguishes a new login by the same person from a normal
-token refresh, including across reload; the new isolated case remains pending
-CI. Roommate/Service full-history retrieval and
+token refresh, including across reload; the prior isolated cases passed at
+`abb4de1f`. The automatic-key replacement above supersedes new PIN setup.
+Roommate/Service full-history retrieval and
 automatic media loading still need the WR-13/19 paging/resource follow-up; the
 Friend reader already has a 50-message page. These checks do not close actual
 Production parity or certify all chat lifecycles.

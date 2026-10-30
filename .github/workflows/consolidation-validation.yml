@@ -336,6 +336,9 @@ jobs:
       - name: Verify Friend key recovery and private identity-change scope
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/private_identity_reset_contract.sql
+      - name: Reject self-trusted devices and recover abandoned media safely
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/device_authority_and_upload_recovery_contract.sql
       - name: Verify seeded Services availability and deliberate operational pauses
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/service_availability_default_contract.sql

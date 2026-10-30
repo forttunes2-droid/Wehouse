@@ -6,7 +6,7 @@ import {build} from 'esbuild';
 const {outputFiles}=await build({stdin:{contents:fs.readFileSync('src/lib/e2ee.ts','utf8')+'\nexport {readPersistentEncryptedAttachment,writePersistentEncryptedAttachment};',resolveDir:path.resolve('src/lib'),loader:'ts'},bundle:true,write:false,format:'esm',platform:'node',plugins:[{name:'isolated-cache',setup(api){
  api.onResolve({filter:/^@\/lib\/supabase$/},()=>({path:'client',namespace:'fixture'}));
  api.onResolve({filter:/^@\/lib\/chatMediaPolicy$/},()=>({path:'media',namespace:'fixture'}));
- api.onLoad({filter:/.*/,namespace:'fixture'},({path})=>({contents:path==='client'?'export const supabase={};':'export const validateMessageMedia=()=>{}; export const normaliseChatMediaType=x=>x;',loader:'js'}));
+ api.onLoad({filter:/.*/,namespace:'fixture'},({path})=>({contents:path==='client'?'export const supabase={};export const isWebPasskeyEnabled=false;':'export const validateMessageMedia=()=>{}; export const normaliseChatMediaType=x=>x;',loader:'js'}));
  api.onResolve({filter:/^@\//},args=>api.resolve(path.resolve('src',args.path.slice(2)),{kind:args.kind,resolveDir:process.cwd()}));
 }}]});
 const cacheModule=await import('data:text/javascript;base64,'+Buffer.from(outputFiles[0].text).toString('base64'));

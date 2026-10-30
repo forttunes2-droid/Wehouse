@@ -98,14 +98,14 @@ function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend:
     if (error) { setHistoryError(true);toast.error(error.message || "Could not load messages"); return; }
     const decoded = await Promise.all(messages.map(async (m): Promise<Line> => {
       let content = "Message could not be decrypted on this device.";
-      try { content = await decryptPrivateMessage("friend", friend.friend_id, friend.user_id, m.ciphertext, m.encryption_iv); } catch { /* keep the placeholder */ }
+      try { content = await decryptPrivateMessage("friend", friend.friend_id, friend.user_id, m.ciphertext, m.encryption_iv,m.encryption_key_id); } catch { /* keep the placeholder */ }
       const attachments: string[] = [], types: string[] = [];
       for (const item of (m.encrypted_attachments || []) as EncryptedAttachment[]) {
         if(!current())break;
         const hit = media.current.get(item.path);
         if (hit) { attachments.push(hit.url); types.push(hit.type); }
       }
-      return { id: m.id, sender_id: m.sender_id, content, created_at: m.created_at, seen: true, attachments, attachment_types: types, reply_to_id: m.reply_to_id, reactions: m.reactions || {}, media_error: false, private_attachment_refs:m.encrypted_attachments as EncryptedAttachment[],media_pending:attachments.length<(m.encrypted_attachments||[]).length };
+      return { id: m.id, sender_id: m.sender_id, content, created_at: m.created_at, seen: true, attachments, attachment_types: types, reply_to_id: m.reply_to_id, reactions: m.reactions || {}, media_error: false, private_attachment_refs:(m.encrypted_attachments as EncryptedAttachment[]).map(item=>({...item,key_id:m.encryption_key_id??undefined})),media_pending:attachments.length<(m.encrypted_attachments||[]).length };
     }));
     if(current()) {
       const retained=new Set(messages.flatMap(m=>(m.encrypted_attachments||[]).map(item=>(item as EncryptedAttachment).path)));

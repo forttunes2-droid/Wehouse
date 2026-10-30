@@ -1,6 +1,7 @@
 import path from "path"
 import { execFileSync } from "node:child_process"
-import {existsSync,readFileSync} from 'node:fs'
+import {existsSync,readFileSync,readdirSync} from 'node:fs'
+import {createHash} from 'node:crypto'
 import react from "@vitejs/plugin-react"
 import { defineConfig,type Plugin } from "vite"
 import {bundledLicences} from './scripts/lib/bundled-licences'
@@ -25,7 +26,16 @@ function releaseVersion() {
 }
 
 const buildVersion = releaseVersion()
-const releaseManifest = `${JSON.stringify({ version: buildVersion, forceClear: false }, null, 2)}\n`
+const migrationFiles=readdirSync(path.resolve('supabase/migrations')).filter(file=>/^\d{14}_.+\.sql$/.test(file)).sort()
+const migrationHash=createHash('sha256')
+for(const file of migrationFiles)migrationHash.update(file+'\n'+readFileSync(path.resolve('supabase/migrations',file),'utf8').replace(/\r\n/g,'\n')+'\n')
+// These identify the build's expected backend; they are not a claim that a
+// different deployed database has passed that release's migrations or checks.
+const releaseManifest = `${JSON.stringify({ version: buildVersion, forceClear: false,
+  privateChatProtocol:2, expectedMigration:migrationFiles.at(-1)?.slice(0,14)??null,
+  migrationDigest:migrationHash.digest('hex'),
+  configuredBackendProject:/https:\/\/([a-z0-9]+)\.supabase\.co/.exec(process.env.VITE_SUPABASE_URL??'')?.[1]??null,
+}, null, 2)}\n`
 const updateWorker = `// WeHouse release ${buildVersion}
 const RELEASE = ${JSON.stringify(buildVersion)};
 const OFFLINE_URL = '/offline.html';

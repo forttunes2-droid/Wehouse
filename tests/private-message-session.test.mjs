@@ -15,7 +15,8 @@ test("one identity unlock is shared across Inbox and private conversation entry 
   // a route, workspace, conversation, roommate, or Service Provider thread.
   assert.match(e2ee, /const SESSION_KEY_PREFIX = "wehouse:e2ee:private-key:"/);
   assert.match(e2ee, /function sessionKey\(profileId:string\)/);
-  assert.match(e2ee, /sessionStorage\.setItem\(sessionKey\(identity\.user_id\)/);
+  assert.match(e2ee, /readPrivateDeviceJwk/);
+  assert.doesNotMatch(e2ee, /sessionStorage\.setItem/);
   assert.match(e2ee, /sessionStorage\.getItem\(sessionKey\(identity\.user_id\)\)/);
   assert.match(hook, /rememberPrivateMessagingProfile\(profileId\)/);
   assert.match(hook, /encryptionIdentityStatus\(\)/);
@@ -25,12 +26,11 @@ test("one identity unlock is shared across Inbox and private conversation entry 
   assert.match(auth, /sessionStorage\.clear\(\)/);
 });
 
-test("forgotten Inbox passcode creates and confirms a replacement without asking for the old passcode", async () => {
-  const onboarding = await read("src/components/SecureChatOnboarding.tsx");
-  assert.match(onboarding, /Forgot passcode\?/);
-  assert.match(onboarding, /Choose six new digits\. You do not need the old passcode\./);
-  assert.match(onboarding, /resetEncryptionRecoveryPin\(pin\)/);
-  assert.match(onboarding, /Confirm your passcode/);
+test("automatic encryption has optional passkey recovery and an explicit history-loss decision", async () => {
+  const [panel,e2ee] = await Promise.all([read("src/components/SecureMessagesPanel.tsx"),read("src/lib/e2ee.ts")]);
+  assert.match(panel,/Continue without previous history/);assert.match(panel,/Restore with passkey/);
+  assert.doesNotMatch(panel,/Create a 6-digit|Change passcode|Confirm recovery passcode/);
+  assert.match(e2ee,/create_my_automatic_private_identity/);assert.match(e2ee,/start_my_new_private_identity/);
 });
 
 test("Inbox surfaces do not expose a permanent PIN settings tab", async () => {

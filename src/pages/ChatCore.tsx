@@ -55,7 +55,7 @@ import Notifications from "@/pages/Notifications";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import {
-  lockEncryptionIdentity,
+  refreshPrivateMessageKeys,
   privateConversationReadiness,
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
@@ -220,7 +220,7 @@ export default function Chat({
   const [messageToRemove, setMessageToRemove] =
     useState<RoommateMessage | null>(null);
   const [activityExpanded, setActivityExpanded] = useState(false);
-  const [pinSettingsOpen, setPinSettingsOpen] = useState(false);
+  const [encryptionSettingsOpen, setEncryptionSettingsOpen] = useState(false);
   const messagePins = useMessagePins(active ? "roommate" : null, active?.id, messages.length);
   const {
     status: inboxSecurityStatus,
@@ -1059,7 +1059,7 @@ export default function Chat({
     };
     const retryLockedMessages = async () => {
       setSecureChat(null);
-      await lockEncryptionIdentity();
+      await refreshPrivateMessageKeys();
       await refreshInboxSecurity();
     };
     const timeline = [
@@ -1188,11 +1188,11 @@ export default function Chat({
             {lockedMessages ? (
               <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
                 <div>
-                  <p className="text-xs font-semibold text-violet-100">
+                  <p className="text-xs font-semibold text-violet-800 dark:text-violet-200">
                     Some messages are still locked
                   </p>
                   <p className="mt-1 text-xs leading-4 text-[var(--wh-text-secondary)]">
-                    Re-enter your Inbox PIN to unlock this conversation on this device.
+                    Some message keys are unavailable here. Retry after restoring a backup, or use the original device to read older history.
                   </p>
                 </div>
                 <button
@@ -1200,7 +1200,7 @@ export default function Chat({
                   onClick={() => void retryLockedMessages()}
                   className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-xs font-semibold text-violet-200"
                 >
-                  Enter PIN
+                  Check keys again
                 </button>
               </section>
             ) : null}
@@ -1567,11 +1567,11 @@ export default function Chat({
           ) : (
             <button
               type="button"
-              aria-expanded={pinSettingsOpen}
-              onClick={() => setPinSettingsOpen((value) => !value)}
-              className="mt-0.5 min-h-9 rounded-full border border-[var(--wh-border-subtle)] px-3 text-[9px] font-semibold text-violet-200"
+              aria-expanded={encryptionSettingsOpen}
+              onClick={() => setEncryptionSettingsOpen((value) => !value)}
+              className="mt-0.5 min-h-11 rounded-full border border-[var(--wh-border-subtle)] px-3 text-xs font-semibold text-violet-700 dark:text-violet-300"
             >
-              Inbox PIN
+              Chat encryption
             </button>
           )}
           <div className="min-w-0 flex-1">
@@ -1593,7 +1593,7 @@ export default function Chat({
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-2.5 sm:px-5 sm:py-4 lg:px-8">
-        {pinSettingsOpen ? (
+        {encryptionSettingsOpen ? (
           <div className="mb-4">
             <SecureMessagesPanel />
           </div>

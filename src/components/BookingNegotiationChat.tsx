@@ -59,7 +59,7 @@ import WorkerBookingDocuments from "@/components/WorkerBookingDocuments";
 import { PublicProfileAction } from "@/components/PublicProfileSurface";
 import ReportDialog from "@/components/ReportDialog";
 import {
-  lockEncryptionIdentity,
+  refreshPrivateMessageKeys,
   privateConversationReadiness,
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
@@ -284,7 +284,7 @@ function BookingNegotiationChatSession({
   }, [conversationId, loadMessages, peerId]);
   const retryLockedMessages = useCallback(async () => {
     setSecureChat(null);
-    await lockEncryptionIdentity();
+    await refreshPrivateMessageKeys();
     await refreshSecureChat();
   }, [refreshSecureChat]);
   useEffect(() => {
@@ -1095,11 +1095,11 @@ function BookingNegotiationChatSession({
           {messages.some((message) => message.decryption_failed) ? (
             <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
               <div>
-                <p className="text-[10px] font-semibold text-violet-100">
+                <p className="text-[10px] font-semibold text-violet-800 dark:text-violet-200">
                   Some messages are still locked
                 </p>
                 <p className="mt-1 text-[9px] leading-4 text-[var(--wh-text-secondary)]">
-                  Re-enter your Inbox PIN to unlock this conversation on this device.
+                  Some message keys are unavailable here. Retry after restoring a backup, or use the original device to read older history.
                 </p>
               </div>
               <button
@@ -1107,7 +1107,7 @@ function BookingNegotiationChatSession({
                 onClick={() => void retryLockedMessages()}
                 className="min-h-10 shrink-0 rounded-xl border border-violet-400/25 px-3 text-[9px] font-semibold text-violet-200"
               >
-                Enter PIN
+                Check keys again
               </button>
             </section>
           ) : null}
@@ -1202,7 +1202,7 @@ function BookingNegotiationChatSession({
                     {msg.attachment_failed && <AttachmentState error />}
                     {msg.content && <MessageContent content={msg.content} />}
                     <p
-                      className={`mt-1 text-[8px] ${mine ? "text-violet-100/70" : "text-[var(--wh-text-muted)]"}`}
+                      className={`mt-1 text-[8px] ${mine ? "text-violet-800 dark:text-violet-200/70" : "text-[var(--wh-text-muted)]"}`}
                     >
                       {new Date(msg.created_at).toLocaleTimeString([], {
                         hour: "2-digit",
@@ -1213,7 +1213,7 @@ function BookingNegotiationChatSession({
                           className={
                             msg.is_read
                               ? "ml-1 font-bold text-cyan-200"
-                              : "ml-1 text-violet-100/50"
+                              : "ml-1 text-violet-800 dark:text-violet-200/50"
                           }
                         >
                           {msg.delivery_state === "sending"

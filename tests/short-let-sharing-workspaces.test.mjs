@@ -198,59 +198,8 @@ test('Saved retrieval is concurrency-bounded and preserves input order', async (
   const result=await mapConcurrent([1,2,3,4,5],2,async value=>{active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,2));active--;return value*2;});
   assert.deepEqual(plain(result),[2,4,6,8,10]);assert.equal(peak,2);
 });
-test('a property share uses real encryption and only the intended second identity can decrypt it', async () => {
-  const identities=new Map(), envelopes=new Map(), stored=[];
-  function client(user) {
-    return {
-      from(table) {
-        const filters={}; const query={select(){return query;},eq(k,v){filters[k]=v;return query;},order(){return query;},limit(){return query;},async maybeSingle(){
-          if(table==='user_encryption_identities')return {data:identities.get(user)||null,error:null};
-          if(table==='conversation_key_envelopes')return {data:envelopes.get(`${filters.conversation_kind}:${filters.conversation_id}:${user}`)||null,error:null};
-          throw Error(`Unexpected table ${table}`);
-        },async insert(row){assert.equal(table,'user_encryption_identities');assert.equal(row.user_id,user);identities.set(user,{...row,key_version:1});return {error:null};}};return query;
-      },
-      async rpc(name,args={}) {
-        if(name==='current_profile_user_id')return {data:user,error:null};
-        if(name==='get_private_chat_peer_public_key') {
-          if(args.p_conversation_id!=='accepted-1'||!['alice','bob'].includes(user)||!['alice','bob'].includes(args.p_peer_user_id)||args.p_peer_user_id===user) return {data:null,error:new Error('Conversation access denied')};
-          return {data:[identities.get(args.p_peer_user_id)],error:null};
-        }
-        if(name==='establish_private_conversation_key'){for(const row of args.p_envelopes)envelopes.set(`${args.p_conversation_kind}:${args.p_conversation_id}:${row.recipient_user_id}`,row);return {data:true,error:null};}
-        if(name==='send_private_encrypted_message'){stored.push(args);return {data:'message-1',error:null};}
-        throw Error(`Unexpected RPC ${name}`);
-      }
-    };
-  }
-  const objects=new Map();
-  const aliceClient=client('alice'),bobClient=client('bob');
-  bobClient.storage={from(bucket){assert.equal(bucket,'chat-files');return{createSignedUrl:async path=>({data:{signedUrl:path},error:null})};}};
-  const fetchAttachment=async url=>new Response(objects.get(String(url))||null,{status:objects.has(String(url))?200:404});
-  const alice=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:aliceClient}},{sessionStorage:storage()});
-  const bob=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:bobClient}},{sessionStorage:storage(),fetch:fetchAttachment});
-  await alice.createEncryptionIdentity('123456');await bob.createEncryptionIdentity('654321');
-  const chat=load('src/lib/supabase/chat.ts',{'./client':{supabase:aliceClient},'./utils':{},'@/lib/e2ee':alice});
-  const clear=sharing.propertyShareMessage({kind:'listing',id:'home-1'},'Please check this place');
-  const result=await chat.sendMessage('accepted-1','bob',clear);
-  assert.equal(result.error,null); assert.equal(stored.length,1);assert.equal(stored[0].p_conversation_kind,'roommate');
-  assert.ok(!JSON.stringify(stored[0]).includes('home-1'));assert.ok(!JSON.stringify(stored[0]).includes('Please check'));
-  const decoded=await bob.decryptPrivateMessage('roommate','accepted-1','alice',stored[0].p_ciphertext,stored[0].p_encryption_iv);
-  assert.equal(decoded,clear);assert.equal(sharing.parsePropertyShareMessage(decoded).property.id,'home-1');
-  await bob.lockEncryptionIdentity();await assert.rejects(()=>bob.unlockEncryptionIdentity('000000'),/Incorrect/);
-  await bob.unlockEncryptionIdentity('654321');assert.equal(await bob.decryptPrivateMessage('roommate','accepted-1','alice',stored[0].p_ciphertext,stored[0].p_encryption_iv),clear);
-  // A real encrypted image remains media; an authenticated hostile metadata URL
-  // cannot override the receiver-created object URL. Unsupported cleartext fails.
-  const photo=new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR0sAAAAASUVORK5CYII=','base64')],{type:'image/png'});
-  for(const [payload,metadata,accepted] of [[photo,{name:'room.png',type:'image/png',url:'javascript:alert(1)'},true],[new Blob(['%PDF-1.7']),{name:'lease.pdf',type:'application/pdf'},true],[new Blob(['%PDF-1.7']),{name:'room.png',type:'image/png'},false]]) {
-    const encrypted=await alice.encryptPrivateAttachment('roommate','accepted-1','bob',payload,metadata);
-    const path='https://storage.invalid/'+objects.size;objects.set(path,encrypted.blob);
-    const attachment={...encrypted,path};
-    if(accepted){const received=await bob.decryptPrivateAttachment('roommate','accepted-1','alice',attachment);assert.ok(received.url.startsWith('blob:'));assert.equal(received.type,metadata.type);assert.equal(received.name,metadata.name);URL.revokeObjectURL(received.url);}
-    else await assert.rejects(()=>bob.decryptPrivateAttachment('roommate','accepted-1','alice',attachment),/not supported|not a supported/);
-  }
-  const outsider=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:client('outsider')}},{sessionStorage:storage()});
-  await outsider.createEncryptionIdentity('777777');await assert.rejects(()=>outsider.decryptPrivateMessage('roommate','accepted-1','alice',stored[0].p_ciphertext,stored[0].p_encryption_iv),/access denied/);
-});
-
+// Real text/property-share encryption and access-boundary cases run in the
+// network-disabled, resource-bounded tests/security/private-messaging-key-lifecycle.mjs.
 
 test('Homes and Hotels connect accepted Friends to encrypted chat drafts and actionable cards',()=>{
  const dialog=fs.readFileSync('src/components/PropertyShareDialog.tsx','utf8');

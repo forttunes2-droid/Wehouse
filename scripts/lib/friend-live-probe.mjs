@@ -28,14 +28,13 @@ export async function checkFriendLiveDelivery(actors){
   // This probe exercises transport/authorization, using explicit dummy material.
   // Real cryptography is checked separately in the network-disabled fixture.
   for(const actor of [sender,reactor]){
-   const identity=await actor.client.from('user_encryption_identities').insert({user_id:actor.userId,key_version:1,
-    public_key_jwk:{kty:'EC',crv:'P-256',x:'A'.repeat(43),y:'A'.repeat(43)},encrypted_private_key:'A'.repeat(64),
-    backup_iv:'A'.repeat(16),backup_salt:'A'.repeat(24),kdf_iterations:600000});assert.ifError(identity.error);
+   const identity=await actor.client.rpc('create_my_automatic_private_identity',{p_public_key_jwk:{kty:'EC',crv:'P-256',x:'A'.repeat(43),y:'A'.repeat(43)}});assert.ifError(identity.error);
   }
-  const key=await sender.client.rpc('establish_private_conversation_key',{p_conversation_kind:'friend',p_conversation_id:friendId,
+  const keyId=crypto.randomUUID();
+  const key=await sender.client.rpc('establish_private_conversation_key',{p_conversation_kind:'friend',p_conversation_id:friendId,p_key_id:keyId,
    p_envelopes:[sender,reactor].map(actor=>({recipient_user_id:actor.userId,recipient_key_version:1,sender_ephemeral_public_key_jwk:{},wrapped_key:'d3JhcA==',wrap_iv:'aXY='}))});
   assert.ifError(key.error);assert.equal(key.data,true);
-  const message=await sender.client.rpc('send_friend_encrypted_message',{p_friend_id:friendId,p_ciphertext:'ZmFrZQ==',p_encryption_iv:'aXY=',p_client_message_id:crypto.randomUUID(),p_envelope_token:'1:aXY=:d3JhcA=='});
+  const message=await sender.client.rpc('send_friend_encrypted_message',{p_friend_id:friendId,p_ciphertext:'ZmFrZQ==',p_encryption_iv:'aXY=',p_client_message_id:crypto.randomUUID(),p_envelope_token:keyId+':1:aXY=:d3JhcA=='});
   assert.ifError(message.error);assert.equal(typeof message.data,'string');
   const observed=(index,kind)=>received[index].some(payload=>payload.friend_id===friendId&&payload.message_id===message.data&&payload.kind===kind);
   await waitFor(()=>observed(0,'message')&&observed(1,'message'));

@@ -11,7 +11,7 @@ import time
 import uuid
 
 ROOT=Path(__file__).resolve().parents[1]
-SOURCES=('src/lib/e2ee.ts','src/lib/e2eeRecovery.ts','src/lib/privateMessagingSession.ts','src/lib/byteCache.ts','tests/security/private-messaging-key-lifecycle.mjs')
+SOURCES=('src/lib/e2ee.ts','src/lib/privateDeviceKeys.ts','src/lib/privatePasskeyBackup.ts','src/lib/privateMessagingSession.ts','src/lib/byteCache.ts','tests/security/private-messaging-key-lifecycle.mjs')
 
 def main():
     if os.name!='posix' or os.environ.get('GITHUB_ACTIONS')!='true':

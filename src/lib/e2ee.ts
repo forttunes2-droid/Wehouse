@@ -1,7 +1,9 @@
 import { validateMessageMedia, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
 import { supabase } from "@/lib/supabase";
 import { ByteCache } from './byteCache';
-import {assertPrivateMessagingSession,invalidatePrivateMessagingSession,onPrivateMessagingSessionInvalidated,privateMessagingSessionVersion,PrivateMessagingSessionChanged,rememberPrivateMessagingKeyVersion,storedPrivateMessagingKeyVersion} from './privateMessagingSession';
+import {keepPrivateDeviceJwk, preparePrivateDeviceIdentity, readPrivateDeviceJwk, validatePrivateJwk} from './privateDeviceKeys';
+import {createPasskeyBackup, openPasskeyBackup, type PasskeyBackup} from './privatePasskeyBackup';
+import {assertPrivateMessagingSession,invalidatePrivateMessagingSession,onPrivateMessagingSessionInvalidated,privateMessagingSessionVersion,PrivateMessagingSessionChanged,storedPrivateMessagingKeyVersion} from './privateMessagingSession';
 
 export type PrivateConversationKind = "roommate" | "worker" | "friend";
 export type EncryptedAttachment = {
@@ -11,17 +13,25 @@ export type EncryptedAttachment = {
   metadata_iv: string;
   /** Local preparation receipt; stripped before sending or storing the message. */
   prepared_envelope_token?: string;
+  /** Read-only generation from the message receipt; never trusted on sends. */
+  key_id?: string;
 };
 type IdentityRow = {
   user_id: string;
   key_version: number;
   public_key_jwk: JsonWebKey;
-  encrypted_private_key: string;
-  backup_iv: string;
-  backup_salt: string;
+  encrypted_private_key: string | null;
+  backup_iv: string | null;
+  backup_salt: string | null;
   kdf_iterations: number;
+  backup_scheme:'device_only'|'pin_v1'|'passkey_prf_v1';
+  backup_credential_id:string|null;
+  backup_rp_id:string|null;
+  backup_auth_passkey_id:string|null;
+  updated_at:string;
 };
 type EnvelopeRow = {
+  key_id:string;
   recipient_user_id: string;
   recipient_key_version: number;
   sender_ephemeral_public_key_jwk: JsonWebKey;
@@ -34,13 +44,12 @@ const decoder = new TextDecoder();
 const SESSION_KEY_PREFIX = "wehouse:e2ee:private-key:";
 const PRIVATE_MESSAGE_ACCESS_EVENT = "wehouse:private-message-access";
 const readinessTimeoutMs = 10_000;
-type ConversationKey={key:CryptoKey;token:string};
+type ConversationKey={key:CryptoKey;token:string;keyId:string};
 const conversationKeyCache = new Map<string, Promise<ConversationKey>>();
 const conversationEnvelopeReceipts=new Map<string,string>();
 const conversationReadyCache=new Map<string,{at:number;status:PrivateConversationReadiness}>();
 let activeProfileId: string | null = null;
 let activeProfileIdRequest: Promise<string> | null = null;
-let activeIdentityVersion:number|null=null;
 
 export function rememberPrivateMessagingProfile(profileId: string) {
   if (!profileId || activeProfileId === profileId) return;
@@ -117,142 +126,111 @@ async function wrappingKey(privateKey: CryptoKey, publicKey: CryptoKey) {
 async function myIdentity() {
   const version=privateMessagingSessionVersion(),profileId=await currentProfileId();
   assertPrivateMessagingSession(version);
-  const { data, error } = await supabase.from("user_encryption_identities").select("user_id,key_version,public_key_jwk,encrypted_private_key,backup_iv,backup_salt,kdf_iterations").eq('user_id',profileId).maybeSingle();
+  const { data, error } = await supabase.from("user_encryption_identities").select("user_id,key_version,public_key_jwk,encrypted_private_key,backup_iv,backup_salt,kdf_iterations,backup_scheme,backup_credential_id,backup_rp_id,backup_auth_passkey_id,updated_at").eq('user_id',profileId).maybeSingle();
   assertPrivateMessagingSession(version);
   if(data&&data.user_id!==profileId)throw new Error('Private-message identity could not be confirmed');
-  activeIdentityVersion=data?.key_version??null;
   return { identity: (data || null) as IdentityRow | null, error };
 }
 
-export async function createEncryptionIdentity(pin: string) {
-  const version=privateMessagingSessionVersion();
-  if (!/^\d{6}$/.test(pin)) throw new Error("Use a 6-digit recovery passcode");
-  const existing = await myIdentity();
-  if (existing.error) throw existing.error;
-  if (existing.identity) throw new Error("Secure messaging is already set up");
-  const pair = (await crypto.subtle.generateKey(
-    { name: "ECDH", namedCurve: "P-256" },
-    true,
-    ["deriveKey"],
-  )) as CryptoKeyPair;
-  const [publicJwk, privateJwk] = await Promise.all([
-    crypto.subtle.exportKey("jwk", pair.publicKey),
-    crypto.subtle.exportKey("jwk", pair.privateKey),
-  ]);
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await pinKey(pin, salt);
-  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(JSON.stringify(privateJwk)));
-  const profileId=await currentProfileId();
-  assertPrivateMessagingSession(version);
-  const { error } = await supabase.from("user_encryption_identities").insert({
-    user_id: profileId,
-    key_version: 1,
-    public_key_jwk: publicJwk,
-    encrypted_private_key: bytesToBase64(encrypted),
-    backup_iv: bytesToBase64(iv),
-    backup_salt: bytesToBase64(salt),
-    kdf_iterations: 600_000,
-  });
-  if (error) throw error;
-  assertPrivateMessagingSession(version);
-  invalidatePrivateMessagingSession('identity');
-  sessionStorage.setItem(sessionKey(profileId), JSON.stringify(privateJwk));
-  rememberPrivateMessagingKeyVersion(profileId,1);
+/** Fresh accounts are secured on this trusted device without another PIN. */
+export async function createEncryptionIdentity() {
+  const epoch=privateMessagingSessionVersion(),profileId=await currentProfileId();
+  assertPrivateMessagingSession(epoch);
+  const existing=await myIdentity();if(existing.error)throw existing.error;
+  if(existing.identity)return existing.identity;
+  const local=await preparePrivateDeviceIdentity(profileId,1);
+  assertPrivateMessagingSession(epoch);
+  const {data,error}=await supabase.rpc('create_my_automatic_private_identity',{p_public_key_jwk:local.publicKey});
+  if(error)throw error;assertPrivateMessagingSession(epoch);
+  if(data?.user_id!==profileId||!Number.isSafeInteger(data.key_version)||!data.public_key_jwk)throw new Error('Private chat setup could not be confirmed. Try again.');
+  // Another tab/device may have won. Never replace its canonical public key.
+  const confirmed=await readPrivateDeviceJwk(profileId,data.key_version,data.public_key_jwk);
+  assertPrivateMessagingSession(epoch);
+  if(!confirmed)throw new Error('Private chats were set up on another device. Restore that backup or continue without previous history.');
+  return data as IdentityRow;
+}
+
+async function localIdentity(identity:IdentityRow){
+  let local=await readPrivateDeviceJwk(identity.user_id,identity.key_version,identity.public_key_jwk);
+  // Non-destructive upgrade of an already unlocked legacy session. New keys
+  // are never written to sessionStorage and no new PIN backup is created.
+  const old=sessionStorage.getItem(sessionKey(identity.user_id));
+  if(!local&&old&&storedPrivateMessagingKeyVersion(identity.user_id)===identity.key_version){
+    const jwk=JSON.parse(old) as JsonWebKey;
+    local=await keepPrivateDeviceJwk(identity.user_id,identity.key_version,jwk,identity.public_key_jwk);
+  }
+  if(local)sessionStorage.removeItem(sessionKey(identity.user_id));
+  return local;
+}
+
+/** Compatibility only: restore a pre-existing PIN backup once, then keep it on this device. */
+export async function unlockEncryptionIdentity(pin:string){
+  const epoch=privateMessagingSessionVersion(),{identity,error}=await myIdentity();
+  if(error)throw error;
+  if(!identity||identity.backup_scheme!=='pin_v1'||!identity.encrypted_private_key||!identity.backup_iv||!identity.backup_salt)throw new Error('No older passcode backup is available.');
+  if(!/^\d{6}$/.test(pin))throw new Error('Enter your previous six-digit passcode.');
+  let clear:Uint8Array|undefined;
+  try{
+    const key=await pinKey(pin,base64ToBytes(identity.backup_salt),identity.kdf_iterations);
+    clear=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:base64ToBytes(identity.backup_iv)},key,base64ToBytes(identity.encrypted_private_key)));
+    const jwk=JSON.parse(decoder.decode(clear)) as JsonWebKey;
+    await validatePrivateJwk(jwk,identity.public_key_jwk);assertPrivateMessagingSession(epoch);
+    await keepPrivateDeviceJwk(identity.user_id,identity.key_version,jwk,identity.public_key_jwk);assertPrivateMessagingSession(epoch);
+  }catch(cause){if(cause instanceof PrivateMessagingSessionChanged)throw cause;throw new Error('The previous passcode could not restore this backup. Check the digits and try again.');}
+  finally{clear?.fill(0);}
+  invalidatePrivateMessagingSession('identity');announcePrivateMessageAccessChange();
+}
+
+export async function encryptionIdentityStatus(){
+  const epoch=privateMessagingSessionVersion();
+  let {identity,error}=await myIdentity();
+  if(!error&&!identity){try{await createEncryptionIdentity();({identity,error}=await myIdentity());}catch(cause){error=cause as typeof error;}}
+  const unlocked=Boolean(identity&&!error&&await localIdentity(identity));
+  assertPrivateMessagingSession(epoch);
+  return {enabled:Boolean(identity),unlocked,backupScheme:identity?.backup_scheme??null,backupPasskeyId:identity?.backup_auth_passkey_id??null,error};
+}
+
+export async function savePrivateChatPasskeyBackup(createNew=false){
+  const epoch=privateMessagingSessionVersion(),{identity,error}=await myIdentity();if(error)throw error;
+  if(!identity)throw new Error('Open private chats on this device first.');
+  const local=await localIdentity(identity);if(!local)throw new Error('Restore your chat history on this device before enabling backup.');
+  const backup=await createPasskeyBackup(identity.user_id,identity.key_version,local.jwk,createNew);assertPrivateMessagingSession(epoch);
+  await saveBackup(identity,backup,epoch);
+}
+async function saveBackup(identity:IdentityRow,backup:PasskeyBackup|null,epoch:number){
+  assertPrivateMessagingSession(epoch);
+  const request=crypto.randomUUID();
+  const {data,error}=await supabase.rpc('set_my_private_chat_backup',{p_request_id:request,p_key_version:identity.key_version,p_revision:identity.updated_at,
+    p_scheme:backup?'passkey_prf_v1':'device_only',p_encrypted_private_key:backup?.encrypted_private_key??null,
+    p_backup_iv:backup?.backup_iv??null,p_backup_salt:backup?.backup_salt??null,p_credential_id:backup?.backup_credential_id??null,
+    p_rp_id:backup?.backup_rp_id??null,p_auth_passkey_id:backup?.backup_auth_passkey_id??null});
+  if(error)throw error;assertPrivateMessagingSession(epoch);
+  if(data?.user_id!==identity.user_id||data.key_version!==identity.key_version||data.request_id!==request||data.backup_scheme!==(backup?'passkey_prf_v1':'device_only'))throw new Error('Backup save could not be confirmed. Refresh its status before trying again.');
   announcePrivateMessageAccessChange();
 }
-
-export async function unlockEncryptionIdentity(pin: string) {
-  const version=privateMessagingSessionVersion();
-  const { identity, error } = await myIdentity();
-  if (error) throw error;
-  if (!identity) throw new Error("Secure messaging has not been set up");
-  try {
-    const key = await pinKey(pin, base64ToBytes(identity.backup_salt), identity.kdf_iterations);
-    const clear = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: base64ToBytes(identity.backup_iv) },
-      key,
-      base64ToBytes(identity.encrypted_private_key),
-    );
-    const jwk = JSON.parse(decoder.decode(clear)) as JsonWebKey;
-    assertPrivateMessagingSession(version);
-    invalidatePrivateMessagingSession('identity');
-    sessionStorage.setItem(sessionKey(identity.user_id), JSON.stringify(jwk));
-    rememberPrivateMessagingKeyVersion(identity.user_id,identity.key_version);
-    announcePrivateMessageAccessChange();
-  } catch (cause) {
-    if(cause instanceof PrivateMessagingSessionChanged)throw cause;
-    throw new Error("Incorrect recovery passcode");
-  }
+export async function removePrivateChatBackup(){
+  const epoch=privateMessagingSessionVersion(),{identity,error}=await myIdentity();if(error)throw error;
+  if(!identity||!await localIdentity(identity))throw new Error('Restore this device before removing its recovery backup.');
+  await saveBackup(identity,null,epoch);
 }
-
-async function decryptBackedUpPrivateJwk(identity: IdentityRow, pin: string) {
-  try {
-    const key = await pinKey(pin, base64ToBytes(identity.backup_salt), identity.kdf_iterations);
-    const clear = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: base64ToBytes(identity.backup_iv) },
-      key,
-      base64ToBytes(identity.encrypted_private_key),
-    );
-    return JSON.parse(decoder.decode(clear)) as JsonWebKey;
-  } catch {
-    throw new Error("Incorrect current recovery passcode");
-  }
+export async function refreshPrivateMessageKeys(){invalidatePrivateMessagingSession('lock');}
+export async function restorePrivateChatPasskeyBackup(){
+  const epoch=privateMessagingSessionVersion(),{identity,error}=await myIdentity();if(error)throw error;
+  if(!identity||identity.backup_scheme!=='passkey_prf_v1')throw new Error('No passkey chat backup is available for this account.');
+  const jwk=await openPasskeyBackup(identity.user_id,identity.key_version,identity.public_key_jwk,identity as unknown as PasskeyBackup);
+  assertPrivateMessagingSession(epoch);
+  await keepPrivateDeviceJwk(identity.user_id,identity.key_version,jwk,identity.public_key_jwk);assertPrivateMessagingSession(epoch);
+  invalidatePrivateMessagingSession('identity');announcePrivateMessageAccessChange();
 }
-
-export async function changeEncryptionRecoveryPin(currentPin: string, nextPin: string) {
-  const version=privateMessagingSessionVersion();
-  if (!/^\d{6}$/.test(nextPin)) throw new Error("Use a 6-digit recovery passcode");
-  if (currentPin === nextPin) throw new Error("Choose a different recovery passcode");
-  const { identity, error } = await myIdentity();
-  if (error) throw error;
-  if (!identity) throw new Error("Secure messaging has not been set up");
-  const privateJwk = await decryptBackedUpPrivateJwk(identity, currentPin);
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await pinKey(nextPin, salt);
-  const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    key,
-    encoder.encode(JSON.stringify(privateJwk)),
-  );
-  assertPrivateMessagingSession(version);
-  const { data: updated, error: updateError } = await supabase
-    .from("user_encryption_identities")
-    .update({
-      encrypted_private_key: bytesToBase64(encrypted),
-      backup_iv: bytesToBase64(iv),
-      backup_salt: bytesToBase64(salt),
-      kdf_iterations: 600_000,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", identity.user_id)
-    .eq("key_version", identity.key_version).select('user_id,key_version').maybeSingle();
-  if (updateError) throw updateError;
-  if(updated?.user_id!==identity.user_id||updated.key_version!==identity.key_version)throw new Error('The private-message backup changed in another session. Refresh before changing its passcode.');
-  assertPrivateMessagingSession(version);
-  // The identity key itself is unchanged, so existing conversation envelopes
-  // and old messages remain decryptable. Only its encrypted recovery backup changes.
-  sessionStorage.setItem(sessionKey(identity.user_id), JSON.stringify(privateJwk));
-  rememberPrivateMessagingKeyVersion(identity.user_id,identity.key_version);
-  announcePrivateMessageAccessChange();
-}
-
-export async function lockEncryptionIdentity() {
-  const version=privateMessagingSessionVersion(),profileId=await currentProfileId();
-  assertPrivateMessagingSession(version);
-  invalidatePrivateMessagingSession('lock');
-  sessionStorage.removeItem(sessionKey(profileId));
-  announcePrivateMessageAccessChange();
-}
-
-export async function encryptionIdentityStatus() {
-  const { identity, error } = await myIdentity();
-  const unlocked=identity?Boolean(sessionStorage.getItem(sessionKey(identity.user_id)))&&storedPrivateMessagingKeyVersion(identity.user_id)===identity.key_version:false;
-  if(identity&&!unlocked&&sessionStorage.getItem(sessionKey(identity.user_id))){
-    invalidatePrivateMessagingSession('identity');sessionStorage.removeItem(sessionKey(identity.user_id));
-  }
-  return { enabled: Boolean(identity), unlocked, error };
+/** Called only after the customer explicitly accepts loss of unavailable history. */
+export async function startPrivateChatsWithoutHistory(){
+  const epoch=privateMessagingSessionVersion(),{identity,error}=await myIdentity();if(error)throw error;
+  if(!identity)throw new Error('Private chat setup changed. Try again.');
+  const candidate=await preparePrivateDeviceIdentity(identity.user_id,identity.key_version+1);assertPrivateMessagingSession(epoch);
+  const {data,error:resetError}=await supabase.rpc('start_my_new_private_identity',{p_expected_version:identity.key_version,p_revision:identity.updated_at,p_public_key_jwk:candidate.publicKey});
+  if(resetError)throw resetError;assertPrivateMessagingSession(epoch);
+  if(data?.user_id!==identity.user_id||data.key_version!==identity.key_version+1||!await readPrivateDeviceJwk(identity.user_id,data.key_version,data.public_key_jwk))throw new Error('The restart could not be confirmed. Refresh before trying again.');
+  invalidatePrivateMessagingSession('identity');announcePrivateMessageAccessChange();
 }
 
 export type PrivateConversationReadiness = {
@@ -298,20 +276,21 @@ async function checkPrivateConversationReadiness(
 ): Promise<PrivateConversationReadiness> {
   const mine = await encryptionIdentityStatus();
   if (mine.error) return { state: "unavailable", message: mine.error.message || "Secure chat could not be checked" };
-  if (!mine.enabled) return { state: "setup_required", message: "Create your recovery passcode before sending private messages." };
-  if (!mine.unlocked) return { state: "unlock_required", message: "Unlock private messages with your recovery passcode on this device." };
+  if (!mine.enabled) return { state: "setup_required", message: "Private chats could not finish setup on this device. Try again." };
+  if (!mine.unlocked) return { state: "unlock_required", message: "Restore your chat backup or continue without previous history on this device." };
   const profileId = await currentProfileId();
   const { data: existingEnvelope, error: envelopeError } = await supabase
     .from("conversation_key_envelopes")
-    .select("recipient_user_id,recipient_key_version,wrap_iv,wrapped_key")
+    .select("key_id,recipient_user_id,recipient_key_version,wrap_iv,wrapped_key")
     .eq("conversation_kind", kind)
     .eq("conversation_id", conversationId)
     .eq("recipient_user_id", profileId)
+    .eq("is_current",true)
     .limit(1)
     .maybeSingle();
   if (envelopeError)
     return { state: "unavailable", message: envelopeError.message || "Secure chat could not be checked" };
-  const cacheKey=`${profileId}:${privateMessagingSessionVersion()}:${kind}:${conversationId}:${peerUserId}`;
+  const cacheKey=`${profileId}:${privateMessagingSessionVersion()}:${kind}:${conversationId}:${peerUserId}:active`;
   const saved=conversationEnvelopeReceipts.get(cacheKey);
   if(!existingEnvelope||saved&&saved!==envelopeToken(existingEnvelope as EnvelopeRow)){
     conversationKeyCache.delete(cacheKey);conversationEnvelopeReceipts.delete(cacheKey);
@@ -328,13 +307,15 @@ async function checkPrivateConversationReadiness(
   return { state: "unavailable", message };
 }
 
-async function unlockedPrivateKey() {
-  const profileId=await currentProfileId();
-  const expected=activeIdentityVersion??(await myIdentity()).identity?.key_version;
-  const value = sessionStorage.getItem(sessionKey(profileId));
-  if (!value) throw new Error("Enter your recovery passcode to unlock private messages");
-  if(!expected||storedPrivateMessagingKeyVersion(profileId)!==expected)throw new Error('Unlock private messages with the current recovery passcode on this device');
-  return importPrivateKey(JSON.parse(value) as JsonWebKey);
+async function unlockedPrivateKey(keyVersion?:number){
+  const epoch=privateMessagingSessionVersion(),profileId=await currentProfileId();
+  const identity=(await myIdentity()).identity;
+  const expected=keyVersion??identity?.key_version;
+  if(!expected)throw new Error('Open private chats to set up this device.');
+  const local=identity&&identity.key_version===expected?await localIdentity(identity):await readPrivateDeviceJwk(profileId,expected);
+  assertPrivateMessagingSession(epoch);
+  if(!local)throw new Error('This message uses keys that are not available on this device. Restore your chat backup to read it.');
+  return importPrivateKey(local.jwk);
 }
 async function peerPublicKey(kind: PrivateConversationKind, conversationId: string, peerUserId: string) {
   const { data, error } = await supabase.rpc("get_private_chat_peer_public_key", {
@@ -362,32 +343,27 @@ async function wrapFor(key: CryptoKey, recipient: { user_id: string; key_version
     wrap_iv: bytesToBase64(iv),
   };
 }
-function envelopeToken(envelope:Pick<EnvelopeRow,'recipient_key_version'|'wrap_iv'|'wrapped_key'>){return `${envelope.recipient_key_version}:${envelope.wrap_iv}:${envelope.wrapped_key}`;}
-async function loadConversationKey(kind: PrivateConversationKind, conversationId: string, peerUserId: string) {
+function envelopeToken(envelope:Pick<EnvelopeRow,'key_id'|'recipient_key_version'|'wrap_iv'|'wrapped_key'>){return `${envelope.key_id}:${envelope.recipient_key_version}:${envelope.wrap_iv}:${envelope.wrapped_key}`;}
+async function loadConversationKey(kind: PrivateConversationKind, conversationId: string, peerUserId: string, keyId?:string) {
   const version=privateMessagingSessionVersion();
   const profileId=await currentProfileId();
-  const { data: existing, error } = await supabase
-    .from("conversation_key_envelopes")
-    .select("*")
-    .eq("conversation_kind", kind)
-    .eq("conversation_id", conversationId)
-    .eq("recipient_user_id", profileId)
-    .order("recipient_key_version", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const query=supabase.from('conversation_key_envelopes').select('*').eq('conversation_kind',kind).eq('conversation_id',conversationId).eq('recipient_user_id',profileId);
+  const {data:existing,error}=await (keyId?query.eq('key_id',keyId):query.eq('is_current',true)).limit(1).maybeSingle();
   if (error) throw error;
   if (existing) {
     const envelope = existing as EnvelopeRow;
-    const wrapKey = await wrappingKey(await unlockedPrivateKey(), await importPublicKey(envelope.sender_ephemeral_public_key_jwk));
+    const wrapKey = await wrappingKey(await unlockedPrivateKey(envelope.recipient_key_version), await importPublicKey(envelope.sender_ephemeral_public_key_jwk));
     const raw = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(envelope.wrap_iv) }, wrapKey, base64ToBytes(envelope.wrapped_key));
-    return {key:await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]),token:envelopeToken(envelope)};
+    return {key:await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]),token:envelopeToken(envelope),keyId:envelope.key_id};
   }
+  if(keyId)throw new Error("This message’s encryption key is unavailable. Restore your chat backup to read it.");
   const mine = await myIdentity();
   if (mine.error) throw mine.error;
-  if (!mine.identity) throw new Error("Set a recovery passcode to enable secure messages");
+  if (!mine.identity) throw new Error("Open private chats to set up this device");
   await unlockedPrivateKey();
   const peer = await peerPublicKey(kind, conversationId, peerUserId);
   const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  const candidateKeyId=crypto.randomUUID();
   const envelopes = await Promise.all([
     wrapFor(key, { user_id: mine.identity.user_id, key_version: mine.identity.key_version, public_key_jwk: mine.identity.public_key_jwk }),
     wrapFor(key, peer),
@@ -397,9 +373,10 @@ async function loadConversationKey(kind: PrivateConversationKind, conversationId
     p_conversation_kind: kind,
     p_conversation_id: conversationId,
     p_envelopes: envelopes,
+    p_key_id:candidateKeyId,
   });
   if (insertError) throw insertError;
-  if (established) return {key,token:envelopeToken(envelopes[0])};
+  if (established) return {key,token:envelopeToken({...envelopes[0],key_id:candidateKeyId}),keyId:candidateKeyId};
 
   // The peer won a simultaneous setup race. Discard our candidate key and
   // unwrap the single canonical key that transaction established.
@@ -409,24 +386,24 @@ async function loadConversationKey(kind: PrivateConversationKind, conversationId
     .eq("conversation_kind", kind)
     .eq("conversation_id", conversationId)
     .eq("recipient_user_id", profileId)
-    .order("recipient_key_version", { ascending: false })
+    .eq("is_current",true)
     .limit(1)
     .maybeSingle();
   if (winnerError) throw winnerError;
   if (!winner) throw new Error("Secure conversation setup did not complete");
   const envelope = winner as EnvelopeRow;
-  const wrapKey = await wrappingKey(await unlockedPrivateKey(), await importPublicKey(envelope.sender_ephemeral_public_key_jwk));
+  const wrapKey = await wrappingKey(await unlockedPrivateKey(envelope.recipient_key_version), await importPublicKey(envelope.sender_ephemeral_public_key_jwk));
   const raw = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(envelope.wrap_iv) }, wrapKey, base64ToBytes(envelope.wrapped_key));
-  return {key:await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]),token:envelopeToken(envelope)};
+  return {key:await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]),token:envelopeToken(envelope),keyId:envelope.key_id};
 }
 
-async function conversationKey(kind: PrivateConversationKind, conversationId: string, peerUserId: string) {
+async function conversationKey(kind: PrivateConversationKind, conversationId: string, peerUserId: string, keyId?:string) {
   const version=privateMessagingSessionVersion(),profileId=await currentProfileId();
   assertPrivateMessagingSession(version);
-  const cacheKey = `${profileId}:${version}:${kind}:${conversationId}:${peerUserId}`;
+  const cacheKey = `${profileId}:${version}:${kind}:${conversationId}:${peerUserId}:${keyId??'active'}`;
   const existing = conversationKeyCache.get(cacheKey);
   if (existing) {conversationKeyCache.delete(cacheKey);conversationKeyCache.set(cacheKey,existing);return existing.then(key=>{assertPrivateMessagingSession(version);return key;});}
-  const pending = loadConversationKey(kind, conversationId, peerUserId).then(context=>{assertPrivateMessagingSession(version);if(conversationKeyCache.get(cacheKey)===pending)conversationEnvelopeReceipts.set(cacheKey,context.token);return context;}).catch((error) => {
+  const pending = loadConversationKey(kind, conversationId, peerUserId,keyId).then(context=>{assertPrivateMessagingSession(version);if(conversationKeyCache.get(cacheKey)===pending)conversationEnvelopeReceipts.set(cacheKey,context.token);return context;}).catch((error) => {
     if(conversationKeyCache.get(cacheKey)===pending)conversationKeyCache.delete(cacheKey);
     throw error;
   });
@@ -452,15 +429,15 @@ export function invalidatePrivateConversationKey(kind:PrivateConversationKind,co
 
 export async function encryptPrivateMessage(kind: PrivateConversationKind, conversationId: string, peerUserId: string, content: string) {
   const version=privateMessagingSessionVersion();
-  const {key,token} = await conversationKey(kind, conversationId, peerUserId);
+  const {key,token,keyId} = await conversationKey(kind, conversationId, peerUserId);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(content));
   assertPrivateMessagingSession(version);
-  return { ciphertext: bytesToBase64(ciphertext), iv: bytesToBase64(iv),envelopeToken:token };
+  return { ciphertext: bytesToBase64(ciphertext), iv: bytesToBase64(iv),envelopeToken:token,keyId };
 }
-export async function decryptPrivateMessage(kind: PrivateConversationKind, conversationId: string, peerUserId: string, ciphertext: string, iv: string) {
+export async function decryptPrivateMessage(kind: PrivateConversationKind, conversationId: string, peerUserId: string, ciphertext: string, iv: string,keyId?:string|null) {
   const version=privateMessagingSessionVersion();
-  const {key} = await conversationKey(kind, conversationId, peerUserId);
+  const {key} = await conversationKey(kind, conversationId, peerUserId,keyId??undefined);
   const clear = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(iv) }, key, base64ToBytes(ciphertext));
   assertPrivateMessagingSession(version);
   return decoder.decode(clear);
@@ -474,7 +451,7 @@ export async function encryptPrivateAttachment(
   metadata: { name: string; type: string },
 ) {
   const version=privateMessagingSessionVersion();
-  const {key,token} = await conversationKey(kind, conversationId, peerUserId);
+  const {key,token,keyId} = await conversationKey(kind, conversationId, peerUserId);
   const fileIv = crypto.getRandomValues(new Uint8Array(12));
   const metadataIv = crypto.getRandomValues(new Uint8Array(12));
   const [ciphertext, metadataCiphertext] = await Promise.all([
@@ -487,7 +464,7 @@ export async function encryptPrivateAttachment(
     file_iv: bytesToBase64(fileIv),
     metadata_ciphertext: bytesToBase64(metadataCiphertext),
     metadata_iv: bytesToBase64(metadataIv),
-    envelopeToken:token,
+    envelopeToken:token,keyId,
   };
 }
 
@@ -524,7 +501,7 @@ function boundedAttachmentWork(version:number,run:()=>Promise<OpenedPrivateAttac
   });
 }
 onPrivateMessagingSessionInvalidated(reason=>{
-  conversationKeyCache.clear();conversationEnvelopeReceipts.clear();conversationReadyCache.clear();encryptedAttachmentCache.clear();activeIdentityVersion=null;
+  conversationKeyCache.clear();conversationEnvelopeReceipts.clear();conversationReadyCache.clear();encryptedAttachmentCache.clear();
   attachmentDownloads.clear();for(const controller of attachmentControllers)controller.abort();
   for(const work of attachmentWork.splice(0))work.reject(new PrivateMessagingSessionChanged());
   if(reason==='authentication'){activeProfileId=null;activeProfileIdRequest=null;}
@@ -604,7 +581,7 @@ function loadEncryptedAttachmentBytes(kind:PrivateConversationKind,conversationI
     if(!bytes)bytes=await readPersistentEncryptedAttachment(kind,conversationId,path);
     assertPrivateMessagingSession(version);
     if(!bytes){
-      const {data,error}=await supabase.storage.from('chat-files').createSignedUrl(path,3600);
+      const {data,error}=await supabase.storage.from('chat-files').createSignedUrl(path,300);
       assertPrivateMessagingSession(version);
       if(error||!data?.signedUrl)throw error||new Error('Encrypted attachment is unavailable');
       const controller=new AbortController();attachmentControllers.add(controller);const timeout=setTimeout(()=>controller.abort(),30000);
@@ -626,7 +603,7 @@ export async function decryptPrivateAttachment(
   return boundedAttachmentWork(version,()=>decryptPrivateAttachmentInSlot(kind,conversationId,peerUserId,attachment,version));
 }
 async function decryptPrivateAttachmentInSlot(kind:PrivateConversationKind,conversationId:string,peerUserId:string,attachment:EncryptedAttachment,version:number){
-  const {key} = await conversationKey(kind, conversationId, peerUserId);
+  const {key} = await conversationKey(kind, conversationId, peerUserId,attachment.key_id);
   const encryptedBytes=await loadEncryptedAttachmentBytes(kind,conversationId,attachment.path,version);
   const [clear, metadataClear] = await Promise.all([
     crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(attachment.file_iv) }, key, encryptedBytes),

@@ -62,7 +62,7 @@ export async function getBookingMessages(conversationId:string,peerUserId?:strin
     let content=String(msg.legacy_content||'');
     let decryptionFailed=false;
     if(msg.ciphertext&&msg.encryption_iv&&peerUserId){
-      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
+      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv,msg.encryption_key_id)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
     }
     // Keep authenticated metadata next to the decrypted URL. Blob URLs have no
     // extension: discarding MIME turns voice notes and photos into documents.
@@ -71,7 +71,7 @@ export async function getBookingMessages(conversationId:string,peerUserId?:strin
     let attachmentFailed=Boolean(signed.error && msg.legacy_attachments?.length) || media.length < (Array.isArray(msg.legacy_attachments)?msg.legacy_attachments.length:0);
     if(peerUserId){
       const decrypted=await Promise.all((Array.isArray(msg.encrypted_attachments)?msg.encrypted_attachments:[]).map(async(item:any)=>{
-        try{return await decryptPrivateAttachment('worker',conversationId,peerUserId,item as EncryptedAttachment)}
+        try{return await decryptPrivateAttachment('worker',conversationId,peerUserId,{...item,key_id:msg.encryption_key_id} as EncryptedAttachment)}
         catch{return null}
       }));
       for(const item of decrypted){

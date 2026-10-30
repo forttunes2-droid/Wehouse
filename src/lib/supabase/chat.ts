@@ -37,7 +37,7 @@ export async function getMessages(conversationId:string,peerUserId?:string|null,
   const text=await Promise.all(rows.map(async row=>{
     let content=String(row.legacy_content||'');let decryptionFailed=false;
     if(row.ciphertext&&row.encryption_iv&&peerUserId){
-      try{content=await decryptPrivateMessage('roommate',conversationId,peerUserId,row.ciphertext,row.encryption_iv)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
+      try{content=await decryptPrivateMessage('roommate',conversationId,peerUserId,row.ciphertext,row.encryption_iv,row.encryption_key_id)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
     }
     return{...row,content,decryption_failed:decryptionFailed,conversation_id:conversationId,seen:Boolean(row.is_read),attachments:[],attachment_types:[],reply_to_id:row.reply_to_id||null,reactions:row.reactions||{},media_loading:Boolean(row.legacy_attachments?.length||row.encrypted_attachments?.length)} as Message;
   }));
@@ -53,7 +53,7 @@ export async function getMessages(conversationId:string,peerUserId?:string|null,
     }
     if(peerUserId){
       const encryptedResults = await Promise.all((Array.isArray(row.encrypted_attachments) ? row.encrypted_attachments : []).map(async(item: EncryptedAttachment) => {
-        try { return { clear: await decryptPrivateAttachment('roommate',conversationId,peerUserId,item), error: false }; }
+        try { return { clear: await decryptPrivateAttachment('roommate',conversationId,peerUserId,{...item,key_id:row.encryption_key_id}), error: false }; }
         catch { return { clear: null, error: true }; }
       }));
       for (const result of encryptedResults) {
