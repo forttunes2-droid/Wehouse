@@ -55,14 +55,19 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 ## Latest scoped evidence — 30 October
 
-WR-15/16: Homes now uses one ordered collection: a six-card mixed browsing row
-followed by the remaining homes in a responsive grid. Short Let and Long Let
+WR-15/16: Homes and Hotels each use one ordered collection: a six-card browsing
+row followed by the remaining results in a responsive grid. The Homes row mixes
+Short Let and Long Let rather than creating separate sections; both let types
 remain filters rather than duplicate result sections. Focused searches and small
 collections use one grid. The shared discovery browser scenarios pass at 320,
 390, 768 and 1440px in both themes, including pagination without duplicate homes,
 the correct open/save target, filter reset and no catalog fetch from rail arrows.
-Signed-out Roommates and Services retain Explore category navigation; all four
-signed-out prompts use plain content without a card or repeated policy footer.
+Hotels have explicit missing-photo states and one labelled open action per
+card. Their arrows do not fetch, paging does not duplicate results, and a typed
+search returns a comparison grid. Signed-out Roommates and Services retain
+Explore category navigation; switching directly to Homes/Hotels clears the
+signed-out prompt. All four signed-out prompts use plain content without a card
+or repeated policy footer.
 Policy access remains in sign-in and Account. Fixtures now set both the real
 theme attribute and the matching Tailwind dark class. These scoped checks do not
 close the entire route inventory or hosted discovery lifecycle.

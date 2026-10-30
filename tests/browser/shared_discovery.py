@@ -17,7 +17,13 @@ SCRIPT="""s=>{
  for(const name of ['sessionStorage','localStorage']){const data=new Map();Object.defineProperty(window,name,{value:{getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,String(value)),removeItem:key=>data.delete(key),clear:()=>data.clear()}})}
  window.__browseAPI=async(name,args)=>{
   const s=window.__browse;s.calls.push({name,args});
-  if(name==='getHotels')return{hotels:[s.hotel],error:null};
+  if(name==='getHotels'){
+   const count=s.hotelCount||1,cursor=args[1];
+   const hotel=n=>({...s.hotel,hotel_id:6+n,name:n===1?s.hotel.name:s.hotel.name+' '+n,images:n>1&&n%2===0?['https://assets.wehouse.test/interior.jpg']:[]});
+   const hotels=cursor?[hotel(count),hotel(count+1),hotel(count+2)]:Array.from({length:count},(_,i)=>hotel(i+1));
+   const more=count>6&&!cursor&&!args[0]?.search;
+   return{hotels,error:null,hasMore:more,nextCursor:more?{featured:false,createdAt:'2026-10-30T00:00:00Z',id:count+6}:null};
+  }
   if(name==='getHotelById')return{hotel:s.hotel,error:null};
   if(name==='getListing')return{listing:s.home,error:null};
   if(name==='getHotelReviews')return{reviews:[],eligible:false,error:null};
@@ -99,7 +105,11 @@ async def main():
     await expect(page.get_by_role('listitem')).to_have_count(0)
     await page.get_by_role('button',name='Sign in to continue',exact=True).click()
     assert await page.evaluate("sessionStorage.getItem('wh_guest_return_tab_v1')")=='services'
+    await page.get_by_role('button',name='Hotels',exact=True).click()
+    await expect(page.get_by_placeholder('Search hotel name or location')).to_be_visible()
+    await expect(page.get_by_role('heading',name='Sign in to find a professional',exact=True)).to_have_count(0)
     await page.get_by_role('button',name='Homes',exact=True).click()
+    await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
     await page.get_by_role('button',name='Roommates',exact=True).click()
     await expect(page.get_by_role('heading',name='Sign in to find a roommate',exact=True)).to_be_visible()
     await expect(page.get_by_role('navigation',name='Discover categories')).to_be_visible()
@@ -107,6 +117,8 @@ async def main():
     await expect(page.get_by_role('listitem')).to_have_count(0)
     await page.get_by_role('button',name='Sign in to continue',exact=True).click()
     assert await page.evaluate("sessionStorage.getItem('wh_guest_return_tab_v1')")=='roommate'
+    await page.get_by_role('button',name='Homes',exact=True).click()
+    await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
     for section,title in [('Bookings','Sign in to view your bookings'),('Inbox','Sign in to open your inbox')]:
      await page.get_by_role('navigation',name='Main navigation').get_by_role('button',name=section,exact=True).click()
      await expect(page.get_by_role('heading',name=title,exact=True)).to_be_visible()
@@ -197,9 +209,30 @@ async def main():
     await page.evaluate('window.__switchBrowseMode("homes")')
     await expect(page.locator('[data-home-card] [data-media-thumbnail]').first).to_have_attribute('data-media-state','ready')
     await page.screenshot(path=str(OUT/f'shared-explore-signed-in-{width}-{theme}.png'),full_page=True,timeout=15000)
-    await page.evaluate('window.__switchBrowseMode("public");window.__browse.calls=[]')
+    await page.evaluate('window.__browse.hotelCount=8;window.__switchBrowseMode("public");window.__browse.calls=[]')
     await page.get_by_role('button',name='Hotels',exact=True).click()
+    hotels_shelf=page.get_by_role('group',name='Hotels to explore listings',exact=True)
+    await expect(hotels_shelf.locator('[data-hotel-card]')).to_have_count(6)
+    hotels_grid=page.get_by_role('region',name='More hotels',exact=True)
+    await expect(hotels_grid.locator('[data-hotel-card]')).to_have_count(2)
+    first_hotel=hotels_shelf.locator('[data-hotel-card]').first
+    await expect(first_hotel.get_by_text('Photos not available',exact=True)).to_be_visible()
+    await expect(first_hotel.locator('[data-media-state="loading"]')).to_have_count(0)
+    hotel_reads=await page.evaluate('window.__browse.calls.filter(c=>c.name==="getHotels").length')
+    await page.get_by_role('button',name='Next Hotels to explore',exact=True).click()
+    await page.wait_for_function('document.querySelector(\'[aria-label="Hotels to explore listings"]\').scrollLeft>0')
+    assert await page.evaluate('window.__browse.calls.filter(c=>c.name==="getHotels").length')==hotel_reads
+    await page.get_by_role('button',name='Show more hotels',exact=True).click()
+    await expect(page.locator('[data-hotel-card]')).to_have_count(10)
+    await expect(hotels_grid.locator('[data-hotel-card]')).to_have_count(4)
+    names=await page.locator('[data-hotel-card] h3').all_text_contents()
+    assert len(names)==len(set(names))
+    assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
+    await page.evaluate('window.scrollTo(0,0)')
+    await page.screenshot(path=str(OUT/f'hotels-rail-grid-{width}-{theme}.png'),full_page=True)
     await settled_search(page,page.get_by_placeholder('Search hotel name or location'),['K','Keffi','Keffi Garden'],"window.__browse.calls.filter(c=>c.name==='getHotels').length")
+    await expect(hotels_shelf).to_have_count(0)
+    await expect(page.get_by_role('region',name='Hotel results',exact=True)).to_be_visible()
     await page.get_by_placeholder('Search hotel name or location').fill('Keffi Garden')
     await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
     await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
@@ -257,7 +290,7 @@ async def main():
     assert not await page.evaluate('window.__browse.unexpected'),await page.evaluate('window.__browse.unexpected')
     assert await page.evaluate('window.__browse.gatewayRequests.length>0'),'Deployed web must exercise the public gateway'
     assert not errors,errors
-    row['passed']=True;row['checks']=['same Explore renderer','guest personal requests denied','same room and offers','selection survives sign-in','no guest save or booking write','Back retains search','searchable State/LGA and stale locality clearing','compact missing gallery','explicit failed thumbnails']
+    row['passed']=True;row['checks']=['same Explore renderer and category switching','plain signed-out prompts without repeated policy links','guest personal requests denied','mixed Homes rail/grid with exact open/save targets','Hotel rail/grid and missing-photo state','pagination without duplicate Homes or Hotels','rail arrows do not fetch','focused searches use comparison grids','same room and offers','selection survives sign-in','no guest save or booking write','Back retains search','searchable State/LGA and stale locality clearing','compact missing gallery','explicit failed thumbnails']
    except Exception as e:
     row['error']=str(e);row['page_errors']=errors;row['unexpected']=await page.evaluate('window.__browse?.unexpected');row['last_reads']=await page.evaluate('window.__browse?.gatewayRequests.slice(-6)');await page.screenshot(path=str(OUT/f'shared-discovery-FAIL-{width}-{theme}.png'),full_page=True,timeout=15000)
    finally:results.append(row);print(json.dumps(row),flush=True);await context.close()

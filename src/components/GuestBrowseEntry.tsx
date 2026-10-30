@@ -50,7 +50,12 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
     onSignIn(property);
   }
   function navigate(route: string, id?: string) {
-    if (route === 'search' || route === 'hotels') { setPage(route); return; }
+    if (route === 'search' || route === 'hotels') {
+      setPage(route);
+      setPublicProduct(null);
+      setTarget(null);
+      return;
+    }
     if (id && route === 'detail') { setPublicProduct(null); setTarget({ kind: 'listing', id }); return; }
     if (id && route === 'hotel_detail') { setPublicProduct(null); setTarget({ kind: 'hotel', id }); return; }
     if (route === 'roommate') { setPublicProduct('roommate'); setTarget(null); return; }

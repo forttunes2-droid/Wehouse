@@ -1,5 +1,6 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
 import DiscoveryRail from '@/components/DiscoveryRail';
+import {ImageOff} from 'lucide-react';
 import {matchesDiscoveryText} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
@@ -351,10 +352,20 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
     );
   }
 
+  const showBrowseRail = !query.trim() && filterCount===0 && !userLocation && !followedOrigin && filtered.length>6;
+  const browseHotels = showBrowseRail ? filtered.slice(0,6) : [];
+  const resultHotels = showBrowseRail ? filtered.slice(6) : filtered;
+  const hotelCard = ({hotel,distance}: (typeof filtered)[number]) => (
+    <HotelCard key={hotel.hotel_id} hotel={hotel} distance={distance}
+      saved={savedHotelIds.has(Number(hotel.hotel_id))} saving={savingHotelId===Number(hotel.hotel_id)}
+      onToggleSave={()=>void toggleHotelSave(Number(hotel.hotel_id))}
+      onOpen={()=>onNavigate('hotel_detail',String(hotel.hotel_id))} />
+  );
+
   return (
     <DiscoveryShell active="hotels" onNavigate={onNavigate}>
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
-        {loadError && <div role="alert" className="px-4 py-3 text-sm text-amber-200">Hotels could not be loaded. <button className="min-h-11 px-2 font-semibold text-violet-300" onClick={() => setAttempt(value => value + 1)}>Try again</button></div>}
+        {loadError && <div role="alert" className="px-4 py-3 text-sm text-[var(--wh-text)]">Hotels could not be loaded. <button className="min-h-11 px-2 font-semibold text-[var(--wh-accent-text)]" onClick={() => setAttempt(value => value + 1)}>Try again</button></div>}
       <DiscoveryToolbar
           value={query}
           onChange={setQuery}
@@ -383,10 +394,10 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
 
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold">
+            <p className="text-sm font-semibold">
               {loading ? "Loading hotels…" : `${filtered.length} ${filtered.length === 1 ? "hotel" : "hotels"}${hasMore ? ' · more available' : ''}`}
             </p>
-            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+            <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">
               {city ? `${city}, ${state}` : state || "All locations"}
             </p>
           </div>
@@ -396,11 +407,7 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
                 type="button"
                 disabled={savingSearch}
                 onClick={() => void toggleFollowSearch()}
-                className={`rounded-full border px-3 py-2 text-[9px] font-semibold disabled:opacity-40 ${
-                  followedSearch?.notifications_enabled
-                    ? "border-emerald-500/25 text-emerald-300"
-                    : "border-violet-500/20 text-violet-300"
-                }`}
+                className="rounded-full border border-[var(--wh-border)] px-3 py-2 text-xs font-semibold text-[var(--wh-accent-text)] disabled:opacity-40"
               >
                 {savingSearch
                   ? "Updating…"
@@ -415,7 +422,7 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
               <button
                 type="button"
                 onClick={clearFilters}
-                className="text-[9px] font-semibold text-violet-300"
+                className="text-xs font-semibold text-[var(--wh-accent-text)]"
               >
                 Clear
               </button>
@@ -435,21 +442,17 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
             text="Change the selected filters to see other hotels."
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map(({ hotel, distance }) => (
-              <HotelCard
-                key={hotel.hotel_id}
-                hotel={hotel}
-                distance={distance}
-                saved={savedHotelIds.has(Number(hotel.hotel_id))}
-                saving={savingHotelId === Number(hotel.hotel_id)}
-                onToggleSave={() => void toggleHotelSave(Number(hotel.hotel_id))}
-                onOpen={() => onNavigate("hotel_detail", String(hotel.hotel_id))}
-              />
-            ))}
-          </div>
+          <>
+            {showBrowseRail && <DiscoveryRail title="Hotels to explore">{browseHotels.map(hotelCard)}</DiscoveryRail>}
+            <section aria-label={showBrowseRail?'More hotels':'Hotel results'} className="space-y-4">
+              {showBrowseRail && <h2 className="text-lg font-semibold tracking-tight">More hotels</h2>}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {resultHotels.map(hotelCard)}
+              </div>
+            </section>
+          </>
         )}
-        {!loading && hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="mx-auto block min-h-12 rounded-full border border-violet-400/30 px-6 text-sm font-semibold text-violet-200 disabled:opacity-50">{loadingMore ? 'Loading more…' : 'Show more hotels'}</button>}
+        {!loading && hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="mx-auto block min-h-12 rounded-full border border-[var(--wh-border)] px-6 text-sm font-semibold text-[var(--wh-accent-text)] disabled:opacity-50">{loadingMore ? 'Loading more…' : 'Show more hotels'}</button>}
       </main>
 
       {filtersOpen ? (
@@ -470,16 +473,16 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
             onMaxChange={setMaxPrice}
           />
           <div>
-            <p className="mb-2 text-[10px] font-medium text-[var(--wh-text-muted)]">Amenities</p>
+            <p className="mb-2 text-xs font-medium text-[var(--wh-text-secondary)]">Amenities</p>
             <div className="flex flex-wrap gap-2">
               {HOTEL_AMENITIES.map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => toggleAmenity(item)}
-                  className={`min-h-9 rounded-full border px-3.5 py-2 text-[9px] font-semibold leading-tight ${
+                  className={`min-h-11 rounded-full border px-3.5 py-2 text-xs font-semibold leading-tight ${
                     amenities.includes(item)
-                      ? "border-violet-500/30 bg-violet-500/14 text-violet-100"
+                      ? "border-violet-500/30 bg-[var(--wh-accent-surface)] text-[var(--wh-accent-text)]"
                       : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"
                   }`}
                 >
@@ -528,18 +531,14 @@ function HotelCard({
   const image = hotel.images?.[0];
   const roomCount = (hotel.hotel_rooms || []).length;
   return (
-    <article className="group border-b border-[var(--wh-border)] pb-5">
-      <div className={`relative overflow-hidden rounded-2xl bg-[var(--wh-elevated)] ${image ? "aspect-[4/3]" : "h-40"}`}>
-        <button
-          type="button"
-          onClick={onOpen}
-          className="block h-full w-full text-left"
-        >
-          <ShowcaseMediaThumbnail src={image} mediaType="image" alt={hotel.name} className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+    <article data-hotel-card className="relative min-w-0 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-2.5 pb-4">
+      <button type="button" onClick={onOpen} aria-label={`View ${hotel.name}`} className="absolute inset-0 z-10 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--wh-violet)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wh-bg)]" />
+      <div className={`relative overflow-hidden rounded-xl bg-[var(--wh-elevated)] ${image ? "aspect-[4/3]" : "h-36"}`}>
+          {image ? <ShowcaseMediaThumbnail src={image} mediaType="image" alt={hotel.name} className="h-full w-full object-cover" />
+            : <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--wh-text-muted)]"><ImageOff size={24} aria-hidden="true"/><span className="text-xs">Photos not available</span></div>}
           {hotel.featured ? (
-            <span className="absolute left-3 top-3 rounded-full bg-violet-500 px-2.5 py-1 text-[10px] font-bold">
-              FEATURED
+            <span className="absolute left-3 top-3 rounded-full bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white">
+              Featured
             </span>
           ) : null}
           {distance != null ? (
@@ -549,7 +548,6 @@ function HotelCard({
                 : `${distance.toFixed(1)} km`}
             </span>
           ) : null}
-        </button>
         <button
           type="button"
           disabled={saving}
@@ -560,45 +558,40 @@ function HotelCard({
           }}
           aria-label={saved ? `Remove ${hotel.name} from Saved` : `Save ${hotel.name}`}
           aria-pressed={saved}
-          className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur active:scale-95 disabled:opacity-50"
+          className={`absolute right-2 top-2 z-20 grid h-11 w-11 place-items-center rounded-full border shadow-sm disabled:opacity-50 ${image?'border-white/20 bg-black/55 text-white':'border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text)]'}`}
         >
           <Heart filled={saved} />
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`View ${hotel.name}`}
-        className="block w-full px-1 pt-3 text-left"
-      >
+      <div className="px-1 pt-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="line-clamp-2 text-[15px] font-bold">{hotel.name}</h2>
-            <p className="mt-1 truncate text-xs text-[var(--wh-text-secondary)]">
+            <h3 className="line-clamp-2 text-base font-semibold leading-snug">{hotel.name}</h3>
+            <p className="mt-1 truncate text-sm text-[var(--wh-text-secondary)]">
               {locationLabel(hotel.area, hotel.city, hotel.state)}
             </p>
           </div>
           {Number(hotel.rating || 0) > 0 ? (
-            <span className="shrink-0 text-xs font-semibold text-amber-300">
+            <span className="shrink-0 text-xs font-semibold text-[var(--wh-text)]">
               ★ {Number(hotel.rating).toFixed(1)}
             </span>
           ) : null}
         </div>
-        <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+        <div className="mt-3 text-xs">
           <span className="text-[var(--wh-text-secondary)]">
             {roomCount
               ? `${roomCount} room ${roomCount === 1 ? "type" : "types"}`
               : "Room details available inside"}
           </span>
-          <span className="font-semibold text-violet-300">View rooms & packages ›</span>
         </div>
         {hotel.amenities?.length > 0 ? (
           <p className="mt-2 text-xs text-[var(--wh-text-secondary)]">
-            {hotel.amenities.length} {hotel.amenities.length === 1 ? "amenity" : "amenities"}
+            {hotel.amenities.slice(0,3).join(' · ')}
           </p>
         ) : null}
-      </button>
+        <p className="mt-3 text-sm font-semibold text-[var(--wh-accent-text)]">View rooms &amp; packages ›</p>
+      </div>
     </article>
   );
 }
@@ -609,8 +602,8 @@ function Heart({ filled }: { filled: boolean }) {
       width="18"
       height="18"
       viewBox="0 0 24 24"
-      fill={filled ? "#A78BFA" : "none"}
-      stroke={filled ? "#A78BFA" : "white"}
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
