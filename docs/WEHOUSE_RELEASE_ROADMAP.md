@@ -1,11 +1,12 @@
 # WeHouse release roadmap
 
-**Status date:** 30 October 2026. **Reviewed source:** `75463b316965e733bf602097d0f0d6fbe6eacbbb` (PR #118).
+**Status date:** 30 October 2026. **Register review baseline:** `75463b316965e733bf602097d0f0d6fbe6eacbbb` (PR #118).
 
 This is the only current work register. The [historical evidence snapshot](WEHOUSE_RELEASE_HISTORY_2026-10-30.md)
 preserves prior checkpoints, decisions and failures; its old “open”, “current” and
-“next push” statements are not instructions to restart work. This cleanup changes
-no product rule, implementation, deployment or approval and claims no new test pass.
+“next push” statements are not instructions to restart work. The reorganization
+changes no product rule or release approval. Scoped implementation evidence is
+updated below; historical checkpoints do not reopen completed work.
 
 ## Open work register (single list; update in place, do not start another)
 
@@ -28,7 +29,7 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 | ID | Outcome / owner and dependencies | Current boundary | Completion test |
 |---|---|---|---|
-| WR-01 | **Shared accommodation payments**. Bookings; depends on WR-05/06/09. | **Incomplete integration.** Short Let and Long Let reservation-fee sharing exist; compound member/attempt validation is repaired on Test. Shared Long Let contract rent remains disabled. The 30-Oct private allocation helper is only a tested building block. Hotel sharing with accepted Friends is still unimplemented. | Complete accepted two/three-payer agreement and consent, per-payer initial protection, later-year shares/history/separate automatic-debit consent and combined Partner view. Preserve occupant capacity independently from payer count. Exercise invitation/eligibility, exact payer/reference/phase/attempt, duplicate and late payments, hold expiry, original-payer refunds, fulfillment and operator permissions. Reconcile all payer totals with one booking and use WR-06 for provider proof. |
+| WR-01 | **Shared accommodation payments**. Bookings; depends on WR-05/06/09. | **Shared Long Let implemented/Test verified; Hotel integration open.** Existing shared commands now connect reservation fees, reviewed terms, each person's initial rent/protection and own later-year plan/history/debit consent to one booking. Partner totals, late-receipt refund actions and arrival visibility pass rollback/browser cases. The allocation helper is no longer the only implemented part. Hotel sharing with accepted Friends remains unimplemented. | Complete accepted two/three-payer agreement and consent, per-payer initial protection, later-year shares/history/separate automatic-debit consent and combined Partner view. Preserve occupant capacity independently from payer count. Exercise invitation/eligibility, exact payer/reference/phase/attempt, duplicate and late payments, hold expiry, original-payer refunds, fulfillment and operator permissions. Reconcile all payer totals with one booking and use WR-06 for provider proof. |
 | WR-02 | **Long Let terms, later-year collection and exit**. Bookings; WR-06/21. | **Implemented in part; recovery/evidence open.** Manual and optional automatic later-year collection, accepted terms, immutable fees, rent-year credit/history and payment Help are implemented on Test. Initial Year 1 protection remains; later-year payments do not create a new hold. | Verify full upfront terms and Partner-approved monthly terms without offering one-year monthly rent. Preserve eight payments funding each later year, separate debit consent/pause/cancel, due dates and accepted snapshots. Finish lawful arrears/grace/exit/dispute operations after the named policy decisions; test failed/late collection and Partner/customer recovery. Provider debit/settlement proof is recorded once in WR-06. |
 | WR-03 | **Property and Worker evidence lifecycle**. Account/operations; WR-10/22. | **Implemented in part; recertification/terms open.** Private evidence, independent scoped correction/review, expiry and new-publication/new-job enforcement exist. Access footage is not title or safety proof. | Complete structured guest/tenancy terms and booking snapshots, already-live property/provider recertification, advance expiry reminders, appeals and evidence retention/deletion. Run actual owner/reviewer/outsider upload, partial-upload/replacement, expired-document, self-review-denial, publication and recovery cases. Verify category/market requirements and shared-person identity without adding another publication switch. Local forms/credential approval are EX-01; live identity adapter is WR-10. |
 | WR-04 | **Buildings, spaces and availability**. Bookings; WR-03/09. | **Implemented; integrated verification pending.** Shared physical registry, whole/private disclosure, per-space terms, grouped offers, Partner management and operating schedule are implemented. Do not rebuild the hierarchy. | Demonstrate atomic whole-unit/child-room and Short Let/Long Let conflict prevention on the deployed Test configuration, mixed-building availability/calendar parity, ownership isolation, edits/cancellations and customer/Partner lost-response recovery. Keep one physical occupancy authority and existing Hotel inventory. |
@@ -51,6 +52,33 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 | WR-21 | **Remaining product decisions and contract reconciliation**. Product owner + affected domain. | **Some choices open; settled choices excluded.** D-016 is superseded by C-064. Email decisions, deferred Groups and existing accepted rent/payment rules are not reopened. | Disposition D-004–D-008, D-011–D-013 and D-017–D-020 against latest accepted decisions/source: address retention, Hotel lifecycle/turnover, date occupancy, closed-case messaging, block/skip/search resume, Worker modes/package boundary/response clock and property pause/removal. Link each genuine owner choice to its bounded question and each implementation gap to its existing WR item. No new package/mode or policy is silently selected; resolve stale status rather than rerun settled approval. |
 | WR-22 | **Legal publication and operating integration**. Account/operations; legal/owner EX-01. | **Engineering verification pending; approvals external.** Approved legal content and local commercial/retention decisions are external; publication and actual operating paths are engineering. | Verify current document version publication, accessible reading, versioned consent and stale-version handling against approved bodies. Exercise required queue/runbook/escalation/support handoff and response ownership, including Creator-only operation. Link actual data-rights evidence to WR-12. Record commercial/legal/provider approval gaps individually in the existing Nigeria legal register; do not publish the draft or claim legal approval. The accepted post-engineering lawyer-review PDF is LG-01, not a circular prerequisite to finishing this row. |
 | WR-23 | **Reviewed web release candidate**. Release engineering; WR-01–22. | **Exact candidate evidence/approval pending.** PR #118 is unmerged. Passing CI is limited to its exact commit; a ready older preview cannot close a newer candidate. | Record the candidate SHA, required build/lint/source/browser/fresh-upgrade results, matching Test preview and hosted role smoke evidence. Resolve known release-blocking defects and affected regressions, link WR-17/20 rollout/rollback evidence, and identify external residuals. Do not merge/promote until separate explicit approval; RL-01 tracks those actions, not another implementation checklist. |
+
+## Latest scoped evidence — 30 October
+
+WR-01/02: shared Long Let passes the actual Test constructors, accepted own
+agreements, initial per-payer protection/ledger confirmation, host-confirmed
+handover, later-year collection/credit/settlement, original-payer late-checkout
+refund actions, overdue notices and combined Partner accounts. One person paying
+all eight contributions does not complete the other person's annual share or end
+the occupied tenancy. History/debit are scoped to the payer; revoked devices
+cannot read arrival details and revoked hosts cannot read arrival Activity.
+See [the rollback contract](../supabase/tests/shared_long_let_rent_collection_contract.sql).
+No provider request or launch commission was invented; WR-06 still owns actual
+sandbox provider reconciliation.
+
+Test migrations through `20261030100254` are applied; Test payment-init v15 uses
+the current shared checkout and owned later-rent plan with JWT verification on.
+The frozen Deno check, 855 source tests, build and focused lint pass. Sixteen
+shared-rent browser cases, 48 existing practical cases and two individual-rent/
+Partner cases pass. These are scoped engineering results, not closure of Hotel
+sharing or the remaining WR outcomes. Required candidate CI/preview still follows
+the integrated push.
+
+WR-16: affected fixtures now set both the product theme attribute and Tailwind
+dark class; the practical fixture no longer forces dark surfaces in light mode.
+Screenshots from local changes or an older preview do not establish a newer
+candidate's design. Rent history shows current payments/latest receipt first;
+the full schedule is available on demand. Production is unchanged.
 
 ## Delivery order and release gates
 

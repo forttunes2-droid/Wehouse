@@ -66,7 +66,7 @@ async def main():
    state['bad_credit']=False;partner=True;await page.goto(BASE+f'/tests/browser/rent-terms.html?mode=partner-history&theme={theme}')
    assert not [c for c in calls if c[0]=='get_my_property_later_rent_accounts'];await page.get_by_role('button',name='Rent payments and settlement',exact=True).click()
    await page.get_by_role('button',name='Prepare or check settlement setup',exact=True).click();await expect(page.get_by_role('status')).to_contain_text('Partner settlement setup verified')
-   await page.get_by_role('button',name='Ada · active',exact=True).click();await expect(page.get_by_text('Your share ₦135,000.00',exact=False)).to_be_visible();await expect(page.get_by_role('button',name='Pay scheduled rent',exact=True)).to_have_count(0)
+   await page.get_by_role('button',name='Ada · active',exact=True).click();await expect(page.get_by_text('Your net ₦135,000.00',exact=False)).to_be_visible();await expect(page.get_by_role('button',name='Pay scheduled rent',exact=True)).to_have_count(0)
    assert not errors,errors;assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1');await page.screenshot(path=str(OUT/f'partner-{theme}.png'),full_page=True)
    results.append({'theme':theme,'width':width,'outage_recovery':True,'lost_acceptance_recovery':True,'one_checkout':True,'gross_credit':True,'paged_history':True,'partner_earnings':True,'bad_credit_denied':True,'passed':True});await context.close()
   await browser.close()

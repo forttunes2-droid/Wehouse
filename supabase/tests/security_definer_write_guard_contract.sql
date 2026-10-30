@@ -13,6 +13,8 @@ begin
   -- only these reviewed paths, after checking the helper's own guard and ACL.
   -- A function-name exception alone must never waive the authorization audit.
   with reviewed_helpers(signature,call_name,required_checks) as (values
+   ('private.shared_long_let_actor(uuid,boolean)','private.shared_long_let_actor',
+    array['current_profile_user_id','_property_document_session_active','user_has_active_workspace','shared_housing_members','m.user_id=actor','g.created_by=actor','raise exception']),
    ('private.experience_host_actor()','private.experience_host_actor',
     array['current_profile_user_id','_property_document_session_active','user_has_active_workspace','raise exception']),
    ('private.experience_customer_actor()','private.experience_customer_actor',

@@ -31,7 +31,7 @@ export async function saveLongLetRentTerms(previous:LongLetRentTerms,terms:numbe
 }
 
 export type RentPaymentChoice='full'|'monthly';
-export type LongLetScheduledPayment={sequence:number;target_year:number;month_offset:number;due_before_handover:boolean;due_on:string|null;amount:number};
+export type LongLetScheduledPayment={sequence:number;target_year:number;month_offset:number;due_before_handover:boolean;due_on:string|null;amount:number;partner_net_amount?:number;wehouse_amount?:number};
 export type LongLetRentSchedule={term_months:number;payment_choice:RentPaymentChoice;annual_rent:number;first_year_rent:number;contract_total:number;due_before_handover:number;future_balance:number;payments:LongLetScheduledPayment[]};
 export type LongLetAgreement={schema_version:1;reservation_id:string;listing_id:string;offer_revision:number;currency:string;quote_digest:string;rent_schedule:LongLetRentSchedule;accepted_at?:string;accepted_by?:string};
 export type LongLetBookingOffer={reservation_id:string;listing_id:string;offer_revision:number;accepted_terms_months:number[];monthly_accepted:boolean;monthly_ready:boolean;agreement:LongLetAgreement|null;editable:boolean};
@@ -70,6 +70,10 @@ export function longLetAgreementReceipt(value:unknown,reservationId:string,custo
    !Number.isSafeInteger(p.month_offset)||Number(p.month_offset)<0||Number(p.month_offset)>59||
    p.due_before_handover!==(index===0)||index===0&&p.month_offset!==0||
    p.due_on!==null||amount<=0n)throw new Error('The agreed payment schedule could not be confirmed.');
+  if(p.partner_net_amount!==undefined||p.wehouse_amount!==undefined){
+   if(minor(p.partner_net_amount)+minor(p.wehouse_amount)!==amount)throw new Error('Rent fee and Partner allocation do not match the agreed payment.');
+   return {...p,amount:Number(p.amount),partner_net_amount:Number(p.partner_net_amount),wehouse_amount:Number(p.wehouse_amount)} as LongLetScheduledPayment;
+  }
   return {...p,amount:Number(p.amount)} as LongLetScheduledPayment;
  });
  const total=minor(schedule.contract_total),first=minor(schedule.due_before_handover),balance=minor(schedule.future_balance);

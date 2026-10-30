@@ -106,6 +106,7 @@ export type ActivityWorkspace =
   | "worker"
   | "partner"
   | "property_partner"
+  | "hosting"
   | "hotel"
   | "staff"
   | "admin"

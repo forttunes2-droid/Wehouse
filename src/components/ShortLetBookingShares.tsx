@@ -7,7 +7,7 @@ import {sharedAmounts} from '@/lib/sharedHousingPresentation';
 import {withTimeout} from '@/lib/withTimeout';
 import {ChevronDown, Users} from 'lucide-react';
 import { formatMoney } from "@/lib/regional";
-const money=(n:number)=>`${formatMoney(n)}`;
+const money=(n:number)=>formatMoney(n,{currency:'NGN'});
 type Row=Parameters<typeof shortLetPayment>[0]&{id:string;guest_count?:number;status?:string;payment_reference?:unknown;rent_payment_reference?:unknown;shared_payment_group_id?:unknown;payment_expires_at?:string;reservation_fee_status?:string;manual_payment_status?:string;short_stay_balance_due_at?:string;rent_payment_status?:string};
 export default function ShortLetBookingShares({row,userId,onCreated}:{row:Row;userId:string;onCreated:(group:SharedHousingGroup)=>void}) {
   const [open,setOpen]=useState(false),[people,setPeople]=useState<Friend[]>([]),[ids,setIds]=useState<string[]>([]);

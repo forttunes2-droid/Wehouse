@@ -11,6 +11,8 @@ import {setRegionalDefaults} from '../../src/lib/regional';
 import './stabilisationClientFixture';
 import '../../src/index.css';
 const w=window as any;
+document.documentElement.classList.toggle('dark',document.documentElement.dataset.whTheme==='dark');
+document.documentElement.style.colorScheme=document.documentElement.dataset.whTheme==='dark'?'dark':'light';
 function Fixture(){
  const mode=w.__practicalMode||'preferences';
  if(mode==='shared-guest')setRegionalDefaults({currencyCode:'USD'});
@@ -18,8 +20,8 @@ function Fixture(){
  const [error,setError]=useState(''),[saved,setSaved]=useState(false),[open,setOpen]=useState(true),[group,setGroup]=useState('');
  w.__getForm=()=>form;
  const save=()=>{const validation=roommatePreferenceError(form,platformCalendarDate());setError(validation||'');if(!validation){w.__savedForm=form;setSaved(true);}};
- return <div className="mx-auto min-h-screen max-w-2xl bg-[#090B10] px-4 py-5 text-white sm:px-6"><h1 className="mb-5 text-xl font-semibold">{mode.includes('publication')?'Creator · Worker Operations':mode==='preferences'?'Find someone to live with':'WeHouse'}</h1>
- {error&&<p role="alert" className="text-sm text-amber-200">{error}</p>}
+ return <div className="mx-auto min-h-screen max-w-2xl bg-[var(--wh-bg)] px-4 py-5 text-[var(--wh-text)] sm:px-6"><h1 className="mb-5 text-xl font-semibold">{mode.includes('publication')?'Creator · Worker Operations':mode==='preferences'?'Find someone to live with':'WeHouse'}</h1>
+ {error&&<p role="alert" className="text-sm text-[var(--wh-text)]">{error}</p>}
  {mode==='preferences'&&<>{saved&&<p role="status">Your moving preferences are saved.</p>}<RoommatePreferencesPanel form={form} setForm={setForm} busy={false} onSave={save}/></>}
  {mode==='profile'&&open&&<RoommatePublicProfile person={{name:'Bola Example',username:'bola',preferredArea:'Lafia',bio:'Looking for a calm shared home.'}} score={75} comparedAnswers={4} matchLabel="Strong preference match" highlights={['Same preferred LGA','Your annual rent ranges overlap']} discuss={['Different expectations about overnight visitors']} onClose={()=>setOpen(false)}/>}
  {mode.includes('publication')&&<WorkerPublicationControls userId="qa-creator" workerId={mode==='publication-worker'?'qa-worker':undefined}/>}

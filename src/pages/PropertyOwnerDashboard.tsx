@@ -109,7 +109,7 @@ export default function PropertyOwnerDashboard({
   const [propertyReservationId, setPropertyReservationId] = useState<string>();
   const [returnToActivity, setReturnToActivity] = useState(false);
   const [nestedPropertyView, setNestedPropertyView] = useState(false);
-  const inbox = usePartnerInboxSummary(profile.user_id);
+  const inbox = usePartnerInboxSummary(profile.user_id, delegatedOnly ? "hosting" : "partner");
   useEffect(() => {
     if (!inboxOpenRequest) return;
     setPropertyTargetId(undefined); setPropertyReservationId(undefined);
@@ -157,7 +157,7 @@ export default function PropertyOwnerDashboard({
           label: item.label,
           badge:
             item.key === "communication"
-              ? delegatedOnly ? undefined : inbox.totalUnread || undefined
+              ? inbox.totalUnread || undefined
               : undefined,
         }))}
         active={tab}
@@ -183,9 +183,9 @@ export default function PropertyOwnerDashboard({
             <div hidden={Boolean(propertyTargetId)} inert={Boolean(propertyTargetId)}>
               <CommunicationInbox profile={profile} onNavigate={openActivityDestination}
                 hostingOnly={delegatedOnly}
-                initialActivity={!delegatedOnly && returnToActivity}
-                chatUnread={delegatedOnly ? 0 : inbox.chatUnread}
-                activityUnread={delegatedOnly ? 0 : inbox.activityUnread} />
+                initialActivity={returnToActivity}
+                chatUnread={inbox.chatUnread}
+                activityUnread={inbox.activityUnread} />
             </div>
             {propertyTargetId ? <PropertiesWorkspace key={propertyTargetId + (propertyReservationId || "")}
               profile={profile} initialRecordId={propertyTargetId} initialReservationId={propertyReservationId}

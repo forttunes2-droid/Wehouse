@@ -60,6 +60,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
     const requests: Array<["hotel" | "host" | "support", Promise<any>]> = hostingOnly
       ? [
           ["host", getMyPropertyHostConversations()] as const,
+          ["support", getMySupportConversations("hosting")] as const,
         ]
       : [
           ["hotel", getMyHotelConversations("property_partner")] as const,
@@ -146,11 +147,11 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
     return <HotelBookingChat bookingId={activeHotel.booking_id} conversationId={activeHotel.conversation_id} profile={profile} title={activeHotel.guest_name || "Guest"} subtitle={stayContext(activeHotel)} readOnly={!['confirmed','checked_in'].includes(activeHotel.booking_status)} onClose={() => { setActiveHotel(null); void loadMessages(); }} onUpdated={loadMessages} />;
   }
 
-  if (showActivity && !hostingOnly) {
+  if (showActivity) {
     return (
       <div className="min-h-[65dvh]">
         <ActivityHeader onBack={closeActivity} />
-        <Notifications profile={profile} scope="partner" embedded onNavigate={openActivityDestination} />
+        <Notifications profile={profile} scope={hostingOnly ? "hosting" : "partner"} embedded onNavigate={openActivityDestination} />
       </div>
     );
   }
@@ -158,7 +159,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
   return (
     <div className="min-h-[65dvh]">
       <div className="mx-auto w-full max-w-5xl px-4 sm:px-5 lg:px-8">
-      {!hostingOnly ? <InboxActivityEntry unread={activityUnread} detail="Property, booking, payment and official updates" onOpen={() => setShowActivity(true)} /> : null}
+      <InboxActivityEntry unread={activityUnread} detail={hostingOnly ? "Assigned property and arrival updates" : "Property, booking, payment and official updates"} onOpen={() => setShowActivity(true)} />
       <section className="pt-1">
         <div className="mb-3 flex items-center justify-between">
           <div><h2 className="text-sm font-semibold">Messages</h2></div>
@@ -171,7 +172,7 @@ export default function CommunicationInbox({ profile, onNavigate = () => {}, cha
         {!hostingOnly ? <div className="flex gap-4 border-b border-[var(--wh-border-subtle)]">{([['all', 'All'], ['hotel', 'Hotel guests'], ['host', 'Home guests'], ['support', 'WeHouse']] as const).map(([value, label]) => <button key={value} onClick={() => setFilter(value)} aria-pressed={filter === value} className={`min-h-11 border-b-2 text-xs font-semibold ${filter === value ? 'border-violet-400 text-violet-300' : 'border-transparent text-[var(--wh-text-secondary)]'}`}>{label}</button>)}</div> : null}
         {loadError && <div role="alert" className="py-3 text-xs text-amber-200">Some conversations could not be loaded. <button className="min-h-11 px-2 font-semibold text-violet-300" onClick={() => void loadMessages()}>Try again</button></div>}
         {loading ? <div role="status" aria-label="Loading conversations" aria-busy="true" className="divide-y divide-[var(--wh-border-subtle)] border-b border-[var(--wh-border-subtle)]">{[0,1,2].map((item) => <div key={item} className="flex items-center gap-3 py-4"><span className="wh-skeleton h-10 w-10 shrink-0 rounded-full" /><span className="min-w-0 flex-1 space-y-2"><span className="wh-skeleton block h-3 w-2/5 rounded" /><span className="wh-skeleton block h-2.5 w-4/5 rounded" /><span className="wh-skeleton block h-2 w-1/3 rounded" /></span></div>)}</div> : !items.length && !loadError ? (
-          <div className="border-b border-dashed border-[var(--wh-border-subtle)] py-12 text-center"><p className="text-xs font-semibold">{query.trim() ? "No matching messages" : "No messages yet"}</p><p className="mt-2 text-[9px] text-[var(--wh-text-muted)]">{hostingOnly ? "Guest conversations appear here when you are assigned to a Host-managed booking." : "Guest stay and WeHouse conversations will appear here."}</p></div>
+          <div className="border-b border-dashed border-[var(--wh-border-subtle)] py-12 text-center"><p className="text-xs font-semibold">{query.trim() ? "No matching messages" : "No messages yet"}</p><p className="mt-2 text-[9px] text-[var(--wh-text-muted)]">{hostingOnly ? "Assigned guest conversations and WeHouse replies appear here." : "Guest stay and WeHouse conversations will appear here."}</p></div>
         ) : (
           <div className="divide-y divide-[var(--wh-border-subtle)] border-b border-[var(--wh-border-subtle)]">
             {items.map((item) => item.kind === "hotel"

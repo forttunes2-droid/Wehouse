@@ -197,6 +197,9 @@ export function resolveActivityDestination(
     explicitBookingId ||
     (/booking|reservation/.test(sourceType) ? row.source_id || undefined : undefined);
 
+  if (type === "property_move_in_requested" && route === "hosting" && lifecycleBookingId)
+    return { route: "reservation", id: String(lifecycleBookingId) };
+
   const hotelId = value(params, ["hotel_id", "hotelId"]);
   if (lifecycleBookingId && /hotel/.test(`${type} ${sourceType}`) &&
       !/(^|[._])(message|reply|chat)([._]|$)/.test(type)) {
