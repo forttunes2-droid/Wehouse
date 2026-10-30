@@ -1,7 +1,7 @@
 import { supabase } from './client';
 import { prepareChatVideo, validateChatUpload } from '@/lib/chatMediaPolicy';
 import { prepareChatImageFile } from './utils';
-import { decryptPrivateAttachment, encryptPrivateAttachment, type EncryptedAttachment } from '@/lib/e2ee';
+import { decryptPrivateAttachment, encryptPrivateAttachment, encryptedAttachmentsForSend, invalidatePrivateConversationKey, type EncryptedAttachment } from '@/lib/e2ee';
 
 export type Friend = {friend_id:string;user_id:string;full_name:string|null;username:string|null;status:'pending'|'accepted'|'blocked';requested_by_me:boolean};
 
@@ -41,8 +41,10 @@ export async function unblockFriend(userId:string){
   return {error};
 }
 // Friend chat uses the same ciphertext and iv as other private chats; the server never sees plaintext.
-export async function sendFriendEncryptedMessage(friendId:string,ciphertext:string,iv:string,attachments:unknown[]=[],replyToId?:string,clientMessageId?:string){
-  const {data,error}=await supabase.rpc('send_friend_encrypted_message',{p_friend_id:friendId,p_ciphertext:ciphertext,p_encryption_iv:iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId??null,p_client_message_id:clientMessageId??null});
+export async function sendFriendEncryptedMessage(friendId:string,ciphertext:string,iv:string,attachments:unknown[]=[],replyToId?:string,clientMessageId?:string,envelopeToken?:string){
+  const preparedAttachments=encryptedAttachmentsForSend(attachments,envelopeToken);
+  const {data,error}=await supabase.rpc('send_friend_encrypted_message',{p_friend_id:friendId,p_ciphertext:ciphertext,p_encryption_iv:iv,p_encrypted_attachments:preparedAttachments,p_reply_to_id:replyToId??null,p_client_message_id:clientMessageId??null,p_envelope_token:envelopeToken??null});
+  if(error?.code==='40001')invalidatePrivateConversationKey('friend',friendId);
   return {id:data as string|null,error};
 }
 export type FriendMessageCursor={at:string;id:string};
@@ -72,7 +74,7 @@ export async function uploadFriendChatAttachment(file:File,friendId:string,peerU
     const path=`e2ee/friend/${friendId}/${Date.now()}-${crypto.randomUUID()}.bin`;
     const {error}=await supabase.storage.from('chat-files').upload(path,encrypted.blob,{contentType:'application/octet-stream',upsert:false});
     if(error)throw error;
-    return {attachment:{path,file_iv:encrypted.file_iv,metadata_ciphertext:encrypted.metadata_ciphertext,metadata_iv:encrypted.metadata_iv} as EncryptedAttachment,error:null as Error|null};
+    return {attachment:{path,file_iv:encrypted.file_iv,metadata_ciphertext:encrypted.metadata_ciphertext,metadata_iv:encrypted.metadata_iv,prepared_envelope_token:encrypted.envelopeToken} as EncryptedAttachment,error:null as Error|null};
   }catch(error){return {attachment:null,error:error instanceof Error?error:new Error('Upload failed')}}
 }
 export async function openFriendChatAttachment(friendId:string,peerUserId:string,item:EncryptedAttachment){

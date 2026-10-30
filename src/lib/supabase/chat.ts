@@ -2,7 +2,7 @@ import { prepareChatVideo, validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from './client';
 import { prepareChatImageFile } from './utils';
 import type { Conversation,Message } from '@/types';
-import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, preparePrivateConversation, type EncryptedAttachment } from '@/lib/e2ee';
+import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, encryptedAttachmentsForSend, preparePrivateConversation, invalidatePrivateConversationKey, type EncryptedAttachment } from '@/lib/e2ee';
 
 export type RoommatePeer={conversationId:string;user_id:string;name:string;username?:string;avatar:string|null;bio:string;city:string;state:string;school:string;occupation:string;isStudent:boolean;isBlocked:boolean};
 
@@ -69,7 +69,9 @@ export async function getMessages(conversationId:string,peerUserId?:string|null,
 export async function sendMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[],replyToId:string|null=null){
   try{
     const encrypted=await encryptPrivateMessage('roommate',conversationId,peerUserId,content);
-    const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'roommate',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId});
+    const preparedAttachments=encryptedAttachmentsForSend(attachments,encrypted.envelopeToken);
+    const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'roommate',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:preparedAttachments,p_reply_to_id:replyToId,p_envelope_token:encrypted.envelopeToken});
+    if(error?.code==='40001')invalidatePrivateConversationKey('roommate',conversationId);
     return{message:error?null:{id:data,conversation_id:conversationId,sender_id:'',content,seen:false,created_at:new Date().toISOString()} as Message,error};
   }catch(error:any){return{message:null,error:{message:error?.message||'Encrypted message could not be sent'} as any}}
 }
@@ -89,7 +91,7 @@ export async function uploadRoommateChatAttachment(file:File,conversationId:stri
     const encrypted=await encryptPrivateAttachment('roommate',conversationId,peerUserId,upload,{name:`${safeBase}.${extension}`,type:contentType});
     const path=`e2ee/roommate/${conversationId}/${Date.now()}-${crypto.randomUUID()}.bin`;
     const{error}=await supabase.storage.from('chat-files').upload(path,encrypted.blob,{contentType:'application/octet-stream',upsert:false});
-    return{path:error?null:path,attachment:error?null:{path,file_iv:encrypted.file_iv,metadata_ciphertext:encrypted.metadata_ciphertext,metadata_iv:encrypted.metadata_iv},type:contentType,error};
+    return{path:error?null:path,attachment:error?null:{path,file_iv:encrypted.file_iv,metadata_ciphertext:encrypted.metadata_ciphertext,metadata_iv:encrypted.metadata_iv,prepared_envelope_token:encrypted.envelopeToken},type:contentType,error};
   }catch(error:any){return{path:null,type:null,error:{message:error?.message||'Upload failed'} as any}}
 }
 

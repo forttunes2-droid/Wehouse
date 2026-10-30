@@ -17,3 +17,9 @@ test('review receipts reject unrelated records, impossible status and untrusted 
  const result={...receipt,status:'resolved',can_respond:false,response:{request_id:receipt.case_id,outcome:'partly_completed',completed:'Reviewed actions actually completed.',retained:'Booking evidence retained for unresolved claim.',responded_at:receipt.revision}};
  assert.equal(exports.personalDataReview(result,'a').response.retained,result.response.retained);
 });
+test('export approval receipts bind an access request and reject forged or malformed grants',()=>{
+ const access={decision_id:receipt.case_id,approval_id:receipt.case_id,can_download:true,sections:['account'],prepared_sections:[],scope_note:'Account records; supplementary data remains under review.'};
+ const value={...receipt,reason_code:'personal_data_access',export:access};assert.equal(exports.personalDataReview(value,'a').export,access);
+ for(const patch of [{approval_id:null},{decision_id:'wrong'},{sections:['account','account']},{prepared_sections:['private_internal_notes']},{can_download:'true'},{scope_note:null}])assert.throws(()=>exports.personalDataReview({...value,export:{...access,...patch}},'a'));
+ assert.throws(()=>exports.personalDataReview({...receipt,export:access},'a'));
+});

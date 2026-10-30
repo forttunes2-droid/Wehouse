@@ -18,8 +18,8 @@ function load(name, mocks = {}, extra = {}) {
     if (requested in mocks) return mocks[requested];
     if (requested === '@/lib/regional') return load('src/lib/regional.ts');
     if (!requested.startsWith('.')) throw Error(`Unexpected dependency ${requested}`);
-    return load(path.resolve(path.dirname(filename), `${requested}.ts`));
-  }, Blob, File, URL, URLSearchParams, Date, Intl, Map, Set, Number, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, crypto: webcrypto, btoa, atob, setTimeout, clearTimeout, ...extra });
+    return load(path.resolve(path.dirname(filename), `${requested}.ts`), mocks, extra);
+  }, Blob, File, URL, URLSearchParams, AbortController, Date, Intl, Map, Set, Number, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, crypto: webcrypto, btoa, atob, setTimeout, clearTimeout, ...extra });
   if (!Object.keys(mocks).length && !Object.keys(extra).length) cache.set(filename, exports);
   return exports;
 }
@@ -224,7 +224,7 @@ test('a property share uses real encryption and only the intended second identit
   const objects=new Map();
   const aliceClient=client('alice'),bobClient=client('bob');
   bobClient.storage={from(bucket){assert.equal(bucket,'chat-files');return{createSignedUrl:async path=>({data:{signedUrl:path},error:null})};}};
-  const fetchAttachment=async url=>({ok:true,arrayBuffer:async()=>objects.get(url).arrayBuffer()});
+  const fetchAttachment=async url=>new Response(objects.get(String(url))||null,{status:objects.has(String(url))?200:404});
   const alice=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:aliceClient}},{sessionStorage:storage()});
   const bob=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:bobClient}},{sessionStorage:storage(),fetch:fetchAttachment});
   await alice.createEncryptionIdentity('123456');await bob.createEncryptionIdentity('654321');

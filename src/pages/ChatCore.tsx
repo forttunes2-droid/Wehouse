@@ -1,4 +1,6 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import {subscribeToPrivateIdentityChanges} from '@/lib/privateIdentityLive';
+import {mapConcurrent} from '@/lib/mapConcurrent';
 import { useMessagePins } from "@/hooks/useMessagePins";
 import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import { isSelectableChatAttachment, validateChatUpload, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
@@ -567,19 +569,7 @@ export default function Chat({
       );
     setSecureChat(null);
     refresh();
-    const identityChannel = supabase
-      .channel(`roommate-security-${active.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "user_encryption_identities",
-          filter: `user_id=eq.${peer}`,
-        },
-        refresh,
-      )
-      .subscribe();
+    const unsubscribeKeys=subscribeToPrivateIdentityChanges(peer,()=>{refresh();void loadRoommateMessages(active.id,true);});
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
     };
@@ -587,9 +577,9 @@ export default function Chat({
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisible);
-      void supabase.removeChannel(identityChannel);
+      unsubscribeKeys();
     };
-  }, [active, otherId]);
+  }, [active, otherId,loadRoommateMessages]);
   useEffect(() => {
     if (
       active ||
@@ -736,9 +726,7 @@ export default function Chat({
       }> = [];
     let accepted = false;
     try {
-      const uploadedFiles = await Promise.all(
-        queuedFiles.map((file) => uploadRoommateChatAttachment(file, active.id, otherId(active))),
-      );
+      const uploadedFiles = await mapConcurrent(queuedFiles,2,(file) => uploadRoommateChatAttachment(file, active.id, otherId(active)));
       for (let index = 0; index < uploadedFiles.length; index++) {
         const uploaded = uploadedFiles[index];
         const file = queuedFiles[index];

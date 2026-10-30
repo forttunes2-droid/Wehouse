@@ -2,6 +2,8 @@ import { createBookingActionRunner } from "@/lib/bookingActionRunner";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import ProviderReviewAppeal from '@/components/ProviderReviewAppeal';
 import { subscribeToServiceBookingChanges } from "@/lib/serviceBookingLive";
+import {subscribeToPrivateIdentityChanges} from '@/lib/privateIdentityLive';
+import {mapConcurrent} from '@/lib/mapConcurrent';
 import { parseWorkerQuotePrice } from "@/lib/workerBookingContract";
 import { withTimeout } from "@/lib/withTimeout";
 import { isSelectableChatAttachment, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
@@ -343,7 +345,9 @@ function BookingNegotiationChatSession({
     };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
+    const unsubscribeKeys=peerId?subscribeToPrivateIdentityChanges(peerId,refresh):()=>{};
     return () => {
+      unsubscribeKeys();
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
       void supabase.removeChannel(channel);
@@ -442,9 +446,7 @@ function BookingNegotiationChatSession({
         metadata_iv: string;
       }> = [];
     try {
-      const uploadedFiles = await Promise.all(
-        queuedFiles.map((file) => uploadBookingChatAttachment(file, conversationId, peerId || "")),
-      );
+      const uploadedFiles = await mapConcurrent(queuedFiles,2,(file) => uploadBookingChatAttachment(file, conversationId, peerId || ""));
       for (let index = 0; index < uploadedFiles.length; index++) {
         const uploaded = uploadedFiles[index];
         const file = queuedFiles[index];

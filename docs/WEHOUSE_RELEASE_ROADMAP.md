@@ -2,6 +2,14 @@
 
 **Status date:** 30 October 2026. **Register review baseline:** `75463b316965e733bf602097d0f0d6fbe6eacbbb` (PR #118).
 
+PR #118 merged into `main` at `ddbfd616ee1601a64aaeaef0d151008707e87365`
+on 30 October. The merge contains the exact tested `ff2bd347` source tree;
+it did not complete this register or deploy the newer database/Edge functions.
+The owner expected the complete agreed product, so the baseline merge is not
+scope acceptance. Vercel automatic custom-domain promotion is paused while the
+actual Production backend remains on its older configuration. Subsequent work
+continues from this merged version; no second release register is introduced.
+
 This is the only current work register. The [historical evidence snapshot](WEHOUSE_RELEASE_HISTORY_2026-10-30.md)
 preserves prior checkpoints, decisions and failures; its old “open”, “current” and
 “next push” statements are not instructions to restart work. The reorganization
@@ -40,7 +48,7 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 | WR-09 | **Permission and sensitive-action boundaries**. Security; domains supply cases. | **Implemented in part; matrix verification pending.** Mandatory internal MFA is active on Test; login MFA does not prove every sensitive action. | Complete one allowed/denied matrix for enabled roles/actions: login/session revocation, workspace switching, geography/ownership, self-review, RLS/RPC/storage/Edge access and cross-account denial. Enumerate finance/team/security actions requiring fresh confirmation; verify expiry/revocation, scope and audit records. Keep automated chat/session/encryption isolation pre-merge; physical two-device acceptance is PM-01. Changes require reviewed grants, not broad policy bypasses. |
 | WR-10 | **Identity and recipient KYC integration**. Account/operations; selected provider/EX-01. | **Internal adapter/integration unfinished.** NIN is optional for Nigerian Partner/Service Worker identity, never Personal signup or ordinary booking/payment. Bank resolution is not recipient verification. | Implement the selected provider adapter and endpoint/UI, permitted alternative-ID/manual appeal, shared-person reuse, durable receipts, entity/bank match, provider-approval and payout gates. Verify denial, expiry, outage/unknown outcome and recovery against approved policy. Record exact missing provider documentation/credentials as an external dependency, not completed engineering. |
 | WR-11 | **Reports, cases and solo-Creator operations**. Account/operations; WR-09. | **Implemented in part; whole journeys pending.** Shared reports, property/Hotel reports and scoped queues exist. Preserve existing cases, assignments and audit authority. | For each enabled report source (Roommate/Friend/Worker chat/profile, portfolio claims/reviews/uploads, property and Hotel), demonstrate receipt, scoped queue/evidence, decision/reason, reporter status, urgent safety route and escalation/appeal. Prove Creator can perform every mandatory queue/action without employees while Staff/Admin limits persist. Use one case matrix, including actual support resolution from WR-06/07; no copied queues. |
-| WR-12 | **Actual data-rights fulfilment**. Account/operations; WR-22/EX-01. | **Tracked review implemented; fulfilment pending.** Access/correction/deletion drafts, assigned review, step-up, retry/stale receipts and retained/completed reasons exist. Account closure removes access; review attestation is not erasure. | Exercise actual access/export, correction and reviewed erasure across account/workspace data and private media. Check approved retention/legal holds for financial/dispute evidence, explain retained/not-completed items, verify requester/outsider access and resulting stored data. Confirm customer tracking and case closure cannot claim work not performed. Do not invent retention periods. |
+| WR-12 | **Actual data-rights fulfilment**. Account/operations; WR-22/EX-01. | **Tracked review and account-record export implemented/Test verified; broader fulfilment pending.** Access/correction/deletion drafts, assigned review, step-up, retry/stale receipts and retained/completed reasons exist. Account closure removes access; review attestation is not erasure. | Exercise actual access/export, correction and reviewed erasure across account/workspace data and private media. Check approved retention/legal holds for financial/dispute evidence, explain retained/not-completed items, verify requester/outsider access and resulting stored data. Confirm customer tracking and case closure cannot claim work not performed. Do not invent retention periods. |
 | WR-13 | **Friend, Roommate and booking conversations**. Connections; WR-09/16. | **Implemented in part; cross-context checks open.** Friend-first schema/API and one-to-one plans exist. Request cap/expiry, Roommate cancellation and pinned messages are recorded implemented. Groups remain deferred. | Verify independent Friend/Roommate relationships, canonical chat identity, block/delete, plan refresh/pin/reaction, unread/recipient delivery, reconnect/account switch and end-of-lifecycle behavior. Inspect and finish Hotel/Friend conversation-info screens. Verify media/control permissions and remaining per-chat actions without rebuilding renamed schema. Capture automated isolation/delivery evidence here; PM-01 owns two-device acceptance. |
 | WR-14 | **Experience whole-user/operator acceptance**. Existing Services/Provider domain; WR-06/09/11. | **Implemented/Test verified; hosted acceptance pending.** Applications/evidence, guided activities/sessions, publication/capacity, protected commerce, cancellation/refunds, attendance/completion, earnings, reviews/appeals, Help, sharing, offers and Sponsored integration exist. | Run customer/Provider/reviewer/operator journeys on matching deployed Test source, including unavailable dates, capacity races, withdrawn publication, payment recovery, attendance/completion, earned review/appeal, Help and sharing. Include existing offers/Sponsored restrictions and receipts. Refer to WR-06 for charge/refund/settlement, WR-11 for common cases; do not create another workspace, wallet or support queue. Shows/parties/nightlife stay excluded. |
 | WR-15 | **Discovery, maps and followed searches**. Discovery; WR-04/09/16. | **Implemented in part; hosted lifecycle evidence pending.** Existing server-filtered/paged search and shared-link flows remain; source presence is not whole-flow proof. | Verify supported filters/sort/pagination, loaded-option dependencies, rapid input/stale responses, empty/retry behavior, map/list parity, approximate versus entitled exact location, and shared links. Exercise followed-search reopen/edit/delete/resume and notifications from each publication/edit path using the resolved replay policy. Preserve private/public-cache separation (WR-19). |
@@ -51,9 +59,48 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 | WR-20 | **Monitoring, restoration and incident drills**. Platform/operations; WR-06/17. | **Execution evidence pending.** Runbooks alone do not establish recoverability. | Exercise error/latency/queue/payment alerts, webhook/cron recovery, idempotent replay, backup restoration, media/DB recovery, secret rotation and deployment rollback in authorised non-production conditions. Record trigger, operator, evidence and recovery result; document production-specific steps without performing an unapproved production change. |
 | WR-21 | **Remaining product decisions and contract reconciliation**. Product owner + affected domain. | **Some choices open; settled choices excluded.** D-016 is superseded by C-064. Email decisions, deferred Groups and existing accepted rent/payment rules are not reopened. | Disposition D-004–D-008, D-011–D-013 and D-017–D-020 against latest accepted decisions/source: address retention, Hotel lifecycle/turnover, date occupancy, closed-case messaging, block/skip/search resume, Worker modes/package boundary/response clock and property pause/removal. Link each genuine owner choice to its bounded question and each implementation gap to its existing WR item. No new package/mode or policy is silently selected; resolve stale status rather than rerun settled approval. |
 | WR-22 | **Legal publication and operating integration**. Account/operations; legal/owner EX-01. | **Engineering verification pending; approvals external.** Approved legal content and local commercial/retention decisions are external; publication and actual operating paths are engineering. | Verify current document version publication, accessible reading, versioned consent and stale-version handling against approved bodies. Exercise required queue/runbook/escalation/support handoff and response ownership, including Creator-only operation. Link actual data-rights evidence to WR-12. Record commercial/legal/provider approval gaps individually in the existing Nigeria legal register; do not publish the draft or claim legal approval. The accepted post-engineering lawyer-review PDF is LG-01, not a circular prerequisite to finishing this row. |
-| WR-23 | **Reviewed web release candidate**. Release engineering; WR-01–22. | **Exact candidate evidence/approval pending.** PR #118 is unmerged. Passing CI is limited to its exact commit; a ready older preview cannot close a newer candidate. | Record the candidate SHA, required build/lint/source/browser/fresh-upgrade results, matching Test preview and hosted role smoke evidence. Resolve known release-blocking defects and affected regressions, link WR-17/20 rollout/rollback evidence, and identify external residuals. Do not merge/promote until separate explicit approval; RL-01 tracks those actions, not another implementation checklist. |
+| WR-23 | **Reviewed web release candidate**. Release engineering; WR-01–22. | **Complete-candidate evidence pending.** Baseline PR #118 merged at `ddbfd616`; the complete agreed scope remains open. Passing CI is limited to its exact commit; a ready older preview cannot close a newer candidate. | Record the candidate SHA, required build/lint/source/browser/fresh-upgrade results, matching Test preview and hosted role smoke evidence. Resolve known release-blocking defects and affected regressions, link WR-17/20 rollout/rollback evidence, and identify external residuals. Do not merge/promote until separate explicit approval; RL-01 tracks those actions, not another implementation checklist. |
 
 ## Latest scoped evidence — 30 October
+
+WR-12: reviewed access requests now have a real paginated account-record
+download, tied to the existing case, assigned independent reviewer and fresh
+confirmation. Ownership, 25-record pages, cursor continuity, unknown-result
+recovery, access withdrawal and ended-session denial passed on Test under
+rollback; 11 browser journeys passed with synthetic downloads. The existing
+shared per-user throttle bounds export requests. Original media, supplementary
+records and reviewed erasure still require fulfilment; preparing a section
+does not resolve the case or establish complete data-rights fulfilment.
+
+WR-09/13/19: the private-chat source review found that forgotten-passcode reset
+omitted Friend key envelopes, while client conversation keys could survive
+identity reset and work already in flight could finish after a lock/account
+change. Forward repairs add Friend reset handling, account/key-version-bound
+cache invalidation, late-result rejection and one private metadata signal per
+identity change. Encrypted media uses two concurrent slots, shared downloads,
+streaming size limits and the existing bounded ciphertext caches. Uploads are
+also limited to two at a time. A local envelope receipt prevents attaching a file
+encrypted before a reset to a message encrypted after it; the receipt is not
+stored with the attachment. Server sends check the current opaque envelope
+under the same conversation lock, reject replaced keys and preserve confirmed
+Friend-command retries. Test rollback contracts pass for reset, scoped key
+signals, ended-session denial, stale sends, unrelated-key/ciphertext preservation
+and the existing Friend/Roommate/Service context/media boundaries. The new
+WebCrypto fixture runs only in a network-disabled, credential-free CI sandbox;
+its result remains pending until CI reports it. One empty Test subscription
+initialized Supabase's managed Broadcast partitions; no managed schema was
+manually altered, and the subscription closed after connecting.
+Friend/Roommate/Service messages and files use client encryption. Hotel and
+WeHouse Support conversations remain available to their authorised teams;
+the source review does not certify all chat surfaces or physical devices.
+
+WR-03/15/17: the Services lock complaint is reproduced: the startup availability
+setting is false on Production with no recorded Creator pause. A forward Test
+repair makes reviewed Services available by default, while preserving an audited
+Creator pause and all individual approval, evidence and suspension checks. Both
+default-open and intentional-pause preservation pass a rollback contract. This
+does not activate Pro/Sponsored sales or change Production. The custom domain
+still serves the older frontend; it has not received this backend repair.
 
 WR-14/15: creating a new activity no longer copies the private home region,
 district or city into its venue. The host explicitly enters the activity location;

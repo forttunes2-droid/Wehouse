@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import {assertPrivateMessagingSession,invalidatePrivateMessagingSession,privateMessagingSessionVersion,rememberPrivateMessagingKeyVersion} from './privateMessagingSession';
 
 const encoder = new TextEncoder();
 const SESSION_KEY_PREFIX = "wehouse:e2ee:private-key:";
@@ -40,6 +41,7 @@ async function derivePinKey(pin: string, salt: Uint8Array) {
  * Existing ciphertext is retained server-side but may no longer be readable.
  */
 export async function resetEncryptionRecoveryPin(nextPin: string) {
+  const version=privateMessagingSessionVersion();
   if (!/^\d{6}$/.test(nextPin))
     throw new Error("Use a 6-digit recovery passcode");
 
@@ -68,6 +70,7 @@ export async function resetEncryptionRecoveryPin(nextPin: string) {
     encoder.encode(JSON.stringify(privateJwk)),
   );
 
+  assertPrivateMessagingSession(version);
   const { data: keyVersion, error } = await supabase.rpc(
     "reset_my_encryption_identity",
     {
@@ -78,13 +81,16 @@ export async function resetEncryptionRecoveryPin(nextPin: string) {
       p_kdf_iterations: 600_000,
     },
   );
-  if (error || !keyVersion)
+  if (error || !Number.isSafeInteger(keyVersion) || Number(keyVersion)<1)
     throw error || new Error("Private-message recovery could not be reset");
+  assertPrivateMessagingSession(version);
+  invalidatePrivateMessagingSession('identity');
 
   sessionStorage.setItem(
     `${SESSION_KEY_PREFIX}${String(profileId)}`,
     JSON.stringify(privateJwk),
   );
+  rememberPrivateMessagingKeyVersion(String(profileId),Number(keyVersion));
   window.dispatchEvent(new Event(PRIVATE_MESSAGE_ACCESS_EVENT));
   return Number(keyVersion);
 }

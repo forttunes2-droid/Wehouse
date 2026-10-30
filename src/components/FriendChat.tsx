@@ -9,6 +9,8 @@ import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesB
 import { useCallback, useEffect, useRef, useState } from "react";
 import {createRefreshScheduler} from '@/lib/refreshScheduler';
 import {subscribeToFriendChatChanges} from '@/lib/friendChatLive';
+import {subscribeToPrivateIdentityChanges} from '@/lib/privateIdentityLive';
+import {mapConcurrent} from '@/lib/mapConcurrent';
 import {withTimeout} from '@/lib/withTimeout';
 import { toast } from "sonner";
 import { CalendarPlus, Mic } from "lucide-react";
@@ -120,12 +122,13 @@ function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend:
     const refresh=()=>{lastRecovery=Date.now();scheduler.request();};
     refresh();
     const unsubscribe=subscribeToFriendChatChanges(friend.friend_id,refresh,healthy=>{live=healthy;});
+    const unsubscribeKeys=subscribeToPrivateIdentityChanges(friend.user_id,refresh);
     window.addEventListener('focus',refresh);
     document.addEventListener('visibilitychange',refresh);
     // Recovery only; hidden tabs do no reads, and event bursts cannot overlap loads.
     const timer=window.setInterval(()=>{if(!live||Date.now()-lastRecovery>=300_000)refresh();},60_000);
     return()=>{
-      loadVersion.current++;scheduler.dispose();unsubscribe();window.clearInterval(timer);
+      loadVersion.current++;scheduler.dispose();unsubscribe();unsubscribeKeys();window.clearInterval(timer);
       window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);
     };
   }, [friend.friend_id,load]);
@@ -190,12 +193,12 @@ function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend:
       const content = preserveComposer ? text : workerDraft ? workerShareMessage(workerDraft, text) : propertyDraft ? propertyShareMessage(propertyDraft, text) : text;
       const signature = `friend-chat:${friend.friend_id}:${content}:${queued.map((f) => `${f.name}${f.size}`).join(",")}:${replyId}`;
       await runSafeAction(signature, async () => {
-        const uploaded = await Promise.all(queued.map((file) => uploadFriendChatAttachment(file, friend.friend_id, friend.user_id)));
+        const uploaded = await mapConcurrent(queued,2,(file) => uploadFriendChatAttachment(file, friend.friend_id, friend.user_id));
         const failed = uploaded.find((u) => u.error || !u.attachment);
         if (failed) throw failed.error || new Error("Could not upload the attachment");
-        const { ciphertext, iv } = await encryptPrivateMessage("friend", friend.friend_id, friend.user_id, content);
-        const { id, error } = await sendFriendEncryptedMessage(friend.friend_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined, requestKeyFor(signature));
-        if (error) throw error;
+        const { ciphertext, iv, envelopeToken } = await encryptPrivateMessage("friend", friend.friend_id, friend.user_id, content);
+        const { id, error } = await sendFriendEncryptedMessage(friend.friend_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined, requestKeyFor(signature),envelopeToken);
+        if (error) throw new Error(error.message||'Message was not sent. Your draft is kept.');
         if (typeof id !== 'string' || !id.trim()) throw new Error('Message delivery could not be confirmed. Your draft has been kept; refresh this conversation before retrying.');
         releaseRequestKey(signature);
       });

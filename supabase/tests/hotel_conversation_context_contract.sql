@@ -1,5 +1,6 @@
 \set ON_ERROR_STOP on
 begin;
+\ir private_message_fixture_helpers.sql
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city,full_name) values
 ('87999999-0000-4000-8000-000000000001','hc-owner@example.invalid','hc-owner','property_partner',true,'Nasarawa','Lafia','Owner'),
@@ -25,8 +26,10 @@ insert into public.hotel_booking_messages(id,conversation_id,sender_id,content,h
 ('87999999-2000-4000-8000-000000000002','87999999-1000-4000-8000-000000000001','hc-desk-a','We have noted your request.',array[]::text[]),
 ('87999999-2000-4000-8000-000000000003','87999999-1000-4000-8000-000000000002','hc-guest','Other booking only',array[]::text[]),
 ('87999999-2000-4000-8000-000000000004','87999999-1000-4000-8000-000000000001','hc-desk-a','Hidden for guest',array['hc-guest']);
+select pg_temp.prepare_private_message_fixture(array['87999999','88999999']);
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.sub','87999999-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','87999999-0000-4000-8000-000000000002','session_id','87999999-0000-4000-8000-000000000002','role','authenticated')::text,true);
 set local role authenticated;
 do $$ declare b jsonb; begin
  b:=public.get_my_hotel_conversation_bundle('87999999-1000-4000-8000-000000000001',-8799);
@@ -39,6 +42,7 @@ end $$;
 reset role;
 -- A different receptionist reads the guest, NOT another receptionist's hotel reply.
 select set_config('request.jwt.claim.sub','87999999-0000-4000-8000-000000000004',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','87999999-0000-4000-8000-000000000004','session_id','87999999-0000-4000-8000-000000000004','role','authenticated')::text,true);
 set local role authenticated;
 do $$ declare b jsonb; begin
  b:=public.get_my_hotel_conversation_bundle('87999999-1000-4000-8000-000000000001',-8799);
@@ -53,6 +57,7 @@ do $$ begin
  if (select is_read from public.hotel_booking_messages where id='87999999-2000-4000-8000-000000000003') then raise exception 'Other booking was marked read'; end if;
 end $$;
 select set_config('request.jwt.claim.sub','87999999-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','87999999-0000-4000-8000-000000000002','session_id','87999999-0000-4000-8000-000000000002','role','authenticated')::text,true);
 set local role authenticated;
 do $$ declare reply uuid; begin
  perform public.mark_hotel_booking_messages_read('87999999-1000-4000-8000-000000000001');
@@ -67,6 +72,7 @@ do $$ begin
  if (select count(*) from public.hotel_booking_conversations where booking_id=-8799)<>1 then raise exception 'Follow-up created duplicate conversation'; end if;
 end $$;
 select set_config('request.jwt.claim.sub','87999999-0000-4000-8000-000000000006',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','87999999-0000-4000-8000-000000000006','session_id','87999999-0000-4000-8000-000000000006','role','authenticated')::text,true);
 set local role authenticated;
 do $$ declare b jsonb; begin
  b:=public.get_my_hotel_conversation_bundle('87999999-1000-4000-8000-000000000001',-8799);
@@ -81,6 +87,7 @@ do $$ begin
 end $$;
 reset role;
 select set_config('request.jwt.claim.sub','87999999-0000-4000-8000-000000000005',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','87999999-0000-4000-8000-000000000005','session_id','87999999-0000-4000-8000-000000000005','role','authenticated')::text,true);
 set local role authenticated;
 do $$ begin
  begin perform public.get_my_hotel_conversation_bundle('87999999-1000-4000-8000-000000000001',-8799); raise exception 'Unassigned admin read guest/hotel chat'; exception when insufficient_privilege then null; end;
@@ -88,8 +95,10 @@ end $$;
 reset role;
 set local session_replication_role=replica;
 update public.hotel_bookings set status='checked_out' where booking_id=-8799;
+select pg_temp.prepare_private_message_fixture(array['87999999','88999999']);
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.sub','87999999-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','87999999-0000-4000-8000-000000000002','session_id','87999999-0000-4000-8000-000000000002','role','authenticated')::text,true);
 set local role authenticated;
 do $$ declare b jsonb; begin
  b:=public.get_my_hotel_conversation_bundle('87999999-1000-4000-8000-000000000001',-8799);
@@ -105,6 +114,7 @@ rollback;
 -- Media-only uploads, ciphertext Storage RLS, and preserved message history.
 \set ON_ERROR_STOP on
 begin;
+\ir private_message_fixture_helpers.sql
 -- Isolated fixtures exercise the real RPCs and guards; no production data is used.
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,state,city,full_name) values
@@ -124,8 +134,10 @@ values('88999999-3000-4000-8000-000000000002','88999999-0000-4000-8000-000000000
 insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
 values('media-guest','88999999-0000-4000-8000-000000000002','88999999-3000-4000-8000-000000000002',
  'media-contract-device','Synthetic contract browser',true,'trusted');
+select pg_temp.prepare_private_message_fixture(array['87999999','88999999']);
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','88999999-0000-4000-8000-000000000002','session_id','88999999-0000-4000-8000-000000000002','role','authenticated')::text,true);
 select set_config('request.jwt.claims','{"sub":"88999999-0000-4000-8000-000000000002","session_id":"88999999-3000-4000-8000-000000000002"}',true);
 select set_config('request.jwt.claim.role','authenticated',true);
 -- Create the support thread via its actual atomic first-send routine.
@@ -148,6 +160,7 @@ insert into storage.objects(bucket_id,name,metadata) values
 set local session_replication_role=replica;
 insert into public.partner_support_messages(id,conversation_id,sender_id,content,attachments,attachment_types) values
 ('88999999-2000-4000-8000-000000000002',current_setting('wh.media.support')::uuid,'media-guest','Legacy document',array['legacy.pdf'],array['application/pdf']);
+select pg_temp.prepare_private_message_fixture(array['87999999','88999999']);
 set local session_replication_role=origin;
 set local role authenticated;
 do $$ declare c uuid:='88999999-1000-4000-8000-000000000001'; p text:=c::text||'/media-guest/'; id uuid; f text; t text; begin
@@ -228,8 +241,10 @@ insert into public.worker_bookings(id,user_id,worker_id,service_type,status) val
 ('88999999-4000-4000-8000-000000000001','media-guest','media-owner','Media test','pending');
 insert into public.booking_conversations(id,booking_id,user_id,worker_id) values
 ('88999999-5000-4000-8000-000000000001','88999999-4000-4000-8000-000000000001','media-guest','media-owner');
+select pg_temp.prepare_private_message_fixture(array['87999999','88999999']);
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','88999999-0000-4000-8000-000000000002','session_id','88999999-0000-4000-8000-000000000002','role','authenticated')::text,true);
 set local role authenticated;
 select public.reserve_my_media_upload('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/room.bin');
 select public.reserve_my_media_upload('chat-files','e2ee/worker/88999999-5000-4000-8000-000000000001/voice.bin');
@@ -242,19 +257,20 @@ do $$ declare p text; c uuid; k text; item jsonb; begin
   ('worker','88999999-5000-4000-8000-000000000001'::uuid,'e2ee/worker/88999999-5000-4000-8000-000000000001/voice.bin')
  ) media(kind,conversation,path) loop
   item:=jsonb_build_object('path',p,'file_iv','AAAAAAAAAAAAAAAA','metadata_iv','AAAAAAAAAAAAAAAA','metadata_ciphertext','AAAAAAAAAAAAAAAAAAAAAAAA');
-  perform public.send_private_encrypted_message(k,c,'ciphertext','iv',jsonb_build_array(item));
+  perform public.send_private_encrypted_message(k,c,'ciphertext','iv',jsonb_build_array(item),null,pg_temp.current_envelope_token(k,c));
   begin
-    perform public.send_private_encrypted_message(k,c,'ciphertext','iv',jsonb_build_array(item||jsonb_build_object('path','https://external.invalid/file.pdf')));
+    perform public.send_private_encrypted_message(k,c,'ciphertext','iv',jsonb_build_array(item||jsonb_build_object('path','https://external.invalid/file.pdf')) ,null,pg_temp.current_envelope_token(k,c));
     raise exception 'External encrypted attachment path accepted';
   exception when insufficient_privilege then null; end;
   begin
-    perform public.send_private_encrypted_message(k,c,'ciphertext','iv',jsonb_build_array(item||jsonb_build_object('metadata_iv','not-an-iv')));
+    perform public.send_private_encrypted_message(k,c,'ciphertext','iv',jsonb_build_array(item||jsonb_build_object('metadata_iv','not-an-iv')) ,null,pg_temp.current_envelope_token(k,c));
     raise exception 'Malformed encryption metadata accepted';
   exception when sqlstate '22023' then null; end;
  end loop;
 end $$;
 reset role;
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','88999999-0000-4000-8000-000000000001','session_id','88999999-0000-4000-8000-000000000001','role','authenticated')::text,true);
 set local role authenticated;
 do $$ declare n integer; begin
  select count(*) into n from storage.objects where bucket_id='chat-files' and name like '%88999999%';
@@ -276,6 +292,7 @@ do $$ declare n integer; begin
 end $$;
 reset role;
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000003',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','88999999-0000-4000-8000-000000000003','session_id','88999999-0000-4000-8000-000000000003','role','authenticated')::text,true);
 set local role authenticated;
 do $$ begin
  if exists(select 1 from storage.objects where bucket_id='chat-files' and name like '%88999999%') then raise exception 'Unrelated Creator read private media'; end if;
@@ -288,6 +305,7 @@ reset role;
 -- A real uploader can remove their own unreferenced upload through the same
 -- service context. This catches a policy that simply denies every DELETE.
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','88999999-0000-4000-8000-000000000002','session_id','88999999-0000-4000-8000-000000000002','role','authenticated')::text,true);
 set local role authenticated;
 do $$ declare n integer; begin
  perform public.reserve_my_media_upload('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/discard.bin');
@@ -304,6 +322,7 @@ reset role;
 insert into public.roommate_user_blocks(blocker_user_id,blocked_user_id) values('media-owner','media-guest');
 insert into public.worker_user_blocks(blocker_user_id,blocked_user_id) values('media-owner','media-guest');
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',jsonb_build_object('sub','88999999-0000-4000-8000-000000000002','session_id','88999999-0000-4000-8000-000000000002','role','authenticated')::text,true);
 set local role authenticated;
 do $$ begin
  if exists(select 1 from storage.objects where bucket_id='chat-files' and name like '%88999999%') then raise exception 'Blocked connection retained new Storage access'; end if;
@@ -317,6 +336,7 @@ reset role;
 delete from public.worker_user_blocks where blocker_user_id='media-owner' and blocked_user_id='media-guest';
 set local session_replication_role=replica;
 update public.worker_bookings set status='approved_released' where id='88999999-4000-4000-8000-000000000001';
+select pg_temp.prepare_private_message_fixture(array['87999999','88999999']);
 set local session_replication_role=origin;
 set local role authenticated;
 do $$ begin
