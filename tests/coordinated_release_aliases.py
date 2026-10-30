@@ -21,6 +21,27 @@ spec.loader.exec_module(release)
 
 
 class ProductionAliases(unittest.TestCase):
+    def test_atomic_batch_resets_local_search_path_without_rewriting_migration_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first = Path(directory) / '20990101000000_local_context.sql'
+            second = Path(directory) / '20990101000001_existing_function.sql'
+            first.write_text("begin;\nset local search_path='';\ncommit;\n")
+            second.write_text("select pg_get_functiondef('validate_later_rent_checkout(uuid,text)'::regprocedure);\n")
+            sql = release.release_sql([first, second], [], 'check')
+            reset = "select pg_catalog.set_config('search_path',(select search_path from pg_temp.wh_release_migration_context),true);"
+            first_stage = sql.index('WH_RELEASE: ' + first.name)
+            second_stage = sql.index('WH_RELEASE: ' + second.name)
+            self.assertLess(sql.index(reset, first_stage), sql.index("set local search_path='';", first_stage))
+            self.assertLess(sql.index(reset, second_stage), sql.index("select pg_get_functiondef", second_stage))
+            self.assertEqual(sql.count(reset), 3)
+            # Only each original normalized body enters migration history;
+            # runner context statements are not an alias or an applied patch.
+            for path in [first, second]:
+                body = release.migration_body(path.read_text())
+                delimiter = '$migration_' + hashlib.sha256(path.read_text().encode()).hexdigest()[:16] + '$'
+                self.assertIn('array[' + delimiter + body + delimiter + ']', sql)
+            self.assertTrue(sql.endswith('rollback;'))
+
     def setUp(self):
         self.files = sorted((ROOT / "supabase/migrations").glob("*.sql"))
         self.paths = {file.name.split("_", 1)[0]: file for file in self.files}

@@ -80,6 +80,15 @@ Screenshots from local changes or an older preview do not establish a newer
 candidate's design. Rent history shows current payments/latest receipt first;
 the full schedule is available on demand. Production is unchanged.
 
+WR-17: fresh replay and all named migration contracts pass on `ebdf456f`.
+The atomic existing-account upgrade found `SET LOCAL search_path=''` leaking
+from an earlier file into a later unqualified function lookup. The coordinated
+runner now restores its original connection search path before each migration
+and preservation check, without editing applied SQL or its stored history.
+Eight runner regressions pass; an actual rolled-back Test batch reproducing
+the context boundary passes with unchanged records/history. The complete
+existing-account upgrade must pass CI on the follow-up commit before closure.
+
 ## Delivery order and release gates
 
 1. Reconcile WR-21 decisions and WR-17 baseline while the existing editor completes WR-01–15. External dependencies do not stop independent internal work.

@@ -154,6 +154,12 @@ do $$ begin
   end if;
 end $$;
 create temporary table wh_release_snapshot(name text primary key,digest text not null) on commit drop;
+-- Individual Supabase migrations end their own transaction. The atomic batch
+-- removes those wrappers, so a SET LOCAL search_path must not leak into the
+-- next file's unqualified function/type lookups. Keep the original connection
+-- context, without modifying a migration body or its recorded statement array.
+create temporary table wh_release_migration_context(search_path text not null) on commit drop;
+insert into pg_temp.wh_release_migration_context values(current_setting('search_path'));
 -- Only these six reviewed additive columns may be absent at the baseline.
 -- If already deployed, they remain part of the preservation hash as usual.
 create temporary table wh_release_added_worker_fields on commit drop as
@@ -182,8 +188,11 @@ end $$;""")
         delimiter = "$migration_" + hashlib.sha256(source.encode()).hexdigest()[:16] + "$"
         if delimiter in body:
             raise ValueError("Migration delimiter collision")
-        parts += [f"\\echo WH_RELEASE: {path.name}", body,
+        parts += [f"\\echo WH_RELEASE: {path.name}",
+                  "select pg_catalog.set_config('search_path',(select search_path from pg_temp.wh_release_migration_context),true);",
+                  body,
                   f"insert into supabase_migrations.schema_migrations(version,name,statements) values ({literal(version)},{literal(name)},array[{delimiter}{body}{delimiter}]);"]
+    parts.append("select pg_catalog.set_config('search_path',(select search_path from pg_temp.wh_release_migration_context),true);")
     parts.append("\\echo WH_RELEASE: preservation assertions")
     for name, query in queries.items():
         if name == "worker_verifications":
