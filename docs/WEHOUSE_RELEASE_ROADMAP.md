@@ -73,6 +73,43 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 ## Latest scoped evidence — 30 October
 
+WR-17/23: PR #119 continues as one candidate. A real provenance defect was fixed:
+GitHub's synthetic PR merge SHA could label a build checked out at the reviewed
+head. The manifest now prefers the actual checkout and rejects a conflicting
+Vercel SHA; three targeted regression cases pass. The manifest hashes every
+migration file, including the historical eight-digit version. No history row was
+rewritten to equalise counts. Read-only inspection finds 712 Production history
+rows (latest `20261010065655`), 959 Test rows (latest `20261030211716`) and 980
+repository files. Those counts include aliases and baseline placeholders and are
+not a list of SQL statements to replay. Actual-baseline history disposition and
+coordinated Production rollout remain WR-17.
+
+The first served-manifest check exposed an actual Preview configuration defect:
+inherited Preview/Production URL and anon variables pointed this candidate at
+Production. Runtime browser and catalog guards rejected that pairing; a READY
+Vercel build had not proved startup. Three public configuration overrides are
+now scoped only to this candidate's Preview branch, all for Test
+`qoobnkedfyosnizrlttt`. Shared Production records are unchanged. Preview builds
+also run the existing environment-isolation validator before publication.
+A new deployment must prove the corrected manifest and actual startup/catalog.
+
+The stable existing Test branch alias is
+`wehouse-git-codex-production-r-5d2746-forttunes2-6534s-projects.vercel.app`.
+It resolved to the `eb0d4fa2` preview when inspected; always verify its current
+manifest before treating it as evidence for a newer head. Random deployment
+hostnames have separate device-key storage origins. Optional backup activation
+requires a stable Test RP distinct from Production, as recorded in
+[the existing passkey rollout guide](PASSKEY_ROLLOUT.md).
+
+The expanded isolated crypto fixture passed 12 reported cases at `257132b8`.
+Both remaining Friend contracts were repaired to call the current paginated
+reader and passed on Test; fresh replay/upgrade and local mixed journeys then
+passed at `eb0d4fa2`. Wallet/Pro browser bundling exposed one missing fixture
+export, not a runtime permission exception; the fixed local suite passes 87
+journeys. The Friend history fixture now uses actual automatic setup instead of
+a fake `{}` PIN key; both-theme paging, older pins, retries and no eager media
+fetch pass. Exact combined-head CI/preview remains required after these repairs.
+
 WR-08/09/13/17/19: the approved replacement for new chat PINs is implemented:
 automatic per-person device keys wrapped by a non-extractable local AES key in
 IndexedDB, optional WebAuthn PRF/HKDF-encrypted backup, and one-time restoration

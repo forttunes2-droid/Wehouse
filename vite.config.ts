@@ -5,6 +5,8 @@ import {createHash} from 'node:crypto'
 import react from "@vitejs/plugin-react"
 import { defineConfig,type Plugin } from "vite"
 import {bundledLicences} from './scripts/lib/bundled-licences'
+import {sourceReleaseVersion} from './scripts/lib/release-version'
+import {resolveSupabaseEnvironment} from './src/lib/supabase/environment'
 
 // Vercel PR previews may not have project-scoped environment variables yet.
 // This public Test-project key provides an isolated preview by default. A
@@ -14,25 +16,27 @@ if (process.env.VERCEL_ENV === 'preview'
   process.env.VITE_SUPABASE_URL = 'https://qoobnkedfyosnizrlttt.supabase.co'
   process.env.VITE_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_Rv3lT3wV3AVqWIlxM3Dygw_E3q_aSlV'
 }
+// Do not publish a READY preview whose browser/API will immediately fail the
+// same production-isolation boundary. Never weaken the runtime guard to fix it.
+if(process.env.VERCEL_ENV==='preview')resolveSupabaseEnvironment('release-preview.invalid',
+  process.env.VITE_SUPABASE_URL??'',process.env.VITE_SUPABASE_PUBLISHABLE_KEY||process.env.VITE_SUPABASE_ANON_KEY||'')
 
 function releaseVersion() {
-  const supplied = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || process.env.WEHOUSE_BUILD_VERSION
-  if (supplied) return supplied
+  let checkoutHead:string|null=null
   try {
-    return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim()
-  } catch {
-    return `local-${Date.now()}`
-  }
+    checkoutHead=execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim()
+  } catch { /* Source archives may supply their version through the build host. */ }
+  return sourceReleaseVersion(checkoutHead,{VERCEL_GIT_COMMIT_SHA:process.env.VERCEL_GIT_COMMIT_SHA,GITHUB_SHA:process.env.GITHUB_SHA,WEHOUSE_BUILD_VERSION:process.env.WEHOUSE_BUILD_VERSION})
 }
 
 const buildVersion = releaseVersion()
-const migrationFiles=readdirSync(path.resolve('supabase/migrations')).filter(file=>/^\d{14}_.+\.sql$/.test(file)).sort()
+const migrationFiles=readdirSync(path.resolve('supabase/migrations')).filter(file=>file.endsWith('.sql')).sort()
 const migrationHash=createHash('sha256')
 for(const file of migrationFiles)migrationHash.update(file+'\n'+readFileSync(path.resolve('supabase/migrations',file),'utf8').replace(/\r\n/g,'\n')+'\n')
 // These identify the build's expected backend; they are not a claim that a
 // different deployed database has passed that release's migrations or checks.
 const releaseManifest = `${JSON.stringify({ version: buildVersion, forceClear: false,
-  privateChatProtocol:2, expectedMigration:migrationFiles.at(-1)?.slice(0,14)??null,
+  privateChatProtocol:2, expectedMigration:migrationFiles.at(-1)?.split('_',1)[0]??null,
   migrationDigest:migrationHash.digest('hex'),
   configuredBackendProject:/https:\/\/([a-z0-9]+)\.supabase\.co/.exec(process.env.VITE_SUPABASE_URL??'')?.[1]??null,
 }, null, 2)}\n`

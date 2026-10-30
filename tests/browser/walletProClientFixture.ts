@@ -498,3 +498,4 @@ export async function uploadStorageObjectWithProgress(){throw new Error('Uploads
 
 export { createInspectionRequest, createReservation, createShortStayReservation, cancelReservation, getInspectionRequestForReservation, getReservationForListing, initializeReservationPayment } from '../../src/lib/supabase/reservations';
 export { getListing } from '../../src/lib/supabase/listings';
+export const isWebPasskeyEnabled=false;
