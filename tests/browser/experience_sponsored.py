@@ -1,4 +1,4 @@
-"""Existing promotion UI and activity discovery; isolated APIs, no real charge."""
+"""Existing Sponsored UI and activity discovery; isolated APIs, no real charge."""
 import asyncio,json
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
@@ -33,7 +33,7 @@ async def main():
     await page.route('**/*',route);await page.goto(BASE+'/tests/browser/experience-commerce.html?mode='+mode)
     if mode=='sponsored':
      await expect(page.get_by_role('alert')).to_contain_text('could not be loaded');failed=False
-     await page.get_by_role('button',name='Retry promotion options',exact=True).click()
+     await page.get_by_role('button',name='Retry Sponsored options',exact=True).click()
      await expect(page.get_by_role('button',name='Promote',exact=True)).to_contain_text('Activity · '+DETAILS['title'])
      await expect(page.get_by_role('button',name='Continue to Paystack · ₦700.00',exact=True)).to_be_disabled()
      await page.get_by_role('button',name='Duration',exact=True).click()
