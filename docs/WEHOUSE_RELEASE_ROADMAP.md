@@ -64,6 +64,12 @@ Test. The saved country selects the region dataset; an unknown foreign country
 never inherits Nigeria's State/LGA or institution list. Existing foreign values
 remain editable. Additional authoritative country directories/identifiers remain
 FX-01, not an implemented global-location claim.
+Older accounts with no saved country now show “Not set” and can explicitly
+choose from the enabled country catalog. There is no automatic Production
+country backfill. First confirmation preserves a matching existing State/LGA;
+an actual country change clears dependent region/locality, school and address.
+Country-list failure has retry and does not prevent unrelated personal edits.
+The list loads on opening the edit form, not on each typed search character.
 Service coverage now stores its configured country code independently of the
 private home. Search, staff review scopes, Admin Worker counts, credentials and
 capacity use that coverage; changing home does not invalidate approved work
@@ -72,11 +78,14 @@ projections omit the private home address/coordinates. Test rollback cases cover
 these boundaries, document correction/expiry, out-of-area reviewers and capacity
 after a private move. The new Test migrations are `20261030124330`,
 `20261030130909`, `20261030131105` and `20261030132753`; no Production apply.
-The full source suite passes 863 tests; the production build and focused lint
+At `02e6fefc`, the full source suite passes 863 tests; the production build and focused lint
 pass. Provider Account Back-to-Personal browser checks pass in light/dark modes;
 the shared discovery/profile scenarios also cover failed loads, refresh, failed
 and malformed save receipts, dependent locality clearing and server-required
-re-review. Fresh/upgrade CI and preview results must match the pushed commit.
+re-review. All seven CI workflows passed on that commit. The country-choice
+follow-up also passes seven focused client cases, the actual Test profile
+contract and eight responsive/theme browser variants; its new CI/preview must
+match its own pushed commit.
 
 WR-15/16: Homes and Hotels each use one ordered collection: a six-card browsing
 row followed by the remaining results in a responsive grid. The Homes row mixes

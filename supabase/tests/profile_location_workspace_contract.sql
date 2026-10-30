@@ -46,6 +46,10 @@ select pg_temp.expect((select worker_occupation='Repair professional' from publi
 select public.update_my_profile('{"state":"Ashanti","city":"Kumasi","full_name":"Updated private identity"}');
 select pg_temp.expect(public.get_my_worker_service_coverage()->>'state'='Nasarawa' and public.get_my_worker_service_coverage()->>'city'='Lafia','editing personal location does not change where the provider works');
 select pg_temp.expect((select country='Ghana' and state='Ashanti' and local_government='Kumasi' from public.profiles where user_id='profile-contract'),'existing account personal location remains editable');
+select public.update_my_profile('{"country":null,"state":"Nasarawa","city":"Lafia"}');
+select public.update_my_profile('{"country":"Nigeria"}');
+select pg_temp.expect((select country='Nigeria' and state='Nasarawa' and local_government='Lafia' from public.profiles where user_id='profile-contract'),'an older account can explicitly confirm its country while preserving the agreed region');
+select pg_temp.expect(public.get_my_worker_service_coverage()->>'country_code'='NG' and public.get_my_worker_service_coverage()->>'city'='Lafia','personal country confirmation never moves professional coverage');
 reset role;
 select pg_temp.expect((select count(*)=1 from public.profiles where auth_id='c5300000-0000-4000-8000-000000000001'),'one person remains one identity');
 select pg_temp.expect(not has_table_privilege('authenticated','private.worker_operating_profiles','select')

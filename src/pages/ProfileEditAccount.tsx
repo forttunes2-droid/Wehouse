@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { checkUsernameAvailable, removeAvatar, updateProfile, validateUsername } from '@/lib/supabase';
+import { checkUsernameAvailable, getProfileCountryOptions, removeAvatar, updateProfile, validateUsername } from '@/lib/supabase';
+import type {ProfileCountryOption} from '@/lib/supabase/profile';
 import { getRegisteredInstitutions, type RegisteredInstitution } from '@/lib/supabase/institutions';
 import SearchableSelect from '@/components/SearchableSelect';
 import AccountShell from '@/components/AccountShell';
@@ -30,6 +31,9 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   const [gender, setGender] = useState(profile.gender || '');
   const [isStudent, setIsStudent] = useState(Boolean(profile.is_student));
   const [school, setSchool] = useState(profile.school || '');
+  const [country,setCountry]=useState(profile.country||'');
+  const [countries,setCountries]=useState<ProfileCountryOption[]>([]);
+  const [countriesLoading,setCountriesLoading]=useState(false),[countriesError,setCountriesError]=useState(''),[countryLoadAttempt,setCountryLoadAttempt]=useState(0);
   const [state, setState] = useState(profile.state || '');
   const [lga, setLga] = useState(profile.local_government || profile.city || '');
   const [locationNotice, setLocationNotice] = useState('');
@@ -39,7 +43,10 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
   const [institutionsError, setInstitutionsError] = useState<string | null>(null);
   const isUser = profile.role === 'user';
   const regional = getRegionalDefaults();
-  const countryCode = locationCountryCode(profile.country,regional);
+  const savedCountry=countries.find(item=>item.country_code===country.toUpperCase()||item.name.toLowerCase()===country.toLowerCase());
+  const countryCode = country.trim() ? savedCountry?.country_code||locationCountryCode(country,regional) : null;
+  const countryOptions=countries.map(item=>({value:item.country_code,label:item.name}));
+  if(country&&!countryOptions.some(item=>item.value===(countryCode||country)))countryOptions.unshift({value:countryCode||country,label:country});
   const regionRows = regionDataset(countryCode);
   const states = useMemo(() => (regionRows || []).map((item) => ({ value: item.state, label: item.state })), [regionRows]);
   const lgas = useMemo(() => (regionRows?.find((item) => item.state === state)?.cities || []).map((name) => ({ value: name, label: name })), [regionRows, state]);
@@ -69,13 +76,22 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     const original: Record<string, unknown> = {
       full_name: (profile.full_name || '').trim(), username: (profile.username || '').trim().toLowerCase(), phone: (profile.phone || '').trim(),
     };
-    Object.assign(current,{state,lga,preciseLocation});Object.assign(original,{state:profile.state||'',lga:profile.local_government||profile.city||'',preciseLocation:profile.precise_address||profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:profile.precise_latitude==null?null:Number(profile.precise_latitude),longitude:profile.precise_longitude==null?null:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null});
+    Object.assign(current,{country,state,lga,preciseLocation});Object.assign(original,{country:profile.country||'',state:profile.state||'',lga:profile.local_government||profile.city||'',preciseLocation:profile.precise_address||profile.precise_latitude!=null&&profile.precise_longitude!=null?{latitude:profile.precise_latitude==null?null:Number(profile.precise_latitude),longitude:profile.precise_longitude==null?null:Number(profile.precise_longitude),accuracy:profile.precise_location_accuracy_m==null?null:Number(profile.precise_location_accuracy_m),address:profile.precise_address||''}:null});
     if (isUser) {
       Object.assign(current, { bio: bio.trim(), gender, is_student: isStudent, school: isStudent ? school.trim() : '', state, lga });
       Object.assign(original, { bio: (profile.bio || '').trim(), gender: profile.gender || '', is_student: Boolean(profile.is_student), school: profile.is_student ? (profile.school || '').trim() : '', state: profile.state || '', lga: profile.local_government || profile.city || '' });
     }
     return JSON.stringify(current) !== JSON.stringify(original);
-  }, [fullName, username, phone, bio, gender, isStudent, school, state, lga, preciseLocation, isUser, profile]);
+  }, [fullName, username, phone, bio, gender, isStudent, school,country, state, lga, preciseLocation, isUser, profile]);
+
+  useEffect(()=>{
+    if(!editing)return;
+    let active=true;setCountriesLoading(true);setCountriesError('');
+    void getProfileCountryOptions().then(result=>{if(active){setCountries(result.countries);setCountriesError(result.error?.message||'');}})
+      .catch(cause=>{if(active)setCountriesError((cause as {message?:string})?.message||'Countries could not be loaded. Try again.');})
+      .finally(()=>{if(active)setCountriesLoading(false);});
+    return()=>{active=false;};
+  },[editing,countryLoadAttempt]);
 
   useEffect(() => {
     const value = username.trim().toLowerCase();
@@ -126,6 +142,7 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     if (usernameState === 'taken' || usernameState === 'invalid') return toast.error('Fix the username before saving');
     setSaving(true);
     const updates: any = { full_name: fullName.trim() || null, username: username.trim().toLowerCase(), phone: phone.trim() || null };
+    if(country!==(profile.country||''))updates.country=country||null;
     updates.state=state;updates.local_government=lga;updates.city=lga;updates.precise_latitude=preciseLocation?.latitude??null;updates.precise_longitude=preciseLocation?.longitude??null;updates.precise_address=preciseLocation?.address.trim()||null;updates.precise_location_accuracy_m=preciseLocation?.accuracy??null;
     if (isUser) {
       updates.bio = bio.trim() || null;
@@ -163,6 +180,15 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
     if (state !== detectedState.state || (detectedLga && lga !== detectedLga)) {
       setLocationNotice(`The phone suggested ${[detectedLga, detectedState.state].filter(Boolean).join(', ')}. It can be approximate, so your selected region and local area were not changed.`);
     } else setLocationNotice('Location found. Check the street address before saving.');
+  }
+
+  function changeCountry(next:string){
+    if(next===(countryCode||country))return;
+    const confirming=!country.trim();
+    const preserved=confirming&&regionDataset(next)?.some(item=>item.state===state&&(!lga||item.cities.includes(lga)));
+    setCountry(countries.find(item=>item.country_code===next)?.name||next);
+    if(!preserved){setState('');setLga('');setSchool('');setPreciseLocation(null);}
+    setLocationNotice(preserved?'Country confirmed. Check your existing region and local area before saving.':'Choose the region and local area for this country.');
   }
 
   if (!editing) return (
@@ -212,16 +238,18 @@ export default function ProfileEdit({ profile, onUpdate, onBack }: Props) {
           </>}
           <section className="rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5">
             <h2 className="text-sm font-semibold">Location</h2>
-            <p className="mt-3 text-sm text-[var(--wh-text)]">Country · {profile.country || regional.countryName}</p>
+            <p className="mt-3 text-sm text-[var(--wh-text)]">Country · {savedCountry?.name||country||'Not set'}</p>
+            <div className="mt-3"><SearchableSelect label="Country" value={countryCode||country} onChange={changeCountry} options={countryOptions} placeholder={countriesLoading?'Loading countries…':'Choose country'} searchPlaceholder="Search countries" disabled={countriesLoading||Boolean(countriesError)} emptyText="No available country matches"/></div>
+            {countriesError&&<div role="alert" className="mt-2 text-sm text-[var(--wh-text-secondary)]"><p>{countriesError}</p><button type="button" onClick={()=>setCountryLoadAttempt(value=>value+1)} className="min-h-11 font-semibold text-[var(--wh-accent-text)]">Retry countries</button></div>}
             <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Choose your state or region and city or area, then add your street address.</p>
-            {regionRows ? <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {!country ? <p className="mt-3 text-sm text-[var(--wh-text-secondary)]">Choose your country to edit this location. Your existing region and local area are kept until you confirm.</p> : regionRows ? <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <SearchableSelect label="State / region" value={state} onChange={(next) => { setState(next); setLga(''); setSchool(''); setPreciseLocation(null); setLocationNotice(preciseLocation?'Street address cleared because the region changed. Type the correct address for the new region.':''); }} options={states} placeholder="Choose state or region" searchPlaceholder="Search state or region" />
               <SearchableSelect label="City / area" value={lga} onChange={(next)=>{setLga(next);setPreciseLocation(null);setLocationNotice(preciseLocation?'Street address cleared because the area changed. Type the correct address for the new area.':'')}} options={lgas} placeholder={state ? 'Choose city or area' : 'Choose state or region first'} searchPlaceholder="Search city or area" disabled={!state} />
             </div> : <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Field label="State / region" value={state} onChange={next=>{setState(next);setLga('');setPreciseLocation(null);setLocationNotice('');}} />
               <Field label="City / area" value={lga} onChange={next=>{setLga(next);setPreciseLocation(null);setLocationNotice('');}} />
             </div>}
-            <div className="mt-4"><PreciseLocationPicker value={preciseLocation} onChange={resolveLocation}/>{locationNotice&&<p className="mt-2 rounded-xl bg-violet-500/[.07] px-3 py-2 text-[9px] leading-5 text-violet-200" role="status">{locationNotice}</p>}</div>
+            {country&&<div className="mt-4"><PreciseLocationPicker value={preciseLocation} onChange={resolveLocation}/>{locationNotice&&<p className="mt-2 rounded-xl bg-violet-500/[.07] px-3 py-2 text-xs leading-5 text-[var(--wh-accent-text)]" role="status">{locationNotice}</p>}</div>}
           </section>
 
         {hasChanges && <button type="submit" disabled={saving || usernameState === 'checking'} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold text-white transition disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button>}

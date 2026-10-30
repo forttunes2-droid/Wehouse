@@ -6,7 +6,7 @@ import ts from 'typescript';
 const source=ts.transpileModule(fs.readFileSync('src/lib/supabase/profile.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 function adapter(receipt){
  const calls=[],exports={};
- const supabase={rpc:async(name,params)=>{calls.push({name,params});return receipt;}};
+ const supabase={rpc:async(name,params)=>{calls.push({name,params});return receipt;},from:table=>({select:columns=>({eq:(field,value)=>({order:order=>({limit:async limit=>{calls.push({table,columns,field,value,order,limit});return receipt;}})})})})};
  vm.runInNewContext(source,{exports,require:name=>{
   if(name==='./client')return{supabase};
   if(name==='./utils')return{compressImageFile:()=>{throw Error('Unexpected media operation');}};
@@ -42,4 +42,13 @@ test('professional location receipts reject malformed country or region data',as
  }
  const {api}=adapter({data:{country_code:'NG',country:'Nigeria',state:'Nasarawa',city:'Lafia',area:''},error:null});
  assert.equal((await api.getMyWorkerServiceCoverage()).coverage.state,'Nasarawa');
+});
+
+test('profile country choices read only the bounded enabled public catalog and reject ambiguous receipts',async()=>{
+ const {api,calls}=adapter({data:[{country_code:'NG',name:'Nigeria'},{country_code:'GH',name:'Ghana'}],error:null});
+ assert.equal((await api.getProfileCountryOptions()).countries[1].country_code,'GH');
+ assert.deepEqual(plain(calls),[{table:'platform_countries',columns:'country_code,name',field:'enabled',value:true,order:'name',limit:250}]);
+ for(const data of [null,[{country_code:'NGN',name:'Nigeria'}],[{country_code:'NG',name:'Nigeria'},{country_code:'NG',name:'Different name'}]]){
+  const {api}=adapter({data,error:null});assert.equal((await api.getProfileCountryOptions()).countries.length,0);
+ }
 });

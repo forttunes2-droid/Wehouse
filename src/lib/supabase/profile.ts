@@ -40,6 +40,14 @@ export async function updateProfile(userId:string,updates:SafeProfileUpdates){
  return{profile:data as Profile|null,error};
 }
 export type WorkerServiceCoverage={country_code:string|null;country:string|null;state:string;city:string;area:string};
+export type ProfileCountryOption={country_code:string;name:string};
+export async function getProfileCountryOptions(){
+ const {data,error}=await withTimeout(supabase.from('platform_countries').select('country_code,name').eq('enabled',true).order('name').limit(250),15000,'Countries took too long to load. Try again.');
+ if(error)return{countries:[] as ProfileCountryOption[],error};
+ if(!Array.isArray(data)||data.some(row=>!row||typeof row.country_code!=='string'||!/^[A-Z]{2}$/.test(row.country_code)||typeof row.name!=='string'||!row.name.trim())||new Set(data.map(row=>row.country_code)).size!==data.length)
+  return{countries:[] as ProfileCountryOption[],error:{message:'The country list could not be confirmed. Try again.'}};
+ return{countries:data as ProfileCountryOption[],error:null};
+}
 export async function getMyWorkerServiceCoverage(){
  const {data,error}=await withTimeout(supabase.rpc('get_my_worker_service_coverage'),15000,'Your service location took too long to load. Refresh before editing.');
  if(error||data==null)return{coverage:null as WorkerServiceCoverage|null,error};

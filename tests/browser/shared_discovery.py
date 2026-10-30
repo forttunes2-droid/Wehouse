@@ -27,12 +27,13 @@ SCRIPT="""s=>{
   if(name==='getHotelById')return{hotel:s.hotel,error:null};
   if(name==='getListing')return{listing:s.home,error:null};
   if(name==='getProfile')return{profile:{...s.profile,user_id:args[0],profile_complete:true,worker_occupation:'Carpenter',worker_skills:['Carpentry'],worker_price:1000,worker_bio:'Existing work biography',worker_experience:'4 years',worker_verified:true},error:null};
+  if(name==='getProfileCountryOptions')return{countries:s.failCountryList?[]:[{country_code:'NG',name:'Nigeria'},{country_code:'GH',name:'Ghana'}],error:s.failCountryList?{message:'Synthetic country list unavailable'}:null};
   if(name==='getMyWorkerServiceCoverage')return{coverage:s.failWorkLoad?null:{country_code:'NG',country:'Nigeria',state:'Nasarawa',city:'Lafia',area:'Work service area'},error:s.failWorkLoad?{message:'Synthetic saved work location unavailable'}:null};
   if(name==='getServiceCategories')return{categories:[{id:'category-1',name:'Repairs'}],error:null};
   if(name==='getServiceSubcategories')return{subcategories:[{name:'Carpentry'}],error:null};
   if(name==='table:worker_services')return{data:[{service_name:'Carpentry',price:1000}],error:null};
   if(name==='saveMyWorkerProfile'){s.workSave=args;return{profile:s.badWorkReceipt?null:{...s.profile,user_id:'qa-viewer',worker_verified:!s.workNeedsReview},error:s.failWorkSave?{message:'Synthetic work save failed'}:null};}
-  if(name==='updateProfile'){s.profileUpdates=args[1];return{profile:{user_id:args[0],...s.profile,...args[1]},error:null};}
+  if(name==='updateProfile'){s.profileUpdates=args[1];s.profile={user_id:args[0],...s.profile,...args[1]};return{profile:s.profile,error:null};}
   if(name==='getHotelReviews')return{reviews:[],eligible:false,error:null};
   if(name==='updatePrivacySettings'){s.privacy={...(s.privacy||{}),...args[1]};return{profile:{user_id:args[0],...s.privacy},error:null};}
   if(name==='rpc:get_my_private_call_preferences')return{data:{allow_audio_calls:true,allow_video_calls:true},error:null};
@@ -223,6 +224,29 @@ async def main():
     await page.get_by_role('button',name='State / region Nasarawa',exact=True).click()
     await expect(page.get_by_role('option',name='Nasarawa',exact=False)).to_have_attribute('aria-selected','true')
     await page.keyboard.press('Escape')
+    await page.evaluate("window.__browse.profile={username:'viewer',full_name:'Synthetic member',country:null,state:'Nasarawa',city:'Lafia',local_government:'Lafia',gender:null,is_student:false};window.__browse.failCountryList=true;window.__switchBrowseMode('profile-edit')")
+    await page.get_by_role('button',name='Edit profile',exact=True).click()
+    await expect(page.get_by_text('Country · Not set',exact=True)).to_be_visible()
+    await expect(page.get_by_text('Synthetic country list unavailable',exact=True)).to_be_visible()
+    await expect(page.get_by_role('button',name='Country Choose country',exact=True)).to_be_disabled()
+    await expect(page.get_by_text('Choose your country to edit this location.',exact=False)).to_be_visible()
+    await page.evaluate('window.__browse.failCountryList=false')
+    await page.get_by_role('button',name='Retry countries',exact=True).click()
+    await page.get_by_role('button',name='Country Choose country',exact=True).click()
+    await page.get_by_role('option',name='Nigeria',exact=True).click()
+    await expect(page.get_by_role('button',name='State / region Nasarawa',exact=True)).to_be_visible()
+    await page.get_by_role('button',name='Save changes',exact=True).click()
+    await expect(page.get_by_role('button',name='Edit profile',exact=True)).to_be_visible()
+    assert await page.evaluate('window.__browse.profileUpdates.country')=='Nigeria'
+    assert await page.evaluate('window.__browse.profileUpdates.city')=='Lafia'
+    await page.evaluate("window.__switchBrowseMode('homes')")
+    await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
+    await page.evaluate("window.__switchBrowseMode('profile-edit')")
+    await page.get_by_role('button',name='Edit profile',exact=True).click()
+    await page.get_by_role('button',name='Country Nigeria',exact=True).click()
+    await page.get_by_role('option',name='Ghana',exact=True).click()
+    await expect(page.get_by_role('textbox',name='State / region',exact=True)).to_have_value('')
+    await expect(page.get_by_role('textbox',name='City / area',exact=True)).to_have_value('')
     await page.evaluate("window.__switchBrowseMode('profile-location')")
     await expect(page.get_by_role('textbox',name='State / region *',exact=True)).to_have_value('Greater Accra')
     await page.get_by_role('textbox',name='State / region *',exact=True).fill('Ashanti')

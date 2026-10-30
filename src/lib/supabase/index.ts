@@ -41,6 +41,7 @@ export {
   removeAvatar,
   updateProfile,
   getMyWorkerServiceCoverage,
+  getProfileCountryOptions,
   saveMyWorkerProfile,
   updatePrivacySettings,
 } from "./profile";
