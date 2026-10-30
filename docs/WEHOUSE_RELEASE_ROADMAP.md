@@ -55,6 +55,13 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 ## Latest scoped evidence — 30 October
 
+WR-14/15: creating a new activity no longer copies the private home region,
+district or city into its venue. The host explicitly enters the activity location;
+saved applications retain their own details. The existing Activity name field is
+host-written, with a controlled category and independent review before publication.
+All 32 isolated application/review/photo/evidence journeys pass, including explicit
+new-location checks at 320/768/1440px in both themes; focused lint passes.
+
 WR-05/15/16: Sponsored is the one paid-placement feature. Its option/loading/
 retry copy and Partner tools now use the same name; discounts remain separate.
 Creator's description includes the already-supported activity campaigns.

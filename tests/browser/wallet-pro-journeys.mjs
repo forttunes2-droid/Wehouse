@@ -476,6 +476,7 @@ try {
       const page=await browser.newPage({viewport:{width,height:1000}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
       await page.goto(base+'/?mode=experience-applications-create');await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
       await page.getByRole('button',{name:'Create an Experience',exact:true}).click();
+      for(const label of ['State or region','Local government or district','City or town'])assert.equal(await page.getByLabel(label,{exact:true}).inputValue(),'','New activity location is entered explicitly, not copied from a private home');
       await page.getByLabel('Category',{exact:true}).selectOption('culture_tours');
       await page.getByLabel('Activity name',{exact:true}).fill('Campus orientation walk');
       await page.getByLabel('What participants will do',{exact:true}).fill('Explore local landmarks with a guided route, useful orientation information and time to ask questions.');
