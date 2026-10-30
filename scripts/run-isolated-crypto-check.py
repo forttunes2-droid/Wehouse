@@ -32,9 +32,12 @@ def main():
         declared=match.group(1);source=Path(declared).resolve()
         if not declared.startswith(('/lib/','/lib64/','/usr/lib/','/usr/lib64/')) or not source.is_file() or source.stat().st_size>50000000:
             raise RuntimeError('Unexpected system dependency in the installed Node toolchain')
-        if source.name in names:continue
-        names.add(source.name)
-        libraries+=['--mount',f'type=bind,src={source},dst=/toolchain/lib/{source.name},readonly']
+        name=Path(declared).name
+        if name in names:continue
+        names.add(name)
+        # Preserve the requested SONAME (e.g. libstdc++.so.6), even when its
+        # trusted host symlink resolves to a versioned libstdc++.so.6.0.xx file.
+        libraries+=['--mount',f'type=bind,src={source},dst=/toolchain/lib/{name},readonly']
         if 'ld-linux' in Path(declared).name:
             loader=declared
             libraries+=['--mount',f'type=bind,src={source},dst={declared},readonly']

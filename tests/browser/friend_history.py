@@ -13,7 +13,7 @@ async def main():
   try:
    for theme,width in [('light',390),('dark',1280)]:
     context=await browser.new_context(viewport={'width':width,'height':900},service_workers='block')
-    await context.add_init_script("sessionStorage.setItem('wehouse:e2ee:private-key:history-me','{}')")
+    await context.add_init_script("sessionStorage.setItem('wehouse:e2ee:private-key:history-me','{}'); sessionStorage.setItem('wehouse:e2ee:private-key:history-me:version','1')")
     page=await context.new_page();errors=[];requests=[];fail={'page':False}
     page.on('pageerror',lambda error:errors.append(str(error)))
     async def route(handler):
@@ -26,7 +26,7 @@ async def main():
      if name=='current_profile_user_id':data='history-me'
      elif name=='touch_my_presence':data='2026-10-29T12:00:00Z'
      elif name=='get_chat_peer_presence':data={'visible':False,'online':False,'last_seen':None}
-     elif name=='user_encryption_identities':data={'user_id':'history-me'}
+     elif name=='user_encryption_identities':data={'user_id':'history-me','key_version':1}
      elif name=='conversation_key_envelopes':data={'recipient_user_id':'history-me'}
      elif name=='get_message_pins':data=[{'message_id':mid(1)}]
      elif name=='get_friend_encrypted_messages_page':
