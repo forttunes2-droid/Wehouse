@@ -392,7 +392,7 @@ export default function Login({
       window.history.replaceState({}, "", window.location.pathname);
       setMode("forgot");
       setInfo(
-        "Password recovery uses a Google or Apple identity linked to your WeHouse account. No reset link or code is sent.",
+        "This recovery link is no longer used. Request a code at your verified account email. You can also use Google or Apple if it is already linked to your account.",
       );
     })();
     return () => {
@@ -764,7 +764,6 @@ export default function Login({
         setRestorePropertyOnBack(false);
         setMode("browse"); setPassword(""); setConfirmPassword(""); clearMessages();
       }}
-      onOpenLegal={onOpenLegal}
       notice={displayError || (kickedOut ? "This device was signed out. Sign in again to continue." : "")}
     >
     <AuthSurface>

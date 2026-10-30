@@ -24,7 +24,13 @@ SCRIPT="""s=>{
   if(name==='updatePrivacySettings'){s.privacy={...(s.privacy||{}),...args[1]};return{profile:{user_id:args[0],...s.privacy},error:null};}
   if(name==='rpc:get_my_private_call_preferences')return{data:{allow_audio_calls:true,allow_video_calls:true},error:null};
   if(name==='getReservationForListing')return{reservation:null,error:null};
-  if(name==='rpc:search_discoverable_homes')return{data:{items:[s.home],has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
+  if(name==='rpc:search_discoverable_homes'){
+   const q=args[0]||{},count=s.homeCount||1;
+   let homes=[s.home,...Array.from({length:count-1},(_,index)=>{const n=index+2;return{...s.home,id:'public-home-'+n,title:'Courtyard apartment '+n,sub_type:n%2===0?'short_let':'long_stay',price:n%2===0?50000:s.home.price};})];
+   if(q.p_cursor_id)homes=[homes.at(-1),...Array.from({length:2},(_,i)=>({...s.home,id:'public-home-'+(count+i+1),title:'Courtyard apartment '+(count+i+1)}))];
+   if(q.p_stay_type)homes=homes.filter(home=>home.sub_type===q.p_stay_type);
+   return{data:{items:homes,has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
+  }
   if(name==='rpc:get_sponsored_discovery')return{data:[],error:null};
   if(name==='rpc:get_public_discovery_settings')return{data:[],error:null};
   if(name==='rpc:get_my_page_distances')return{data:[{subject_type:'hotel',subject_id:'7',distance_km:2}],error:null};
@@ -43,7 +49,7 @@ async def main():
    context=await browser.new_context(viewport={'width':width,'height':844},service_workers='block');page=await context.new_page();page.set_default_timeout(4000);errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'width':width,'theme':theme,'passed':False}
    async def route(request):
     if request.request.url=='https://wehouse-preview.vercel.app/':
-     return await request.fulfill(status=200,content_type='text/html',body=f'<html data-wh-theme="{theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:var(--wh-bg)"><div id="root"></div></body></html>')
+     return await request.fulfill(status=200,content_type='text/html',body=f'<html class="{"dark" if theme=="dark" else ""}" data-wh-theme="{theme}"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:var(--wh-bg)"><div id="root"></div></body></html>')
     if request.request.url.startswith('https://wehouse-preview.vercel.app/api/public-catalog?'):
      assert request.request.method=='GET'
      assert not request.request.headers.get('authorization') and not request.request.headers.get('cookie')
@@ -52,8 +58,14 @@ async def main():
      params={key:values[0] for key,values in parse_qs(urlparse(request.request.url).query).items()}
      await page.evaluate('(params)=>window.__browse.gatewayRequests.push(params)',params)
      count=await page.evaluate('window.__browse.homeCount||1') if kind=='homes' else 1
-     homes=[HOME]+[{**HOME,'id':f'public-home-{n}','title':f'Courtyard apartment {n}'} for n in range(2,count+1)]
-     return await request.fulfill(status=200,content_type='application/json',body=json.dumps({'items':homes if kind=='homes' else [HOTEL],'has_more':False}))
+     homes=[HOME]+[{**HOME,'id':f'public-home-{n}','title':f'Courtyard apartment {n}','sub_type':'short_let' if n%2==0 else 'long_stay','price':50000 if n%2==0 else HOME['price']} for n in range(2,count+1)]
+     paged=kind=='homes' and count>6 and not params.get('p_stay_type') and not params.get('p_query') and not params.get('p_min_price') and not params.get('p_max_price')
+     if params.get('p_cursor_id'):
+      homes=[homes[-1]]+[{**HOME,'id':f'public-home-{n}','title':f'Courtyard apartment {n}'} for n in range(count+1,count+3)]
+     elif params.get('p_stay_type'):
+      homes=[home for home in homes if home['sub_type']==params['p_stay_type']]
+     more=paged and not params.get('p_cursor_id')
+     return await request.fulfill(status=200,content_type='application/json',body=json.dumps({'items':homes if kind=='homes' else [HOTEL],'has_more':more,'next_cursor_created_at':'2026-10-30T00:00:00Z' if more else None,'next_cursor_id':homes[-1]['id'] if more else None}))
     if request.request.url.startswith('https://wehouse-preview.vercel.app/brand/v4/'):
      name=urlparse(request.request.url).path.rsplit('/',1)[-1]
      return await request.fulfill(status=200,content_type='image/svg+xml',body=Path('public/brand/v4',name).read_bytes())
@@ -79,38 +91,68 @@ async def main():
     await page.get_by_role('button',name='Close filters',exact=True).click()
     await page.get_by_role('button',name='Services',exact=True).click()
     await expect(page.get_by_role('heading',name='Sign in to find a professional',exact=True)).to_be_visible()
+    await expect(page.get_by_role('navigation',name='Discover categories')).to_be_visible()
+    await expect(page.get_by_role('button',name='Privacy Policy',exact=True)).to_have_count(0)
+    await expect(page.get_by_role('button',name='Terms of Service',exact=True)).to_have_count(0)
+    assert await page.locator('[data-guest-access="services"]').evaluate('(node)=>getComputedStyle(node.firstElementChild).borderTopWidth==="0px"&&getComputedStyle(node.firstElementChild).boxShadow==="none"')
+    await page.screenshot(path=str(OUT/f'guest-services-{width}-{theme}.png'),full_page=True)
     await expect(page.get_by_role('listitem')).to_have_count(0)
     await page.get_by_role('button',name='Sign in to continue',exact=True).click()
     assert await page.evaluate("sessionStorage.getItem('wh_guest_return_tab_v1')")=='services'
-    await page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Explore',exact=True).click()
+    await page.get_by_role('button',name='Homes',exact=True).click()
     await page.get_by_role('button',name='Roommates',exact=True).click()
     await expect(page.get_by_role('heading',name='Sign in to find a roommate',exact=True)).to_be_visible()
+    await expect(page.get_by_role('navigation',name='Discover categories')).to_be_visible()
+    await page.screenshot(path=str(OUT/f'guest-roommates-{width}-{theme}.png'),full_page=True)
     await expect(page.get_by_role('listitem')).to_have_count(0)
     await page.get_by_role('button',name='Sign in to continue',exact=True).click()
     assert await page.evaluate("sessionStorage.getItem('wh_guest_return_tab_v1')")=='roommate'
+    for section,title in [('Bookings','Sign in to view your bookings'),('Inbox','Sign in to open your inbox')]:
+     await page.get_by_role('navigation',name='Main navigation').get_by_role('button',name=section,exact=True).click()
+     await expect(page.get_by_role('heading',name=title,exact=True)).to_be_visible()
+     await expect(page.get_by_role('button',name='Privacy Policy',exact=True)).to_have_count(0)
+     assert await page.locator('[data-guest-access]').evaluate('(node)=>getComputedStyle(node.firstElementChild).borderTopWidth==="0px"&&getComputedStyle(node.firstElementChild).boxShadow==="none"')
     await page.get_by_role('navigation',name='Main navigation').get_by_role('button',name='Explore',exact=True).click()
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) for c in await page.evaluate('window.__browse.calls'))
     await page.wait_for_function('Array.from(document.querySelectorAll("[data-media-thumbnail] img")).some(img=>img.complete&&img.naturalWidth>0)')
     await page.screenshot(path=str(OUT/f'shared-explore-guest-{width}-{theme}.png'),full_page=True,timeout=15000)
-    await page.evaluate('window.__browse.homeCount=4;window.__switchBrowseMode("homes")')
-    await expect(page.locator('[data-home-card]')).to_have_count(4)
+    await page.evaluate('window.__browse.homeCount=8;window.__switchBrowseMode("homes")')
+    await expect(page.locator('[data-home-card]')).to_have_count(8)
     assert await page.locator('[data-home-card]').first.get_by_role('button',name='View Courtyard apartment',exact=True).is_visible()
     await expect(page.get_by_role('button',name='Sign in',exact=True)).to_have_count(0)
     await expect(page.get_by_role('heading',name='Find what you need',exact=True)).to_be_visible()
     await expect(page.get_by_placeholder('City, area or home')).to_be_visible()
     await expect(page.locator('[data-home-card]').first).to_contain_text('₦18,000,000')
-    shelf=page.get_by_role('group',name='Long Lets listings',exact=True)
+    shelf=page.get_by_role('group',name='Homes to explore listings',exact=True)
     await expect(shelf).to_be_visible()
-    next_homes=page.get_by_role('button',name='Next Long Lets',exact=True)
-    if width<1024:
-     await expect(next_homes).to_be_enabled();await next_homes.click()
-     await page.wait_for_function('document.querySelector(\'[aria-label="Long Lets listings"]\').scrollLeft>0')
-     await shelf.focus();await page.keyboard.press('ArrowLeft')
+    await expect(shelf.locator('[data-home-card]')).to_have_count(6)
+    await expect(shelf.get_by_text('Short Let',exact=True)).to_have_count(3)
+    await expect(shelf.get_by_text('Long Let',exact=True)).to_have_count(3)
+    grid=page.get_by_role('region',name='More homes',exact=True)
+    await expect(grid.locator('[data-home-card]')).to_have_count(2)
+    requests=await page.evaluate('window.__browse.gatewayRequests.length')
+    next_homes=page.get_by_role('button',name='Next Homes to explore',exact=True)
+    await expect(next_homes).to_be_enabled();await next_homes.click()
+    await page.wait_for_function('document.querySelector(\'[aria-label="Homes to explore listings"]\').scrollLeft>0')
+    await shelf.focus();await page.keyboard.press('ArrowLeft')
+    assert await page.evaluate('window.__browse.gatewayRequests.length')==requests,'Rail browsing fetched the catalog again'
+    await page.get_by_role('button',name='Show more homes',exact=True).click()
+    await expect(page.locator('[data-home-card]')).to_have_count(10)
+    await expect(shelf.locator('[data-home-card]')).to_have_count(6)
+    await expect(grid.locator('[data-home-card]')).to_have_count(4)
+    titles=await page.locator('[data-home-card] h3').all_text_contents()
+    assert len(titles)==len(set(titles)),titles
+    await grid.locator('[data-home-card]').first.get_by_role('button',name='Save home',exact=True).click()
+    assert await page.evaluate('window.__browse.savedId')=='public-home-7'
+    await grid.get_by_role('button',name='View Courtyard apartment 7',exact=True).click()
+    assert await page.evaluate('window.__browse.destination')=={'page':'detail','id':'public-home-7'}
     assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth')
-    await page.get_by_role('button',name='See all Long Lets',exact=True).click()
+    await page.evaluate('window.scrollTo(0,0)')
+    await page.screenshot(path=str(OUT/f'homes-rail-grid-{width}-{theme}.png'),full_page=True)
+    await page.get_by_role('group',name='Stay type',exact=True).get_by_role('button',name='Long Lets',exact=True).click()
     await expect(shelf).to_have_count(0);await expect(page.locator('[data-home-card]')).to_have_count(4)
     await page.wait_for_function('window.__browse.gatewayRequests.some(q=>q.kind==="homes"&&q.p_stay_type==="long_stay")')
-    await page.get_by_role('button',name='Clear',exact=True).click();await expect(page.get_by_role('group',name='Long Lets listings',exact=True)).to_be_visible()
+    await page.get_by_role('button',name='Clear',exact=True).click();await expect(shelf).to_be_visible()
     await page.get_by_role('button',name='Open filters',exact=True).click()
     await page.get_by_role('dialog',name='Home filters',exact=True).get_by_role('button',name='Long Let',exact=True).click()
     assert float(await page.get_by_role('slider',name='Maximum price',exact=True).get_attribute('aria-valuemax'))>=18000000
@@ -125,9 +167,9 @@ async def main():
     await page.wait_for_function("window.__browse.gatewayRequests.at(-1)?.p_min_price==='210000'&&!Object.hasOwn(window.__browse.gatewayRequests.at(-1),'p_max_price')")
     await page.screenshot(path=str(OUT/f'open-price-filter-{width}-{theme}.png'),full_page=True)
     await page.get_by_role('button',name='Reset',exact=True).click();await page.get_by_role('button',name='Close filters',exact=True).click()
-    await expect(page.get_by_role('group',name='Long Lets listings',exact=True)).to_be_visible()
+    await expect(shelf).to_be_visible()
     await settled_search(page,page.get_by_placeholder('City, area or home'),['C','Courtyard','Courtyard apartment'],"window.__browse.calls.filter(c=>c.name==='rpc:search_discoverable_homes').length")
-    await page.get_by_role('button',name='Clear',exact=True).click();await expect(page.get_by_role('group',name='Long Lets listings',exact=True)).to_be_visible()
+    await page.get_by_role('button',name='Clear',exact=True).click();await expect(shelf).to_be_visible()
     await page.screenshot(path=str(OUT/f'homes-rail-{width}-{theme}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("locations")')
     await expect(page.get_by_role('button',name='Local Government Any local area',exact=True)).to_be_disabled()

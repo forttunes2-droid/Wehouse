@@ -7,7 +7,7 @@ import { isTestEnvironment } from '@/lib/supabase/client';
 import PersonalBottomNav, { type PersonalNavPage } from '@/components/PersonalBottomNav';
 import { PublicInvitationPreview } from '@/components/ResourceInvitationAction';
 import { clearInvitationIntent, readInvitationIntent, saveInvitationIntent } from '@/lib/resourceInvitation';
-import BrandIdentity from '@/components/BrandIdentity';
+import DiscoveryShell from '@/components/DiscoveryShell';
 import {guestActivityReturn} from '@/lib/navigationRoute';
 
 const Search = lazy(() => import('@/pages/Search'));
@@ -15,11 +15,11 @@ const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetailCore'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetailExperience'));
 const noSavedHomes = new Set<string>();
-type Props = { active: boolean; busy?: boolean; showSignedOutNav?: boolean; sharedProperty?: SharedProperty | null; sharedActivityId?:string|null; onDismissSharedProperty?: () => void; onSignIn: (property: SharedProperty | null) => void; onBrowse?: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
+type Props = { active: boolean; busy?: boolean; showSignedOutNav?: boolean; sharedProperty?: SharedProperty | null; sharedActivityId?:string|null; onDismissSharedProperty?: () => void; onSignIn: (property: SharedProperty | null) => void; onBrowse?: () => void; notice?: string; children: ReactNode };
 
 /** Only coordinates public navigation. Search, cards and property details are the
  * SAME components as the authenticated routes. No fake Profile or private reads. */
-export default function GuestBrowseEntry({ active, busy = false, showSignedOutNav = false, sharedProperty, sharedActivityId, onDismissSharedProperty, onSignIn, onBrowse, onOpenLegal, notice, children }: Props) {
+export default function GuestBrowseEntry({ active, busy = false, showSignedOutNav = false, sharedProperty, sharedActivityId, onDismissSharedProperty, onSignIn, onBrowse, notice, children }: Props) {
   const [page, setPage] = useState<'search' | 'hotels'>('search');
   const [section, setSection] = useState<'explore' | 'bookings' | 'inbox'>('explore');
   const [publicProduct, setPublicProduct] = useState<'roommate' | 'services' | null>(sharedActivityId?'services':null);
@@ -91,9 +91,13 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
         {target ? target.kind === 'listing'
           ? <ListingDetail key={target.id} listingId={target.id} onOpenListing={id=>setTarget({kind:"listing",id})} profile={null} isSaved={false} onNavigate={back} onToggleSave={() => requireSignIn()} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onOpenBooking={() => requireSignIn()} />
           : <HotelDetail key={target.id} hotelId={Number(target.id)} profile={null} onBack={back} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onBook={() => requireSignIn()} />
-          : publicProduct ? <GuestAccess section={publicProduct} busy={busy} onOpenLegal={onOpenLegal} onSignIn={() => requireSignIn(null,publicProduct||undefined)} />
+          : publicProduct ? (
+            <DiscoveryShell active={publicProduct==='roommate'?'roommates':'services'} onNavigate={navigate}>
+              <GuestAccess section={publicProduct} busy={busy} onSignIn={() => requireSignIn(null,publicProduct)} />
+            </DiscoveryShell>
+          )
           : page === 'hotels' ? <HotelsHome onNavigate={navigate} /> : <Search savedIds={noSavedHomes} onToggleSave={id => requireSignIn({ kind: 'listing', id })} onNavigate={navigate} />}
-      </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} onOpenLegal={onOpenLegal} busy={busy} />}
+      </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} busy={busy} />}
       <PersonalBottomNav
         activePage={sectionPage[section]}
         onNavigate={(page) => {
@@ -125,27 +129,14 @@ export function guestAccessCopy(section: GuestSection) {
       };
 }
 
-function GuestAccess({ section, onSignIn, onOpenLegal, busy }: { section: GuestSection; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
+function GuestAccess({ section, onSignIn, busy }: { section: GuestSection; onSignIn: () => void; busy: boolean }) {
   const content = guestAccessCopy(section);
-  return <main className="mx-auto max-w-lg px-4 pb-28 pt-6 sm:px-6" aria-labelledby={`guest-${section}-title`}>
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <BrandIdentity mark className="h-10 w-10"/>
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">WeHouse</p>
-          <p className="text-sm font-semibold text-[var(--wh-text)]">Explore</p>
-        </div>
-      </div>
-      <section className="rounded-[28px] border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 shadow-[0_18px_50px_rgba(17,24,39,0.12)]">
-        <h1 id={`guest-${section}-title`} className="text-2xl font-semibold tracking-tight text-[var(--wh-text)]">{content.title}</h1>
+  const Heading = section==='roommate'||section==='services' ? 'h2' : 'h1';
+  return <main className="mx-auto w-full max-w-7xl px-4 pb-28 pt-8 sm:px-6 lg:px-8" aria-labelledby={`guest-${section}-title`} data-guest-access={section}>
+      <div className="max-w-md">
+        <Heading id={`guest-${section}-title`} className="text-2xl font-semibold tracking-tight text-[var(--wh-text)]">{content.title}</Heading>
         <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">{content.body}</p>
-        <button type="button" onClick={onSignIn} disabled={busy} aria-busy={busy} className="mt-5 min-h-12 w-full rounded-2xl bg-violet-500 px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Signing in…' : 'Sign in to continue'}</button>
-        <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-[var(--wh-text-secondary)]">
-          <button type="button" onClick={() => onOpenLegal('privacy_policy')} className="min-h-10 rounded-lg px-2 font-medium text-violet-300 hover:text-violet-200">Privacy Policy</button>
-          <span aria-hidden="true">•</span>
-          <button type="button" onClick={() => onOpenLegal('terms_of_service')} className="min-h-10 rounded-lg px-2 font-medium text-violet-300 hover:text-violet-200">Terms of Service</button>
-        </div>
-      </section>
-    </div>
+        <button type="button" onClick={onSignIn} disabled={busy} aria-busy={busy} className="mt-5 min-h-12 rounded-xl bg-violet-600 px-6 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50">{busy ? 'Signing in…' : 'Sign in to continue'}</button>
+      </div>
   </main>;
 }

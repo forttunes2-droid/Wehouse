@@ -413,6 +413,17 @@ export default function Search({
       ? "No homes match these filters"
       : `No ${modeLabel.toLowerCase()} homes match these filters`;
 
+  // One ordered result collection. A small browsing shelf leads into the grid;
+  // let type remains a filter and never creates competing result sections.
+  const showBrowseRail = !query.trim() && !hasFilters && !location && filtered.length > 6;
+  const browseHomes = showBrowseRail ? filtered.slice(0, 6) : [];
+  const resultHomes = showBrowseRail ? filtered.slice(6) : filtered;
+  const homeCard = ({ listing, distance }: (typeof filtered)[number]) => (
+    <ListingCard key={listing.id} listing={listing} distanceKm={distance}
+      onClick={() => onNavigate('detail', listing.id)} isSaved={savedIds.has(listing.id)}
+      onToggleSave={event => { event.preventDefault(); event.stopPropagation(); onToggleSave(listing.id); }} />
+  );
+
   return (
     <DiscoveryShell active="homes" onNavigate={onNavigate}>
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
@@ -506,24 +517,15 @@ export default function Search({
           />
         ) : (
           <>
-            {!query.trim()&&!hasFilters&&!location?<div className="space-y-8">{(['short_let','long_stay'] as const).map(type=>{const rows=filtered.filter(item=>item.listing.sub_type===type);return rows.length>0&&<DiscoveryRail key={type} title={type==='short_let'?'Short Lets':'Long Lets'} onSeeAll={()=>chooseStay(type)}>{rows.map(({listing,distance})=><ListingCard key={listing.id} listing={listing} distanceKm={distance} onClick={()=>onNavigate('detail',listing.id)} isSaved={savedIds.has(listing.id)} onToggleSave={event=>{event.preventDefault();event.stopPropagation();onToggleSave(listing.id);}}/>)}</DiscoveryRail>;})}</div>:<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filtered.map(({ listing, distance }) => (
-              <ListingCard
-                key={listing.id}
-                listing={listing}
-                distanceKm={distance}
-                onClick={() => onNavigate("detail", listing.id)}
-                isSaved={savedIds.has(listing.id)}
-                onToggleSave={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onToggleSave(listing.id);
-                }}
-              />
-              ))}
-            </div>}
+            {showBrowseRail && <DiscoveryRail title="Homes to explore">{browseHomes.map(homeCard)}</DiscoveryRail>}
+            <section aria-label={showBrowseRail ? 'More homes' : 'Home results'} className="space-y-4">
+              {showBrowseRail && <h2 className="text-lg font-semibold tracking-tight">More homes</h2>}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {resultHomes.map(homeCard)}
+              </div>
+            </section>
             {hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()}
-              className="mx-auto mt-4 block min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-5 text-xs font-semibold text-violet-300 disabled:opacity-50">
+              className="mx-auto mt-4 block min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-5 text-xs font-semibold text-[var(--wh-accent-text)] disabled:opacity-50">
               {loadingMore ? "Loading more…" : "Show more homes"}
             </button>}
           </>

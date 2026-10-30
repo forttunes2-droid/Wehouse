@@ -29,7 +29,10 @@ test('all signed-out property and room projections filter media before shared ga
 test('guest public sign-in screens use the canonical shell copy and one action',()=>{
  const guest=fs.readFileSync('src/components/GuestBrowseEntry.tsx','utf8');
  assert.match(guest,/Sign in to continue/);
- assert.match(guest,/Privacy Policy|Terms of Service/);
+ assert.doesNotMatch(guest,/Privacy Policy|Terms of Service/);
+ const login=fs.readFileSync('src/pages/Login.tsx','utf8');
+ assert.match(login,/onOpenLegal\("terms_of_service"\)/);
+ assert.match(login,/onOpenLegal\("privacy_policy"\)/);
  assert.doesNotMatch(guest,/GuestProductPreview|guestProductCopy|content\.steps\.map/);
  assert.doesNotMatch(guest,/The summary returned no data\.|Your matching preferences stay private\./);
 });
