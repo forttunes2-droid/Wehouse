@@ -55,6 +55,24 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 ## Latest scoped evidence — 30 October
 
+WR-05/15/16: Sponsored is the one paid-placement feature. Its option/loading/
+retry copy and Partner tools now use the same name; discounts remain separate.
+Creator's description includes the already-supported activity campaigns.
+Homes use the same filter predicate for normal and Sponsored cards, reset
+prices when the let type changes, and clear local area when the region changes.
+The Studio/self-contained option excludes private rooms; Penthouse is a saved
+home style. This inspection does not close every filter/hosted-discovery case.
+
+WR-18: the 30 October advisory check found two underlying build-dependency
+advisories. `postcss-selector-parser` was patched from 6.1.4 to compatible 6.1.5
+([vendor-reviewed advisory](https://github.com/advisories/GHSA-rj75-hqrm-r3gf));
+the build and focused discovery/Sponsored checks pass. Four low npm findings
+remain in one `deepmerge` 4.3.1 → Rollup resolver → Workbox → PWA build chain.
+There are no direct imports in app/Edge source; this is not evidence of a runtime
+exploit or a clean security audit. The [remaining advisory](https://github.com/advisories/GHSA-gcqx-w48m-w2h4)
+has no published patched version. Do not use npm's suggested obsolete PWA
+downgrade as a fix. WR-18 retains the upstream/remediation disposition.
+
 WR-08/09/15/16: an unfinished Service Worker workspace has a direct return to
 Personal, including the legacy setup route. Visiting or leaving it does not
 submit a professional profile. Personal edits no longer require unrelated work

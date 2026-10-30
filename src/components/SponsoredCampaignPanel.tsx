@@ -12,7 +12,7 @@ import { matchesSponsoredQuote, sponsoredPriceKobo } from '@/lib/sponsoredQuote'
 type Resource = { resource_type: 'worker' | 'property' | 'hotel' | 'experience'; resource_id: string; label: string };
 const resourceLabel=(type:Resource['resource_type'])=>({worker:'Service profile',property:'Home',hotel:'Hotel',experience:'Activity'})[type];
 const formatMoney=(amount:number)=>formatRecordedMoney(amount,'NGN');
-const promotionRequest=<T,>(request:PromiseLike<T>)=>withTimeout(request,20000,'Promotion options took too long. Please retry.');
+const sponsoredRequest=<T,>(request:PromiseLike<T>)=>withTimeout(request,20000,'Sponsored options took too long. Please retry.');
 type Offer = { available: boolean; daily_price_ngn?: number; durations?: number[]; slot_count?: number; market?: string };
 type Campaign = { campaign_id: string; resource_type: Resource['resource_type']; resource_id: string; status: string;
   duration_days: number; amount_ngn: number; starts_at: string | null; ends_at: string | null; pause_reason: string | null };
@@ -41,7 +41,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
     const version=++refreshVersion.current;
     setLoading(true);setLoadError('');
     try{
-    const [owned, history] = await promotionRequest(Promise.all([
+    const [owned, history] = await sponsoredRequest(Promise.all([
       supabase.rpc('get_my_sponsored_resources'),supabase.rpc('get_my_sponsored_campaigns'),
     ]));
     if(version!==refreshVersion.current)return;
@@ -52,7 +52,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
     setSelected(current => available.some(item => `${item.resource_type}:${item.resource_id}` === current)
       ? current : available.length ? `${available[0].resource_type}:${available[0].resource_id}` : '');
     setCampaigns(((history.data || []) as Campaign[]).filter(item => allowed.includes(item.resource_type)));
-    }catch(e){if(version===refreshVersion.current)setLoadError(e instanceof Error?e.message:'Promotion options could not be loaded.');}
+    }catch(e){if(version===refreshVersion.current)setLoadError(e instanceof Error?e.message:'Sponsored options could not be loaded.');}
     finally{if(version===refreshVersion.current)setLoading(false);}
   },[typesKey]);
   useEffect(() => { void refresh();return()=>{refreshVersion.current++;}; }, [refresh]);
@@ -67,7 +67,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
     setOffer(null); setOfferError(''); setDuration(0); setAccepted(false); setStoreOffers([]);
     if (!resource) return;
     let live = true;
-    void promotionRequest(supabase.rpc('get_my_sponsored_offer', {
+    void sponsoredRequest(supabase.rpc('get_my_sponsored_offer', {
       p_resource_type: resource.resource_type, p_resource_id: resource.resource_id,
     })).then(({ data, error }) => {
       if (!live) return;
@@ -76,7 +76,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
       setOffer(next);
       setDuration(next.durations?.[0] || 0);
       if (nativeBillingEnabled && next.available) {
-        void promotionRequest(supabase.rpc('get_my_sponsored_store_offers', {
+        void sponsoredRequest(supabase.rpc('get_my_sponsored_store_offers', {
           p_resource_type: resource.resource_type, p_resource_id: resource.resource_id,
         })).then(({ data: products, error: productsError }) => {
           if (!live) return;
@@ -105,14 +105,14 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
     purchaseLock.current=true;
     setBusy(true);
     try {
-      const { data: quote, error: quoteError } = await promotionRequest(supabase.rpc('quote_my_sponsored_campaign', {
+      const { data: quote, error: quoteError } = await sponsoredRequest(supabase.rpc('quote_my_sponsored_campaign', {
         p_resource_type: resource.resource_type, p_resource_id: resource.resource_id,
         p_duration_days: duration,
       }));
       const expectedKobo = sponsoredPriceKobo(Number(offer.daily_price_ngn) * duration);
       if (quoteError || !matchesSponsoredQuote(quote, resource.resource_type, resource.resource_id, duration, expectedKobo))
         throw new Error(quoteError?.message || 'The offer changed. Review the refreshed price before continuing.');
-      const { data: draft, error: draftError } = await promotionRequest(supabase.rpc('prepare_my_sponsored_campaign', {
+      const { data: draft, error: draftError } = await sponsoredRequest(supabase.rpc('prepare_my_sponsored_campaign', {
         p_resource_type: resource.resource_type, p_resource_id: resource.resource_id,
         p_duration_days: duration,
       }));
@@ -121,7 +121,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
       if (native) {
         if (!nativeBillingEnabled || !storePlan || !selectedStoreOffer)
           throw new Error('This app store product is unavailable');
-        const { data: order, error: orderError } = await promotionRequest(supabase.rpc('begin_my_sponsored_store_checkout', {
+        const { data: order, error: orderError } = await sponsoredRequest(supabase.rpc('begin_my_sponsored_store_checkout', {
           p_campaign_id: draft.campaign_id, p_platform: isIOS() ? 'apple' : 'google',
         }));
         if (orderError || !order?.reference || order.product_id !== storePlan.productId)
@@ -134,7 +134,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
         setBusy(false);
         return;
       }
-      const { data: checkout, error: checkoutError } = await promotionRequest(supabase.functions.invoke('sponsored-payment-init', {
+      const { data: checkout, error: checkoutError } = await sponsoredRequest(supabase.functions.invoke('sponsored-payment-init', {
         body: { campaign_id: draft.campaign_id, expected_amount_ngn: Number(quote.amount_ngn) },
       }));
       if (checkoutError || !checkout?.authorization_url)
@@ -150,13 +150,13 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
   const total = Number(offer?.daily_price_ngn || 0) * duration;
   return <section aria-labelledby="sponsored-title" className="border-y border-[var(--wh-border-subtle)] text-[var(--wh-text)]">
     <div className="border-b border-[var(--wh-border-subtle)] py-4">
-      <p className="text-xs font-bold uppercase tracking-[.16em] text-violet-700 dark:text-violet-300">Optional promotion</p>
+      <p className="text-xs font-bold uppercase tracking-[.16em] text-violet-700 dark:text-violet-300">Optional paid placement</p>
       <h2 id="sponsored-title" className="mt-1 text-base font-semibold">Sponsored placement</h2>
       <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--wh-text-secondary)]">Promote one eligible item in a clearly marked Sponsored area. Each campaign belongs to that selection, not your entire account. Payment never changes verification, reviews, or organic order.</p>
     </div>
     <div className="py-4">
-    {loadError&&<div role="alert" className="mb-4 space-y-2 text-sm"><p>{loadError}</p><button type="button" className="min-h-11 underline" onClick={()=>void refresh()}>Retry promotion options</button></div>}
-    {loading ? <WeHouseLoadingState compact label="Loading your promotion options" /> : resources.length === 0
+    {loadError&&<div role="alert" className="mb-4 space-y-2 text-sm"><p>{loadError}</p><button type="button" className="min-h-11 underline" onClick={()=>void refresh()}>Retry Sponsored options</button></div>}
+    {loading ? <WeHouseLoadingState compact label="Loading Sponsored options" /> : resources.length === 0
       ? <p className="rounded-2xl bg-[var(--wh-interactive)] p-4 text-xs leading-5 text-[var(--wh-text-secondary)]">There is nothing published and eligible to promote yet. Your existing campaign history appears below.</p>
       : <div className="space-y-4">
         <label className="block text-xs font-medium text-[var(--wh-text)]">Choose what to promote
@@ -166,7 +166,7 @@ export default function SponsoredCampaignPanel({ types }: { types: Array<Resourc
               value={`${item.resource_type}:${item.resource_id}`}>{resourceLabel(item.resource_type)} · {item.label}</option>)}
           </WeHouseChoice>
         </label>
-        {offerError?<div role="alert" className="space-y-2 text-sm"><p>{offerError}</p><button type="button" className="min-h-11 underline" onClick={()=>void refresh()}>Retry promotion price</button></div>:offer?.available ? <>
+        {offerError?<div role="alert" className="space-y-2 text-sm"><p>{offerError}</p><button type="button" className="min-h-11 underline" onClick={()=>void refresh()}>Retry Sponsored price</button></div>:offer?.available ? <>
           <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">{offer.market} · Market placement capacity: {offer.slot_count}</p>
           <label className="block text-xs font-medium text-[var(--wh-text)]">How long?
             <WeHouseChoice className="mt-2 h-12 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"

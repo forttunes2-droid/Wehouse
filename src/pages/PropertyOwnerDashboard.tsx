@@ -78,7 +78,7 @@ const OWNER_TABS: Array<{ key: PartnerTab; label: string; description: string }>
   {
     key: "tools",
     label: "Tools",
-    description: "Optional partner tools for portfolio and promotion",
+    description: "Optional partner tools for portfolio and Sponsored placement",
   },
 ];
 const HOSTING_TABS: Array<{ key: PartnerTab; label: string; description: string }> = [

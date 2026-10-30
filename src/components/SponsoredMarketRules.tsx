@@ -144,7 +144,7 @@ export default function SponsoredMarketRules(){
   }
 
   return <section>
-    <div><h3 className="text-sm font-semibold text-foreground">Sponsored marketplace</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Paid visibility rules shared by Workers, Homes and Hotels. Sponsored never changes verification, reviews, trust or organic ranking.</p></div>
+    <div><h3 className="text-sm font-semibold text-foreground">Sponsored marketplace</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Paid visibility rules for service profiles, activities, homes and hotels. Sponsored never changes verification, reviews, trust or organic ranking.</p></div>
 
     <div className="mt-4 grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
       <Field label="What can be promoted"><WeHouseChoice aria-label="What can be promoted" value={resourceType} onChange={e=>setResourceType(e.target.value as ResourceType)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground">{(Object.keys(resourceLabels) as ResourceType[]).map(value=><option key={value} value={value}>{resourceLabels[value]}</option>)}</WeHouseChoice></Field>
