@@ -949,7 +949,8 @@ try {
     await page.getByRole('button',{name:'Review',exact:true}).click();
     await page.getByRole('button',{name:'reviewing',exact:true}).click();
     await page.getByLabel('Review note (optional)',{exact:true}).fill('Evidence reviewed and referred to property operations.');
-    await page.getByRole('button',{name:'Actioned',exact:true}).click();
+    await page.getByRole('article').filter({hasText:'Hotel listing · Scam or fraud'}).getByRole('button',{name:'Actioned',exact:true}).click();
+    await page.getByText('No reviewing reports in your coverage.',{exact:true}).waitFor();
     await page.getByRole('button',{name:'Reporter fixture',exact:true}).click();
     await page.getByText('Reviewed',{exact:true}).waitFor();
     await page.getByText('Report reference: 10100000-0000-4000-8000-000000000041',{exact:true}).waitFor();

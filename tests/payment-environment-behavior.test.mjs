@@ -61,6 +61,7 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
   let clients = 0;
   const initialized = [];
   const planWrites=[];
+  const managementLinks=[];
   const reference = `${name==='partner-pro-payment-init'?'WHPP':'WHP'}-00000000-0000-0000-0000-000000000001`;
   const rows = {
     profiles: { user_id: "fixture-worker", role: "worker", worker_status: "verified", worker_verified: true },
@@ -87,7 +88,7 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
     from(table) {
       let updating=false;
       const query = {
-        select: () => query, eq: () => query, update: () => {updating=true;return query;},in:()=>query,
+        select: () => query, eq: (column,value) => {if(name==='worker-pro-manage'&&table==='worker_pro_subscriptions'){assert.equal(column,'worker_id');assert.equal(value,'fixture-worker');}return query;}, update: () => {updating=true;return query;},in:()=>query,
         maybeSingle: async () => ({ data: updating&&extraRows.noPersistenceReceipt?null:rows[table], error: null }),
         single: async () => ({ data: rows[table], error: null }),
         then: (done) => Promise.resolve({data:rows[table], error: null }).then(done),
@@ -106,11 +107,16 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
     resolvePaymentMarket: marketExports.resolvePaymentMarket,
     serviceCheckoutContractMatches:quoteExports.serviceCheckoutContractMatches,
     paystackCheckoutDestination:checkoutExports.paystackCheckoutDestination,
+    paystackSubscriptionDestination:checkoutExports.paystackSubscriptionDestination,
     hasLiveSession: sessionExports.hasLiveSession,
     consumeUserAction: async (...args) => {if(name==='payment-init')assert.equal(args[5],true);return { allowed: !extraRows.rateDenied, retryAfterSeconds: 30 };},
     hasActiveWorkspace: sessionExports.hasActiveWorkspace,
     createClient: () => { clients++; return admin; },
     fetch: async (url, options) => {
+      if(name==='worker-pro-manage'){
+       assert.equal(url,'https://api.paystack.co/subscription/SUB_fixture/manage/link');managementLinks.push(url);
+       return Response.json({status:true,data:{link:extraRows.providerManagementLink||'https://paystack.com/manage/subscriptions/fixture?subscription_token=synthetic'}});
+      }
       if(url==='https://api.paystack.co/plan'){planWrites.push(JSON.parse(options.body));return Response.json({status:true,data:{plan_code:'PLN_fixture'}});}
       if (url.startsWith("https://api.paystack.co/plan/")) return Response.json({ status: true, data: { interval: "monthly", amount: 4200, currency: "NGN",...extraRows.providerPlan } });
       assert.equal(url, "https://api.paystack.co/transaction/initialize");
@@ -120,12 +126,13 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
   });
   return {
     initialized,
+    managementLinks,
     planWrites,
     clients: () => clients,
     request: () => handler(new Request("https://test.invalid/checkout", {
       method: "POST",
       headers: { authorization: `Bearer ${verifiedToken}`, "content-type": "application/json", origin: "https://untrusted.example.invalid" },
-      body: JSON.stringify({ reference,campaign_id:'00000000-0000-4000-8000-000000000001',expected_amount_ngn:42,callback_url: "https://untrusted.example.invalid", amount: 1 }),
+      body: JSON.stringify({ reference,worker_id:'not-the-owner',campaign_id:'00000000-0000-4000-8000-000000000001',expected_amount_ngn:42,callback_url: "https://untrusted.example.invalid", amount: 1 }),
     })),
   };
 }
@@ -136,6 +143,26 @@ test('checkout rejects missing or unsupported currency and sub-minor-unit prices
     assert.equal((await checkout.request()).status,409);
     assert.equal(checkout.initialized.length,0);
   }
+});
+test('subscription ownership permits existing billing with restricted tools and does not trust a requested worker',async()=>{
+ const checkout=await checkoutHarness('worker-pro-manage',{},true,{profiles:{user_id:'fixture-worker',role:'user'},worker_pro_subscriptions:{provider:'paystack',provider_subscription_id:'SUB_fixture',environment:'sandbox'}},false);
+ const response=await checkout.request();assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');assert.equal((await response.json()).url,'https://paystack.com/manage/subscriptions/fixture?subscription_token=synthetic');assert.equal(checkout.managementLinks.length,1);
+});
+test('subscription management cannot use a live key in Test or an unapproved return origin',async()=>{
+ for(const settings of [{PAYSTACK_SECRET_KEY:'sk_live_fixture'},{APP_URL:undefined},{APP_URL:'https://www.wehouse.com.ng'}]){
+  const checkout=await checkoutHarness('worker-pro-manage',settings,true,{worker_pro_subscriptions:{provider:'paystack',provider_subscription_id:'SUB_fixture',environment:'production'}},false);
+  assert.equal((await checkout.request()).status,503);assert.equal(checkout.clients(),0);assert.equal(checkout.managementLinks.length,0);
+ }
+});
+test('subscription management rejects wrong environments, revoked sessions, rate limits and untrusted links',async()=>{
+ const sub={provider:'paystack',provider_subscription_id:'SUB_fixture',environment:'sandbox'};
+ for(const [rows,session,status,calls] of [
+  [{worker_pro_subscriptions:{...sub,environment:'production'}},true,409,0],
+  [{worker_pro_subscriptions:sub},false,401,0],
+  [{worker_pro_subscriptions:sub,rateDenied:true},true,429,0],
+  [{worker_pro_subscriptions:sub,providerManagementLink:'https://untrusted.invalid/manage'},true,502,1],
+  [{worker_pro_subscriptions:sub,providerManagementLink:'https://user:secret@paystack.com/manage/subscriptions/x'},true,502,1],
+ ]){const checkout=await checkoutHarness('worker-pro-manage',{},session,rows,false);assert.equal((await checkout.request()).status,status);assert.equal(checkout.managementLinks.length,calls);}
 });
 
 for (const name of ["payment-init", "worker-pro-payment-init"]) {

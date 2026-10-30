@@ -1,12 +1,43 @@
 # WeHouse release roadmap
 
-**Status date:** 29 October 2026
+**Status date:** 30 October 2026
 
 The [single open work register](#open-work-register-single-list-update-in-place-do-not-start-another)
 is the current implementation/verification inventory. Dated checkpoints are evidence
 and history; they do not reopen settled rules or create additional workstreams.
 
 ## Current engineering checkpoints
+
+### Existing paid-plan billing through workspace restrictions — 30 October
+
+Account → Billing & subscriptions projects the person's existing Worker
+subscription and Partner prepaid-access records. It does not grant paid tools or
+restore a restricted workspace. Test migration `20261029201640` returns only the
+authenticated owner's billing facts and no provider subscription IDs or private
+tokens. The existing Worker billing control uses the same management adapter;
+Apple and Google keep their official subscription settings destinations. Partner
+Pro remains prepaid and does not acquire automatic renewal.
+
+Test `worker-pro-manage` version 6 permits the trusted active account owner to
+manage an existing Paystack subscription during a Services-only restriction. It
+retains session revocation and account-wide restriction checks, requires matching
+provider/backend environments, throttles link requests, bounds database/provider
+waiting, validates the official management destination and sends no-store
+responses. It neither cancels without provider confirmation nor activates tools.
+Billing Help opens the existing account-linked Finance Operations case. No new
+identity, workspace, queue, subscription ledger or monetary rule was introduced.
+Payment-init version 13 contains the same current shared destination helper.
+
+Applied-Test owner/outsider/revoked-session and restriction-preservation contracts
+pass. Nine isolated billing browser journeys and all 87 existing Wallet/Pro
+journeys pass. The report journey now scopes the Actioned button to its report
+and waits for the operator's acknowledged result before switching to the reporter.
+The production build, focused lint, frozen Edge check and all 858 source tests
+pass, including the final provider-environment check. Final exact-commit CI follows
+this push.
+
+All seven workflows are green on `4eba4853`, including fresh/upgrade migration
+replay and the repaired recovery and discovery checks. Production is unchanged.
 
 ### Shared marketplace checkout receipt validation — 29 October
 
@@ -3922,7 +3953,7 @@ event or scoped read projection is not another editable source of truth.
 | Identity / payouts | Government-ID and recipient KYC contract | NIN is optional as an ID method for Nigerian Partners/Service Workers, not required at signup or ordinary booking/payment. Prepared NIN module is limited to those two purposes. Provider-approval/payout gates, alternative ID/appeal, shared-person reuse, receipt persistence, endpoint/UI and entity/bank matching remain internal work. The provider-specific adapter is also engineering work dependent on a selected provider. Provider account/credentials and processor approval of the actual recipient model are external. Paystack merchant compliance does not automatically verify WeHouse recipients; current bank resolution is not NIN verification |
 | Domain rules | Reconcile unresolved contracts | Review D-004–D-020 against current source: unit/sleeping facts, Worker delivery modes and package/quote snapshots, unanswered-request clocks, property pause/removal, hotel turnover/lifecycle and fee/refund snapshots. Do not reopen decisions already settled by the owner |
 | Money | Booking-to-provider reconciliation matrix | Internal sandbox integration/recovery work and evidence pending for every enabled purpose: order review, exact total/currency, price/capacity revalidation, charge, signed and duplicate/delayed webhook, cancellation, refund, dispute, held/released/reversed earnings and withdrawal. Include stale tabs, lost responses, failed/late settlement, chargeback after Partner payout and bank-change recovery. Independently reconcile provider and ledger results. Live-account authorization/credentials are external; engineering of these journeys is internal |
-| Pro billing | Web/native subscription lifecycle | Verify prices, versioned terms, purchase, entitlement, paid-through cancellation, renewal, failed payment, refund/revocation, restore and support. Exercise free/active/expired/under-review states in main workspaces and Paid Tools. Pro never grants trust or internal authority |
+| Pro billing | Web/native subscription lifecycle | Existing owner billing remains accessible through Account during workspace-only restrictions, using original subscription/prepaid records; restricted tools stay restricted. Applied-Test SQL and UI/handler checks pass. Verify provider prices, versioned terms, purchase, entitlement, paid-through cancellation, renewal, failed payment, refund/revocation, restore and actual support resolution. Exercise free/active/expired/under-review states in main workspaces and Paid Tools. Pro never grants trust or internal authority |
 | Moderation | Report through resolution | Every enabled report needs a receipt, scoped operator queue, evidence permissions, decision/reason, reporter status and escalation/appeal. Include portfolio claims, reviews, uploads, chat, hotels and properties. Whole-journey evidence pending |
 | Privacy | Account and data-rights operations | Owner chose tracked review. Separate access/correction/deletion drafts now reach the existing account-linked case, with assigned Admin/Creator step-up, stale/retry receipts, completed-work and retention reasons, protected resolution and customer tracking. Test migration 20261029190434 and SQL/browser contracts pass. Closure is explicitly access removal. Remaining: exercise actual access/export, correction and reviewed erasure fulfilment across retained financial/dispute evidence, private media expiry and approved consent/retention rules; a response attestation alone is not erasure evidence |
 | Discovery | Search/maps/followed-search lifecycle | Verify filters, sort, pagination, empty results, map/list agreement, approximate versus entitled exact location, followed-search reopen/edit/delete and notifications from every publication/edit path. Hosted whole-flow evidence pending |

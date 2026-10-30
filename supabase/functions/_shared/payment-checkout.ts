@@ -6,6 +6,11 @@ export function paystackCheckoutDestination(value:unknown):string|null{
   return url.origin==='https://checkout.paystack.com'&&!url.username&&!url.password&&url.pathname.length>1?url.href:null;
  }catch{return null;}
 }
+/** Paystack's documented management page; this URL contains a private token. */
+export function paystackSubscriptionDestination(value:unknown):string|null{
+ if(typeof value!=='string'||value.length>8192)return null;
+ try{const url=new URL(value);return url.origin==='https://paystack.com'&&!url.username&&!url.password&&/^\/manage\/subscriptions\/[^/]+\/?$/.test(url.pathname)?url.href:null;}catch{return null;}
+}
 export type PaymentInitResult={success:boolean;already_paid?:boolean;reference?:string;purpose?:string;authorization_url?:string;access_code?:string;existing?:boolean;error?:string};
 export function paymentCheckoutReceipt(value:unknown,reference:string,purpose:string):PaymentInitResult{
  const r=value as PaymentInitResult|null;

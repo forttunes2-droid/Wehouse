@@ -8,6 +8,7 @@ import { getNativeStorePlan, purchaseNativeStoreProduct, restoreNativeStoreSubsc
 import type { Profile, WorkerProBillingPeriod, WorkerProEntitlement } from '@/types';
 import { formatMoney } from "@/lib/regional";
 import { WORKER_PRO_TOOLS } from '@/content/proTools';
+import {openWorkSubscriptionManagement} from '@/lib/paidPlanBilling';
 
 type Props = {
   pro: WorkerProEntitlement | null;
@@ -84,19 +85,11 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
 
   async function manage() {
     if (!pro?.provider) return;
-    if (pro.provider === 'apple') {
-      window.open('https://apps.apple.com/account/subscriptions', '_blank', 'noopener,noreferrer');
-      return;
-    }
-    if (pro.provider === 'google') {
-      window.open('https://play.google.com/store/account/subscriptions', '_blank', 'noopener,noreferrer');
-      return;
-    }
     setBusy(true);
     try {
-      const result = await supabase.functions.invoke('worker-pro-manage');
-      if (result.error || !result.data?.url) throw new Error('Subscription management could not open. Please try again.');
-      window.location.assign(String(result.data.url));
+      const destination=await openWorkSubscriptionManagement(pro.provider);
+      if(pro.provider==='paystack')window.location.assign(destination);
+      else window.open(destination,'_blank','noopener,noreferrer');
     } catch (reason) {
       toast.error(reason instanceof Error ? reason.message : 'Subscription management could not open. Please try again.');
     } finally { setBusy(false); }

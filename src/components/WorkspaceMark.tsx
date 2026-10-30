@@ -19,7 +19,7 @@ const WORKSPACE_ICONS: Record<WorkspaceName, LucideIcon> = {
 
 const ACCOUNT_ICONS = {
   switch: ArrowLeftRight, pro: Sparkles, sponsored: Megaphone, help: LifeBuoy, saved: Heart, followed: Search,
-  notifications: Bell, appearance: SunMoon, security: ShieldCheck, legal: FileText, signout: LogOut,
+  notifications: Bell, appearance: SunMoon, security: ShieldCheck, legal: FileText, billing: Banknote, signout: LogOut,
   offerServices: Wrench, listProperty: Building2, details: UserRound,
 } as const;
 
