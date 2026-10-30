@@ -14,9 +14,9 @@ test("professional onboarding stays inside its workspace and never traps switchi
     read("src/App.tsx"),
   ]);
 
-  assert.match(worker, /ACTIVATION_NAV = \[\{ id: "home", label: "Setup" \}, \{ id: "inbox", label: "Inbox" \}\]/);
-  assert.match(worker, /!live && safeTab === "inbox"[\s\S]*?<SupportEntryCard/);
-  assert.doesNotMatch(worker, /ACTIVATION_NAV[\s\S]{0,160}label: "Account"/);
+  assert.match(worker, /COMMON_NAV = \[[\s\S]*?label: "Experiences"[\s\S]*?label: "Inbox"[\s\S]*?label: "Earnings"[\s\S]*?label: "Account"/);
+  assert.match(worker, /!canManageJobs && safeTab === "inbox"[\s\S]*?<ApplicantInbox/);
+  assert.match(worker, /useProviderWorkspaceCapabilities/);
   assert.match(worker, /WorkspaceSwitchSheet/);
   assert.match(worker, /onWorkspaceSwitch=/);
   assert.match(gate, /onWorkspaceSwitch\?: \(\) => void/);
@@ -46,17 +46,15 @@ test("Admin and Creator expose one canonical Worker surface", async () => {
   assert.match(migration, /p_role='user'[\s\S]*not public\.user_has_active_workspace\(p\.user_id,'worker'\)/);
 });
 
-test("growing home results become compact on phones without a tiny grid", async () => {
+test("home results retain one readable card layout as the result count grows", async () => {
   const [search, card] = await Promise.all([
     read("src/pages/Search.tsx"),
     read("src/components/ListingCard.tsx"),
   ]);
 
-  assert.match(search, /compactMobile=\{filtered\.length >= 3\}/);
-  assert.match(card, /if \(!compactMobile\) return richCard/);
-  assert.match(card, /sm:hidden/);
-  assert.match(card, /hidden sm:block/);
-  assert.match(card, /h-28 w-32 shrink-0/);
+  assert.doesNotMatch(search, /compactMobile/);
+  assert.doesNotMatch(card, /compactMobile|sm:hidden|hidden sm:block/);
+  assert.match(card, /aria-label=\{'View '\+title\}/);
   assert.doesNotMatch(search, /grid-cols-2[^"\n]*max-sm/);
 });
 
@@ -74,5 +72,5 @@ test("Inbox favors cache and realtime reconciliation over fixed polling", async 
   assert.match(admin, /InboxActivityEntry/);
   assert.match(admin, /Back to Inbox messages/);
   assert.match(staff, /InboxActivityEntry/);
-  assert.match(staff, /Assigned conversations in this Operation/);
+  assert.match(staff, /Conversations for this work area/);
 });

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as tus from 'tus-js-client';
 import { Capacitor } from '@capacitor/core';
 import { resolveSupabaseEnvironment } from './environment';
+import {createStorageUploadQuota} from '../storageUploadQuota';
 
 // ─── SUPABASE CONFIG ───────────────────────────────
 // Browser publishable keys are intentionally public. Real authorization lives in
@@ -25,14 +26,29 @@ const SUPABASE_STORAGE_URL = SUPABASE_URL.replace(
 );
 
 export const isTestEnvironment = environment.isTestEnvironment;
+// Passkeys remain opt-in until the hosted Auth project's WebAuthn RP ID and
+// origins are fixed. Supabase currently marks this API experimental.
+export const isWebPasskeyEnabled = import.meta.env.VITE_PASSKEYS_ENABLED === 'true'
+  && !Capacitor.isNativePlatform()
+  && typeof window !== 'undefined'
+  && typeof window.PublicKeyCredential === 'function';
 
+const storageQuota=createStorageUploadQuota(SUPABASE_URL,SUPABASE_STORAGE_URL);
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global:{fetch:storageQuota.fetch},
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
+    experimental: { passkey: isWebPasskeyEnabled },
   },
+});
+let uploadAuthIdentity:string|undefined;
+supabase.auth.onAuthStateChange((_event,session)=>{
+  const identity=session?.user.id||'';
+  if(uploadAuthIdentity!==undefined&&uploadAuthIdentity!==identity)storageQuota.reset();
+  uploadAuthIdentity=identity;
 });
 
 export async function uploadStorageObjectWithProgress(
@@ -42,12 +58,17 @@ export async function uploadStorageObjectWithProgress(
   contentType: string,
   onProgress: (percent: number) => void,
 ) {
+  return storageQuota.run(()=>uploadStorageObjectWithProgressUnqueued(bucket,path,body,contentType,onProgress));
+}
+async function uploadStorageObjectWithProgressUnqueued(bucket:string,path:string,body:Blob,contentType:string,onProgress:(percent:number)=>void) {
   const { data, error } = await supabase.auth.getSession();
   if (error || !data.session?.access_token) {
     throw error || new Error('Your session expired. Sign in and try the upload again.');
   }
 
   const storageContentType = (contentType || 'application/octet-stream').split(';', 1)[0].trim();
+  const quotaHeaders=new Headers({authorization:`Bearer ${data.session.access_token}`,apikey:SUPABASE_ANON_KEY});
+  const uploadTicket=await storageQuota.reserve(bucket,path,quotaHeaders);
   if (body.size > 6 * 1024 * 1024) {
     await uploadResumableStorageObject(
       bucket,
@@ -57,6 +78,7 @@ export async function uploadStorageObjectWithProgress(
       data.session.access_token,
       onProgress,
     );
+    await storageQuota.complete(uploadTicket,quotaHeaders);
     return;
   }
 
@@ -107,6 +129,7 @@ export async function uploadStorageObjectWithProgress(
     xhr.onabort = () => finish(() => reject(new Error('Upload stopped because no progress was received for 60 seconds. Try again on a stable connection.')));
     xhr.send(body);
   });
+  await storageQuota.complete(uploadTicket,quotaHeaders);
 }
 
 async function uploadResumableStorageObject(

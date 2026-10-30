@@ -85,7 +85,20 @@
         "reminder_hours": 12,
         "release_eligible_hours": 24
       }
+    },
+    "commission_short_let_wehouse_managed": {
+      "version": 1,
+      "value": {
+        "percent": 12
+      }
+    },
+    "commission_long_let_wehouse_managed": {
+      "version": 1,
+      "value": {
+        "percent": 7
+      }
     }
   },
-  "scheduled": {}
+  "scheduled": {},
+  "etag": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }

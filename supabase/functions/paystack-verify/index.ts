@@ -1,4 +1,6 @@
 import { hasLiveSession } from "../_shared/liveSession.ts";
+import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
+import {recordRentChargeRoute} from '../_shared/later-rent.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -44,6 +46,7 @@ serve(async (req) => {
       { status: 405, headers: cors },
     );
 
+  let verifiedCharge = false;
   try {
     const { reference, purpose } = await req.json();
     if (!reference)
@@ -106,7 +109,7 @@ serve(async (req) => {
     const { data: payment, error: paymentError } = await admin
       .from("booking_payments")
       .select(
-        "id, user_id, payer_user_id, amount, amount_total, purpose, status, paystack_reference, worker_booking_id",
+        "id, user_id, payer_user_id, amount, amount_total, currency, purpose, status, paystack_reference, worker_booking_id",
       )
       .eq("paystack_reference", reference)
       .maybeSingle();
@@ -158,7 +161,8 @@ serve(async (req) => {
         JSON.stringify({ success: false, error: "Payment not successful" }),
         { status: 400, headers: cors },
       );
-    if (verified.data.currency !== "NGN")
+    const market=resolvePaymentMarket(payment.currency);
+    if (!market || verified.data.currency !== market.currency)
       return new Response(
         JSON.stringify({ success: false, error: "Currency mismatch" }),
         { status: 400, headers: cors },
@@ -168,9 +172,9 @@ serve(async (req) => {
     if (verified.data.reference !== reference || !Number.isSafeInteger(amountMinor) || amountMinor <= 0)
       return new Response(JSON.stringify({ success: false, error: "Provider reference or amount mismatch" }),
         { status: 400, headers: cors });
-    const verifiedAmount = amountMinor / 100;
+    const verifiedAmount = amountMinor / 10**market.minorDigits;
     const expectedAmount = Number(payment.amount_total ?? payment.amount ?? 0);
-    if (Math.round(verifiedAmount * 100) !== Math.round(expectedAmount * 100)) {
+    if (amountMinor !== paymentMinorUnits(payment.amount_total ?? payment.amount,market.minorDigits)) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -182,6 +186,7 @@ serve(async (req) => {
       );
     }
 
+    verifiedCharge = true;
     const transactionId = String(verified.data.id ?? "");
     if (payment.purpose === "sponsored_campaign") {
       if (!transactionId || !["test", "live"].includes(String(verified.data.domain)))
@@ -194,10 +199,9 @@ serve(async (req) => {
         p_environment: verified.data.domain,
         p_source: "edge_function",
       });
-      if (error) return new Response(JSON.stringify({ success: false, error: error.message }),
-        { status: 500, headers: cors });
-      return new Response(JSON.stringify({ success: Boolean(data?.success), verified: true,
-        recorded: true, charged: true, requires_review: Boolean(data?.requires_review),
+      if (error) throw new Error("Sponsored payment was verified, but its receipt needs WeHouse review. Check status before retrying.");
+      return new Response(JSON.stringify({ success: data?.success === true, verified: true,
+        recorded: data?.success === true, charged: true, requires_review: data?.success !== true || data?.requires_review === true,
         error: data?.error, purpose: payment.purpose, amount: verifiedAmount, result: data }),
         { status: 200, headers: cors });
     }
@@ -212,10 +216,9 @@ serve(async (req) => {
         p_environment: verified.data.domain,
         p_source: "edge_function",
       });
-      if (error) return new Response(JSON.stringify({ success: false, error: error.message }),
-        { status: 500, headers: cors });
-      return new Response(JSON.stringify({ success: Boolean(data?.success), verified: true,
-        recorded: true, charged: true, requires_review: Boolean(data?.requires_review),
+      if (error) throw new Error("Partner Pro payment was verified, but its receipt needs WeHouse review. Check status before retrying.");
+      return new Response(JSON.stringify({ success: data?.success === true, verified: true,
+        recorded: data?.success === true, charged: true, requires_review: data?.success !== true || data?.requires_review === true,
         error: data?.error, purpose: payment.purpose, amount: verifiedAmount, result: data }),
         { status: 200, headers: cors });
     }
@@ -226,15 +229,6 @@ serve(async (req) => {
       });
       if (error) throw new Error("Payment confirmed, but receipt details could not be saved. Please check again.");
     }
-    const canonicalPurpose = new Set([
-      "worker_booking",
-      "shared_housing_share",
-      "apartment_reservation",
-      "apartment_rent",
-      "rent_plan_contribution",
-      "hotel_booking",
-    ]).has(String(payment.purpose || ""));
-
     if (payment.purpose === "worker_verification") {
       if (payment.status !== "paid" && payment.status !== "completed") {
         const { error: reviewError } = await admin
@@ -274,24 +268,44 @@ serve(async (req) => {
       );
     }
 
-    if (
-      (payment.status === "paid" || payment.status === "completed") &&
-      !canonicalPurpose
-    ) {
+    // Paid-plan entitlement uses its own reviewed billing lifecycle. Never let
+    // the generic legacy payment writer stand in for subscription activation.
+    if (payment.purpose === "worker_pro_subscription") {
+      const occurredAt = new Date(verified.data.paid_at || "");
+      const domain = verified.data.domain;
+      if (!transactionId || !Number.isFinite(occurredAt.getTime()) ||
+        !["test", "live"].includes(domain) ||
+        (domain === "test") !== paystackSecret.startsWith("sk_test_")) {
+        return new Response(JSON.stringify({ success: false, verified: true, charged: true,
+          requires_review: true, error: "The paid-plan provider receipt is incomplete." }),
+          { status: 200, headers: cors });
+      }
+      const { data, error } = await admin.rpc("confirm_worker_pro_paystack_charge", {
+        p_reference: reference, p_transaction_id: transactionId,
+        p_verified_amount: verifiedAmount, p_currency: market.currency,
+        p_subscription_code: verified.data.subscription_code || verified.data.subscription?.subscription_code || null,
+        p_event_id: `verified.charge.success:${transactionId}`,
+        p_event_time: occurredAt.toISOString(),
+        p_environment: domain === "test" ? "sandbox" : "production",
+        p_payload_sha256: await sha256Hex(canonicalChargeReceipt(reference, transactionId, amountMinor, market.currency)),
+        p_safe_metadata: { paystack_transaction_id: transactionId },
+      });
+      if (error) return new Response(JSON.stringify({ success: false, verified: true, charged: true,
+        requires_review: true, error: "Paid-plan activation could not be confirmed. Check status before retrying." }),
+        { status: 200, headers: cors });
+      if (data?.success !== true) return new Response(JSON.stringify({ success: false,
+        verified: true, charged: true, requires_review: true,
+        error: data?.error || "This paid-plan payment needs WeHouse review.", purpose: payment.purpose, amount: verifiedAmount }),
+        { status: 200, headers: cors });
       await recordPaymentMode();
-      return new Response(
-        JSON.stringify({
-          success: true,
-          verified: true,
-          already_processed: true,
-          amount: verifiedAmount,
-          purpose: payment.purpose,
-        }),
-        { status: 200, headers: cors },
-      );
+      return new Response(JSON.stringify({ success: true, verified: true, recorded: true,
+        amount: verifiedAmount, purpose: payment.purpose, result: data }), { status: 200, headers: cors });
     }
 
-    if (canonicalPurpose) {
+    // Every remaining marketplace purpose, including an unknown future one,
+    // must pass the durable provider-event gateway. Unsupported purposes are
+    // recorded there as failed; they cannot silently become a paid booking.
+    {
       if (!transactionId)
         return new Response(
           JSON.stringify({
@@ -303,6 +317,7 @@ serve(async (req) => {
           }),
           { status: 200, headers: cors },
         );
+      if(payment.purpose==='rent_plan_contribution')await recordRentChargeRoute(admin,reference,verified.data);
       const receiptHash = await sha256Hex(
         canonicalChargeReceipt(reference, transactionId, amountMinor, "NGN"),
       );
@@ -321,12 +336,8 @@ serve(async (req) => {
           p_transaction_id: transactionId,
         },
       );
-      if (error)
-        return new Response(
-          JSON.stringify({ success: false, error: error.message }),
-          { status: 500, headers: cors },
-        );
-      if (!data?.success) {
+      if (error) throw new Error("Payment was verified but recording its payment receipt failed. Check status before retrying.");
+      if (data?.success !== true || data?.ignored === true) {
         return new Response(
           JSON.stringify({
             success: false,
@@ -335,7 +346,7 @@ serve(async (req) => {
             requires_review: true,
             error:
               data?.error ||
-              "Payment was verified but its protected-funds record needs WeHouse review.",
+              "Payment was verified but its payment record needs WeHouse review.",
             amount: verifiedAmount,
             purpose: payment.purpose,
           }),
@@ -356,37 +367,14 @@ serve(async (req) => {
       );
     }
 
-    const { data, error } = await admin.rpc("confirm_booking_payment", {
-      p_reference: reference,
-      p_transaction_id: transactionId,
-      p_verified_amount: verifiedAmount,
-      p_verification_source: "edge_function",
-      p_purpose: payment.purpose,
-    });
-    if (error)
-      return new Response(
-        JSON.stringify({ success: false, error: error.message }),
-        { status: 500, headers: cors },
-      );
-    await recordPaymentMode();
-    return new Response(
-      JSON.stringify({
-        success: true,
-        verified: true,
-        recorded: true,
-        amount: verifiedAmount,
-        purpose: payment.purpose,
-        result: data,
-      }),
-      { status: 200, headers: cors },
-    );
   } catch (error) {
     return new Response(
       JSON.stringify({
         success: false,
+          ...(verifiedCharge ? { verified: true, charged: true, requires_review: true } : {}),
         error: error instanceof Error ? error.message : "Internal error",
       }),
-      { status: 500, headers: cors },
+      { status: verifiedCharge ? 200 : 500, headers: cors },
     );
   }
 });

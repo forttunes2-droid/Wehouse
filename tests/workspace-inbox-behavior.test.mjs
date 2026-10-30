@@ -1,3 +1,4 @@
+import timeoutApi from './helpers/with-timeout.mjs';
 import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -13,7 +14,7 @@ function moduleAt(path, dependencies = {}, globals = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
   const exports = {};
-  vm.runInNewContext(code, { exports, require: name => name==='@/lib/chatMediaPolicy'?chatMediaPolicy:dependencies[name] ?? require(name), setTimeout, clearTimeout, ...globals });
+  vm.runInNewContext(code, { exports, require: name => name==='@/lib/withTimeout'?timeoutApi:name==='@/lib/chatMediaPolicy'?chatMediaPolicy:dependencies[name] ?? require(name), setTimeout, clearTimeout, ...globals });
   return exports;
 }
 const session = moduleAt('src/lib/workspaceSession.ts');
@@ -23,7 +24,9 @@ test('Refresh restores a selected workspace and internal accounts do not fall in
   assert.equal(session.resolveWorkspace(access(['creator']), 'person-a', 'worker'), 'creator');
   assert.equal(session.resolveWorkspace(access(['creator']), 'person-a', null), 'creator');
   assert.equal(session.resolveWorkspace(access(['creator']), 'person-b', 'creator'), null);
-  assert.equal(session.resolveWorkspace({...access(['creator']),personal_workspace:false}, 'person-a', 'creator'), null);
+  assert.equal(session.resolveWorkspace({...access(['creator']),personal_workspace:false}, 'person-a', 'creator'), 'creator');
+  assert.equal(session.resolveWorkspace({...access(['worker','property_partner']),personal_workspace:false}, 'person-a', 'personal'), 'worker');
+  assert.equal(session.resolveWorkspace({...access([]),personal_workspace:false}, 'person-a', null), 'personal');
 });
 test('Navigation memory is separate for each identity and workspace', () => {
   const keys = ['person-a','person-b'].flatMap(id => ['personal','worker','creator'].map(role => session.workspaceNavigationKey(id,role)));
@@ -97,7 +100,7 @@ const accountShell = {
 };
 test('Help menus follow the selected profile, including Hotel Team',()=>{
   const Help=moduleAt('src/components/AccountHelpCenter.tsx',{
-    '@/components/AccountShell':accountShell,'@/components/WeHouseSelect':()=>null,'@/components/HelpRecordPicker':()=>null,
+    '@/components/AccountShell':accountShell,'@/components/WorkspaceMark':{ActivityKindIcon:()=>null,AccountIcon:()=>null,WorkspaceIcon:()=>null,__esModule:true},'@/components/WeHouseLoadingState':{default:()=>null,__esModule:true},'@/components/WeHouseSelect':()=>null,'@/components/HelpRecordPicker':()=>null,
     '@/hooks/useRecordScreenBack':{useRecordScreenBack:fn=>fn},
     '@/lib/helpTargets':moduleAt('src/lib/helpTargets.ts'),
     '@/lib/supabase':{},'@/lib/withTimeout':{},sonner:{toast:{}},
@@ -105,20 +108,24 @@ test('Help menus follow the selected profile, including Hotel Team',()=>{
   const render=workspace=>renderToStaticMarkup(React.createElement(Help,{profile:{user_id:'person'},workspace,onBack(){}}));
   const personal=render('personal'),worker=render('worker'),partner=render('property_partner'),hotel=render('hotel');
   assert.match(personal,/Payments and refunds/);assert.doesNotMatch(personal,/Earnings and payouts/);
-  assert.match(worker,/Jobs and professional profile/);assert.doesNotMatch(worker,/Property or stay/);
-  assert.match(partner,/Properties and guests/);assert.doesNotMatch(partner,/Service job/);
-  assert.match(hotel,/Your hotel/);assert.doesNotMatch(hotel,/Service job|Payments and refunds|Earnings and payouts/);
+  assert.match(worker,/Jobs, activities and professional profile/);assert.doesNotMatch(worker,/Property or stay/);
+  assert.match(partner,/Properties and guests/);assert.doesNotMatch(partner,/Services and activities/);
+  assert.match(hotel,/Your hotel/);assert.doesNotMatch(hotel,/Services and activities|Payments and refunds|Earnings and payouts/);
   for(const html of [personal,worker,partner,hotel])assert.doesNotMatch(html,/Opening Help creates nothing|routes it from/);
 });
 test('Existing professional profiles remain visible before public approval and do not become new applications',()=>{
   let stateIndex=0;
   let selectedPanel='workspaces';
   const Account=moduleAt('src/pages/AccountCenter.tsx',{
-    react:{...React,useState:initial=>[stateIndex++===0?selectedPanel:initial,()=>{}],useEffect(){},useMemo:fn=>fn()},
-    '@/components/AccountShell':accountShell,'@/components/AccountHelpCenter':()=>null,
+    react:{...React,useState:initial=>[stateIndex++===0?selectedPanel:initial,()=>{}],useEffect(){},useMemo:fn=>fn(),useRef:value=>({current:value})},
+    '@/components/AccountShell':accountShell,'@/components/WorkspaceMark':{ActivityKindIcon:()=>null,AccountIcon:()=>null,WorkspaceIcon:()=>null,__esModule:true},'@/components/AccountHelpCenter':()=>null,
     '@/pages/PrivacySecuritySettings':()=>null,'@/components/MediaViewer':()=>null,
+    '@/components/PhoneNotificationSettings':()=>null,
+    '@/components/SettingSwitch':()=>null,
     '@/lib/supabase':{},'@/lib/supabase/legal':{},sonner:{toast:{}},
     '@/lib/notificationSound':{notificationSoundEnabled:()=>false,setNotificationSoundEnabled(){}},
+    '@/lib/withTimeout':moduleAt('src/lib/withTimeout.ts'),
+    '@/lib/supabase/notification-preferences':{saveNotificationPreference:async()=>({error:null})},
     '@/lib/appearance':{useAppearance:()=> 'dark',setAppearance(){}},
     '@/lib/workspacePresentation':moduleAt('src/lib/workspacePresentation.ts'),
     '@/lib/supabase/activity':{getCanonicalActivitySummary:async()=>({count:0})},

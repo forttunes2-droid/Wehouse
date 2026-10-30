@@ -108,8 +108,11 @@ and must not be restored.
 
 ### Legal and safety gates
 
-- Nigeria-only v1 is the current product scope unless a later recorded decision
-  changes it.
+- Nigeria is the first launch market; it is not a permanent product boundary.
+  Country, currency, time zone, location catalogs, legal rules and provider
+  coverage must remain data-driven before another market is enabled. See
+  confirmed decisions C-025 and C-053 in `docs/DECISION_LOG.md` and the staged
+  rollout in `docs/GLOBAL_DESTINATION_AND_LANGUAGE_MODEL.md`.
 - The Worker marketplace launch stays off until the required labour/recruiter
   classification, contracts and operational approvals are recorded.
 - Private biometric/identity checks stay off until lawful basis, DPIA,

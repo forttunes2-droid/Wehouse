@@ -20,9 +20,20 @@ insert into public.booking_payments(payment_reference,worker_booking_id,user_id,
 ('help-contract-paid','bbbbbbbb-2209-4000-8000-000000000003','help-a','help-a',100,'cancelled',now()),
 ('help-contract-foreign','bbbbbbbb-2209-4000-8000-000000000005','help-c','help-c',100,'paid',now()),
 ('help-contract-provider','bbbbbbbb-2209-4000-8000-000000000006','help-c','help-c',100,'failed',null);
+-- Help now includes private activity bookings, so successful reads must use
+-- an actual Auth session and trusted device, not only a fabricated subject.
+insert into auth.users(id,aud,role,email,created_at,updated_at)
+select auth_id::uuid,'authenticated','authenticated',email,now(),now()
+from public.profiles where user_id in ('help-a','help-b','help-c');
+insert into auth.sessions(id,user_id,created_at,updated_at)
+select auth_id::uuid,auth_id::uuid,now(),now()
+from public.profiles where user_id in ('help-a','help-b','help-c');
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select user_id,auth_id::uuid,auth_id::uuid,'contract-'||auth_id,'Browser',true,'trusted'
+from public.profiles where user_id in ('help-a','help-b','help-c');
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claim.sub','aaaaaaaa-2209-4000-8000-000000000001',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-2209-4000-8000-000000000001","session_id":"aaaaaaaa-2209-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 do $$
 declare rows jsonb;
@@ -48,7 +59,7 @@ begin
     or rows->'payment_targets'->0->>'subject_id'<>'bbbbbbbb-2209-4000-8000-000000000006' then
     raise exception 'Provider Help mixes customer purchases';
   end if;
-  perform set_config('request.jwt.claim.sub','aaaaaaaa-2209-4000-8000-000000000003',true);
+  perform set_config('request.jwt.claims','{"sub":"aaaaaaaa-2209-4000-8000-000000000003","session_id":"aaaaaaaa-2209-4000-8000-000000000003","role":"authenticated"}',true);
   rows:=public.get_my_workspace_help_targets('personal');
   if rows->'payment_targets' @> '[{"subject_id":"bbbbbbbb-2209-4000-8000-000000000003"}]'::jsonb then
     raise exception 'Another account can read a payment help target';
@@ -60,7 +71,7 @@ reset role;
 update public.workspace_role_assignments set status='revoked',revoked_at=now()
 where user_id='help-a' and workspace_role='worker';
 set local role authenticated;
-select set_config('request.jwt.claim.sub','aaaaaaaa-2209-4000-8000-000000000001',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-2209-4000-8000-000000000001","session_id":"aaaaaaaa-2209-4000-8000-000000000001","role":"authenticated"}',true);
 do $$ begin
   begin perform public.get_my_workspace_help_targets('worker'); raise exception 'Revoked workspace access';
   exception when raise_exception then if sqlerrm<>'Workspace access required' then raise; end if; end;
@@ -75,4 +86,15 @@ do $$ begin
     raise exception 'Help reads changed source records';
   end if;
 end $$;
+-- A valid subject alone must not keep Help records accessible after sign-out.
+delete from auth.sessions where id='aaaaaaaa-2209-4000-8000-000000000001';
+set local role authenticated;
+do $$ begin
+  begin
+    perform public.get_my_workspace_help_targets('personal');
+    raise exception 'Ended session still reads private Help records';
+  exception when insufficient_privilege then null;
+  end;
+end $$;
+reset role;
 rollback;

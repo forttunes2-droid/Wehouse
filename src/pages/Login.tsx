@@ -1,3 +1,6 @@
+import EmailSignupConfirmation from '@/components/EmailSignupConfirmation';
+import BrandIdentity from '@/components/BrandIdentity';
+import SignedOutAccountHelp from '@/components/SignedOutAccountHelp';
 import GuestBrowseEntry from "@/components/GuestBrowseEntry";
 import type { SharedProperty } from "@/lib/propertyShare";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
@@ -11,6 +14,7 @@ import {
   signInWithApple,
   getProfileByAuthId,
   deactivateUserSession,
+  isWebPasskeyEnabled,
 } from "@/lib/supabase";
 import type { DeviceRegistration } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
@@ -21,6 +25,8 @@ import { getCurrentLegalDocuments, type CurrentLegalDocuments } from '@/lib/supa
 import { hasLegalConsent, legalDocumentKey, type LegalChoices } from '@/lib/legalConsent';
 import LegalReview from '@/components/LegalReview';
 import BackButton from '@/components/BackButton';
+import EmailAccountSecurity from '@/components/EmailAccountSecurity';
+import { readPendingDevice, savePendingDevice, clearPendingDevice } from '@/lib/pendingDevice';
 import {
   clearGoogleVerification,
   googleVerificationReturnContext,
@@ -39,7 +45,7 @@ type Mode =
   | "google_mismatch"
   | "forgot"
   | "recover";
-type VerificationContext = "signup" | "password_recovery" | "new_device";
+type VerificationContext = "signup" | "password_recovery";
 
 const primaryAction = "wh-auth-primary flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 const secondaryAction = "wh-auth-secondary flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
@@ -53,6 +59,7 @@ interface LoginProps {
   kickedOut?: boolean;
   pendingDevice?: DeviceRegistration | null;
   publicProperty?: SharedProperty | null;
+  publicActivityId?:string|null;
   onDismissPublicProperty?: () => void;
 }
 
@@ -110,8 +117,6 @@ function cancelledGoogleMessage(context: VerificationContext | null) {
     return "Email confirmation was cancelled. Try again when you’re ready.";
   if (context === "password_recovery")
     return "Confirmation was cancelled. Your password was not changed.";
-  if (context === "new_device")
-    return "Confirmation was cancelled. This login was not completed.";
   return "Google confirmation was cancelled.";
 }
 
@@ -122,9 +127,9 @@ function friendlyError(raw: string) {
   if (msg.includes('provider') && (msg.includes('not enabled') || msg.includes('disabled') || msg.includes('unsupported')))
     return isTestEnvironment ? 'This sign-in provider is not ready on this test preview yet.' : 'This sign-in provider is temporarily unavailable. Please try again later.';
   if (msg.includes("banned"))
-    return "Your account has been permanently banned. Contact WeHouse for assistance.";
+    return "Your account access has been removed. Use account access help to request a review.";
   if (msg.includes("suspended"))
-    return "Your account has been suspended. Contact WeHouse for assistance.";
+    return "Your account has been suspended. Use account access help to request a review.";
   if (msg.includes("deleted"))
     return "This account has been deleted. Contact WeHouse if you believe this is an error.";
   if (msg.includes("invalid login credentials") || msg.includes("invalid credentials"))
@@ -132,7 +137,7 @@ function friendlyError(raw: string) {
   if (msg.includes("review the current") || msg.includes("registration is unavailable") || msg.includes("choose create account") || msg.includes("registrations are currently closed") || msg.includes("under maintenance"))
     return raw;
   if (msg.includes("email not confirmed") || msg.includes("not confirmed"))
-    return "Finish the Google email verification for this account.";
+    return "Confirm your email, then sign in again.";
   if (msg.includes("already registered"))
     return "An account with this email already exists. Try signing in instead.";
   if (msg.includes("network") || msg.includes("fetch") || msg.includes("connection"))
@@ -158,17 +163,16 @@ export default function Login({
   kickedOut,
   pendingDevice,
   publicProperty,
+  publicActivityId,
   onDismissPublicProperty,
 }: LoginProps) {
   const [storedVerification] = useState(() => readGoogleVerification());
   const [mode, setMode] = useState<Mode>(() =>
-    storedVerification?.context === "password_recovery"
+    readPendingDevice() ? "confirm_device" : storedVerification?.context === "password_recovery"
       ? "recover"
       : storedVerification?.context === "signup"
         ? "verify_email"
-        : storedVerification?.context === "new_device"
-          ? "confirm_device"
-          : legacyRecoveryRequested()
+        : legacyRecoveryRequested()
             ? "forgot"
             : "browse",
   );
@@ -192,25 +196,7 @@ export default function Login({
   const [info, setInfo] = useState("");
   const [recoveryReady, setRecoveryReady] = useState(false);
   const [googleMismatchEmail, setGoogleMismatchEmail] = useState("");
-  const [deviceDetails, setDeviceDetails] = useState<DeviceRegistration | null>(
-    () => {
-      if (
-        !storedVerification ||
-        storedVerification.context !== "new_device" ||
-        !storedVerification.pendingDeviceSessionId
-      )
-        return null;
-      return {
-        sessionId: storedVerification.pendingDeviceSessionId,
-        newDevice: true,
-        trustStatus: "pending",
-        device: storedVerification.device || "Unknown device",
-        os: storedVerification.os || "Unknown system",
-        browser: storedVerification.browser || "Unknown browser",
-        location: storedVerification.location || "Location unavailable",
-      };
-    },
-  );
+  const [deviceDetails, setDeviceDetails] = useState<DeviceRegistration | null>(() => readPendingDevice());
   const authenticatedIdentityRef = useRef<string | null>(null);
   const [legalDocuments, setLegalDocuments] = useState<CurrentLegalDocuments>({ privacy: null, terms: null });
   const [legalChoices, setLegalChoices] = useState<LegalChoices>({});
@@ -255,7 +241,6 @@ export default function Login({
         return;
       }
       if (context === "password_recovery") setMode("recover");
-      else if (context === "new_device") setMode("confirm_device");
       else if (context === "signup") setMode("verify_email");
     }
     window.addEventListener('wh-native-oauth-return', returned);
@@ -274,7 +259,6 @@ export default function Login({
       ? oauthError : cancelledGoogleMessage(context));
     if (context === "password_recovery") setMode("forgot");
     else if (context === "signup") setMode("verify_email");
-    else if (context === "new_device") setMode("confirm_device");
     window.history.replaceState({}, "", window.location.pathname);
   }, [pendingDevice]);
 
@@ -282,22 +266,14 @@ export default function Login({
     if (!pendingDevice) return;
     setWorking(false);
     setDeviceDetails(pendingDevice);
+    savePendingDevice(pendingDevice);
     setInfo("");
     setError("");
     setMode("confirm_device");
     void supabase.auth.getUser().then(({ data }) => {
       const accountEmail = (data.user?.email || email).trim().toLowerCase();
       if (data.user?.email) setEmail(data.user.email);
-      if (accountEmail)
-        saveGoogleVerification({
-          context: "new_device",
-          email: accountEmail,
-          pendingDeviceSessionId: pendingDevice.sessionId || undefined,
-          device: pendingDevice.device,
-          os: pendingDevice.os,
-          browser: pendingDevice.browser,
-          location: pendingDevice.location,
-        });
+      if (accountEmail) setEmail(accountEmail);
     });
   }, [pendingDevice]);
 
@@ -416,7 +392,7 @@ export default function Login({
       window.history.replaceState({}, "", window.location.pathname);
       setMode("forgot");
       setInfo(
-        "Password recovery uses a Google or Apple identity linked to your WeHouse account. No reset link or code is sent.",
+        "This recovery link is no longer used. Request a code at your verified account email. You can also use Google or Apple if it is already linked to your account.",
       );
     })();
     return () => {
@@ -452,7 +428,7 @@ export default function Login({
         return;
       }
 
-      if (verification?.context === "signup" && !user.identities?.some((identity) => identity.provider === "google")) {
+      if (verification?.context === "signup" && !user.email_confirmed_at) {
         setEmail(expectedGoogleEmail || returnedEmail);
         setMode("verify_email");
         return;
@@ -506,7 +482,7 @@ export default function Login({
         if (data.user) {
           setEmail(clean);
           setMode("verify_email");
-          setInfo("Verify this email with the matching Google account to finish creating your Personal account.");
+          setInfo("Check your email to confirm your Personal account. Google or Apple is not required.");
           return;
         }
         setError("Signup incomplete. Please try again.");
@@ -534,6 +510,27 @@ export default function Login({
     }
   }
 
+  async function handlePasskeySignIn() {
+    if (!isWebPasskeyEnabled || workingRef.current) return;
+    clearMessages();
+    clearGoogleVerification();
+    sessionStorage.removeItem("wh_login_method");
+    setWorking(true);
+    try {
+      const { data, error: passkeyError } = await supabase.auth.signInWithPasskey();
+      if (passkeyError) throw passkeyError;
+      const user = data.user;
+      if (!user?.email) throw new Error("This WeHouse account needs a confirmed email before passkey sign-in.");
+      sessionStorage.setItem("wh_login_method", "passkey");
+      emailHandoff.current = true;
+      setInfo("Signing you in securely…");
+      await onLoginSuccess(user.id, user.email, "user");
+    } catch (cause) {
+      setError(friendlyError(errorMessage(cause, "Passkey sign-in could not complete")));
+      setWorking(false);
+    }
+  }
+
   async function handleGoogle() {
     if (workingRef.current) return;
     clearMessages();
@@ -542,16 +539,7 @@ export default function Login({
       context = "signup";
       saveGoogleVerification({ context, email: email.trim().toLowerCase() });
     } else if (mode === "confirm_device") {
-      context = "new_device";
-      saveGoogleVerification({
-        context,
-        email: email.trim().toLowerCase(),
-        pendingDeviceSessionId: deviceDetails?.sessionId || undefined,
-        device: deviceDetails?.device,
-        os: deviceDetails?.os,
-        browser: deviceDetails?.browser,
-        location: deviceDetails?.location,
-      });
+      setError("Use the email code to confirm this device."); return;
     } else {
       clearGoogleVerification();
       sessionStorage.removeItem("wh_login_method");
@@ -603,7 +591,7 @@ export default function Login({
       context,
       email: expectedEmail,
     });
-    setMode(context === "new_device" ? "confirm_device" : "verify_email");
+    setMode("verify_email");
     setWorking(true);
     const { error: googleError } = await signInWithGoogle(expectedEmail, context);
     if (googleError) {
@@ -623,16 +611,6 @@ export default function Login({
     setPassword("");
     clearMessages();
 
-    if (context === "new_device") {
-      if (deviceDetails?.sessionId)
-        await deactivateUserSession(deviceDetails.sessionId).catch(() => {});
-      clearGoogleVerification();
-      setDeviceDetails(null);
-      setMode("signin");
-      setInfo("That device login was cancelled. Sign in again when you are ready.");
-      return;
-    }
-
     if (transaction) {
       saveGoogleVerification(transaction);
       setEmail(transaction.email);
@@ -642,6 +620,7 @@ export default function Login({
   }
 
   async function cancelDeviceConfirmation() {
+    clearPendingDevice();
     if (workingRef.current) return;
     setWorking(true);
     if (deviceDetails?.sessionId)
@@ -778,13 +757,13 @@ export default function Login({
   return (
     <GuestBrowseEntry key={browseResetKey} active={mode === "browse"} showSignedOutNav={["choose", "signin", "signup"].includes(mode)} busy={working}
       sharedProperty={publicProperty} onDismissSharedProperty={onDismissPublicProperty}
+      sharedActivityId={publicActivityId}
       onSignIn={(property) => { if (!workingRef.current) { setRestorePropertyOnBack(Boolean(property)); setMode("choose"); clearMessages(); } }}
       onBrowse={() => {
         if (restorePropertyOnBack) onDismissPublicProperty?.();
         setRestorePropertyOnBack(false);
         setMode("browse"); setPassword(""); setConfirmPassword(""); clearMessages();
       }}
-      onOpenLegal={onOpenLegal}
       notice={displayError || (kickedOut ? "This device was signed out. Sign in again to continue." : "")}
     >
     <AuthSurface>
@@ -800,6 +779,7 @@ export default function Login({
           </Notice>
         ) : null}
         {displayError ? <Notice tone="error">{displayError}</Notice> : null}
+        {(mode==='signin'||/bann|suspend|deleted|account.*unavailable|account.*access/i.test(displayError))&&<SignedOutAccountHelp/>}
         {info ? <Notice tone="info">{info}</Notice> : null}
 
         {mode === "choose" ? (
@@ -814,7 +794,7 @@ export default function Login({
               onClick={() => { setMode("signin"); clearMessages(); }}
               className={primaryAction}
             >
-              Continue with email
+              Continue with username or email
             </button>
             <Divider />
             <button
@@ -828,6 +808,9 @@ export default function Login({
             </button>
             {appleSignInEnabled && <button type="button" onClick={() => void handleApple()} disabled={working} className={`${secondaryAction} mt-3`}>
               {working ? "Opening Apple…" : "Continue with Apple"}
+            </button>}
+            {isWebPasskeyEnabled && <button type="button" onClick={() => void handlePasskeySignIn()} disabled={working} className={`${secondaryAction} mt-3`}>
+              {working ? "Checking passkey…" : "Continue with a passkey"}
             </button>}
             <p className="mt-5 flex flex-wrap items-center justify-center text-sm text-[var(--auth-muted)]">
               New here?
@@ -893,34 +876,12 @@ export default function Login({
         ) : null}
 
         {mode === "verify_email" ? (
-          <div className="space-y-4">
-            <section className="pb-4">
-              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Confirm your email</h1>
-              <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
-                Use the Google account for <span className="break-words font-medium text-[var(--auth-ink)]">{email.trim()}</span> to confirm it belongs to you.
-              </p>
-              <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
-                You can still sign in with your email and password afterwards.
-              </p>
-            </section>
-            <button
-              type="button"
-              onClick={() => void handleGoogle()}
-              disabled={working}
-              className={primaryAction}
-            >
-              <GoogleIcon />
-              {working ? "Opening verification…" : "Verify with Google"}
-            </button>
-            <button
-              type="button"
-              onClick={() => { clearGoogleVerification(); setMode("signup"); setPassword(""); clearMessages(); }}
-              disabled={working}
-              className={`${textAction} w-full`}
-            >
-              Change email
-            </button>
-          </div>
+          <section className="space-y-4">
+            <h1 className="text-2xl font-semibold leading-tight tracking-tight">Confirm your email</h1>
+            <p className="break-words text-sm text-[var(--auth-muted)]">{email.trim()}</p>
+            <EmailSignupConfirmation email={email} onConfirmed={(authId,confirmedEmail)=>{clearGoogleVerification();onLoginSuccess(authId,confirmedEmail,'user');}}/>
+            <button type="button" onClick={()=>{setMode('signin');clearMessages();}} className={textAction}>Back to sign in</button>
+          </section>
         ) : null}
 
         {mode === "confirm_device" && deviceDetails ? (
@@ -928,7 +889,7 @@ export default function Login({
             <section className="pb-4">
               <h1 className="text-2xl font-semibold leading-tight tracking-tight">Confirm this device</h1>
               <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
-                Use the Google account for <span className="break-words font-medium text-[var(--auth-ink)]">{email.trim()}</span> to approve this sign-in.
+                Confirm this sign-in with a code sent to your verified account email. Google and Apple sign-in do not approve a new device.
               </p>
               <div className="mt-5 divide-y divide-[var(--auth-border)] border-y border-[var(--auth-border)]">
                 <SecurityDetail label="Device" value={deviceDetails.device} />
@@ -936,15 +897,12 @@ export default function Login({
                 <SecurityDetail label="Near" value={deviceDetails.location} />
               </div>
             </section>
-            <button
-              type="button"
-              onClick={() => void handleGoogle()}
-              disabled={working}
-              className={primaryAction}
-            >
-              <GoogleIcon />
-              {working ? "Opening verification…" : "Verify with Google"}
-            </button>
+            <EmailAccountSecurity purpose="device_confirmation" sessionId={deviceDetails.sessionId || undefined} onComplete={async () => {
+              clearPendingDevice(); clearGoogleVerification();
+              const {data,error:identityError}=await supabase.auth.getUser();
+              if(identityError||!data.user)throw new Error('Device confirmed. Sign in again to continue.');
+              onLoginSuccess(data.user.id,data.user.email || email);
+            }}/>
             <button
               type="button"
               onClick={() => void cancelDeviceConfirmation()}
@@ -961,7 +919,7 @@ export default function Login({
             <div role="alert" className="pb-4">
               <h1 className="text-2xl font-semibold leading-tight tracking-tight">Choose the matching account</h1>
               <p className="mt-3 break-words text-sm leading-6 text-[var(--auth-muted)]">
-                This step can verify only <strong className="text-[var(--auth-ink)]">{loginIdentifier || email}</strong>. <strong className="text-[var(--auth-ink)]">{googleMismatchEmail || "The selected Google account"}</strong> was rejected and no account details were changed.
+                This step can verify only <strong className="text-[var(--auth-ink)]">{loginIdentifier || email}</strong>. <strong className="text-[var(--auth-ink)]">{googleMismatchEmail || "The selected sign-in account"}</strong> did not match. No account details were changed.
               </p>
             </div>
             <button
@@ -970,7 +928,7 @@ export default function Login({
               disabled={working}
               className={primaryAction}
             >
-              Choose the matching Google account
+              Choose the matching account
             </button>
             <button
               type="button"
@@ -984,40 +942,24 @@ export default function Login({
         ) : null}
 
         {mode === "forgot" ? (
-          <form onSubmit={(event) => void handleForgot(event)} className="space-y-4">
-            <div className="mb-5">
-              <h1 className="text-2xl font-semibold leading-tight tracking-tight">Reset your password</h1>
-              <p className="mt-3 text-sm leading-6 text-[var(--auth-muted)]">
-                Enter your username or email. Confirm with an identity provider already linked to WeHouse.
-              </p>
-            </div>
-            <Field label="Username or email">
-              <Input
-                type="text"
-                value={loginIdentifier}
-                onChange={(event) => setLoginIdentifier(event.target.value)}
-                placeholder="Username or email"
-                autoCapitalize="none"
-                autoCorrect="off"
-                autoComplete="username"
-                required
-                className={inputStyle}
-              />
-            </Field>
-            <button
-              type="submit"
-              disabled={working || !loginIdentifier.trim()}
-              className={primaryAction}
-            >
-              <span className="inline-flex items-center justify-center gap-2"><GoogleIcon />{working ? "Opening Google…" : "Confirm with Google"}</span>
-            </button>
-            {appleSignInEnabled && <button type="button" onClick={(event) => void handleForgot(event, "apple")} disabled={working || !loginIdentifier.trim()} className={secondaryAction}>
-              {working ? "Opening Apple…" : "Confirm with Apple"}
-            </button>}
-            <button type="button" onClick={() => { setMode("signin"); clearMessages(); }} className={`${textAction} w-full`}>
-              Back to sign in
-            </button>
-          </form>
+          <section className="space-y-4">
+            <h1 className="text-2xl font-semibold leading-tight tracking-tight">Reset your password</h1>
+            <p className="text-sm leading-6 text-[var(--auth-muted)]">Get a code at your verified account email. This works with Hotmail, Gmail and other email providers.</p>
+            <EmailAccountSecurity purpose="password_recovery" onComplete={async message=>{
+              clearGoogleVerification();clearPendingDevice();setPassword('');setConfirmPassword('');setMode('signin');setInfo(message);
+              await supabase.auth.signOut({scope:'local'}).catch(()=>{});
+            }}/>
+            <details className="border-t border-[var(--auth-border)] pt-4">
+              <summary className="min-h-11 cursor-pointer text-sm font-medium">Use a linked sign-in account instead</summary>
+              <form onSubmit={event=>void handleForgot(event)} className="space-y-3">
+                <p className="text-xs leading-5 text-[var(--auth-muted)]">This alternative requires Google or Apple to have been linked to your WeHouse account already.</p>
+                <Field label="WeHouse username or email"><Input value={loginIdentifier} onChange={event=>setLoginIdentifier(event.target.value)} autoComplete="username" autoCapitalize="none" required className={inputStyle}/></Field>
+                <button type="submit" disabled={working||!loginIdentifier.trim()} className={secondaryAction}>Confirm with linked Google account</button>
+                {appleSignInEnabled&&<button type="button" disabled={working||!loginIdentifier.trim()} onClick={event=>void handleForgot(event,'apple')} className={secondaryAction}>Confirm with linked Apple account</button>}
+              </form>
+            </details>
+            <button type="button" onClick={()=>{setMode('signin');clearMessages();}} className={textAction}>Back to sign in</button>
+          </section>
         ) : null}
 
         {mode === "recover" ? (
@@ -1060,15 +1002,11 @@ export default function Login({
 
 function AuthSurface({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    const theme = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
-    const previousTheme = theme?.content;
     document.documentElement.classList.add("wh-auth-open");
     document.body.classList.add("wh-auth-open");
-    if (theme) theme.content = "#090B10";
     return () => {
       document.documentElement.classList.remove("wh-auth-open");
       document.body.classList.remove("wh-auth-open");
-      if (theme && previousTheme !== undefined) theme.content = previousTheme;
     };
   }, []);
   return <div className="wh-auth-screen">{children}</div>;
@@ -1077,11 +1015,8 @@ function AuthSurface({ children }: { children: React.ReactNode }) {
 function Brand() {
   return (
     <div className="wh-auth-brand">
-      <div className="wh-auth-wordmark">
-        <img src="/app-icon.svg?v=3" alt="" width={52} height={52} className="h-[52px] w-[52px]" />
-        <p className="text-[30px] font-semibold tracking-tight">WeHouse</p>
-      </div>
-      <p className="wh-auth-tagline">Find. Connect. Live better.</p>
+      <BrandIdentity className="h-16 w-[215px]"/>
+      <p className="wh-auth-tagline">find · connect · live better</p>
     </div>
   );
 }

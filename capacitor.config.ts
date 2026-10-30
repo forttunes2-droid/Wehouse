@@ -22,6 +22,8 @@ const config: CapacitorConfig = {
     contentInset: 'always',
   },
   plugins: {
+    // The existing Inbox listener owns foreground alerts; avoid duplicate banners.
+    PushNotifications: { presentationOptions: [] },
     SplashScreen: {
       launchAutoHide: true,
       backgroundColor: '#0A0A0F',

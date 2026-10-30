@@ -7,10 +7,57 @@ concurrency:
   group: experience-browser-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
+  wallet-pro-journeys:
+    name: Wallet and Pro browser journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - id: browser-ready
+        run: npx playwright install --with-deps chromium
+      - run: node tests/browser/wallet-pro-journeys.mjs
+      - name: Experience applications, evidence and session preparation
+        if: ${{ !cancelled() && steps.browser-ready.outcome == 'success' }}
+        run: |
+          node tests/browser/wallet-pro-journeys.mjs --experience-applications-only
+          node tests/browser/wallet-pro-journeys.mjs --experience-sessions-only
+      - name: Property sharing and customer viewing lifecycle
+        if: ${{ !cancelled() && steps.browser-ready.outcome == 'success' }}
+        run: |
+          node tests/browser/wallet-pro-journeys.mjs --share-journeys-only
+          node tests/browser/wallet-pro-journeys.mjs --viewing-journeys-only
+      - name: Check compound, unit and private-room submission in both themes
+        if: ${{ !cancelled() && steps.browser-ready.outcome == 'success' }}
+        run: node tests/browser/wallet-pro-journeys.mjs --property-spaces-only
+      - name: Check Partner inventory and reservation read recovery
+        if: ${{ !cancelled() && steps.browser-ready.outcome == 'success' }}
+        run: node tests/browser/wallet-pro-journeys.mjs --partner-assets-only
+      - name: Check Partner reservation history and older booking links
+        if: ${{ !cancelled() && steps.browser-ready.outcome == 'success' }}
+        run: node tests/browser/wallet-pro-journeys.mjs --partner-history-only
+      - name: Verify Field and publication review space details
+        if: ${{ !cancelled() && steps.browser-ready.outcome == 'success' }}
+        run: node tests/browser/wallet-pro-journeys.mjs --space-review-only
+      - name: Check Hotel cancellation preview, confirmation and lost-response recovery
+        if: ${{ !cancelled() && steps.browser-ready.outcome == 'success' }}
+        run: node tests/browser/wallet-pro-journeys.mjs --hotel-cancellation-only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wallet-pro-browser-results
+          path: test-results/wallet-pro-journeys
+          retention-days: 7
   media-compression:
     name: Browser media compression
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,7 +73,8 @@ jobs:
       - run: pip install playwright==1.57.0
       - run: python -m playwright install --with-deps chromium
       - name: Install video encoder
-        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+        timeout-minutes: 5
+        run: python scripts/prepare-browser-encoder.py
       - name: Encode and play short and longer uploads within their budgets
         run: |
           node node_modules/vite/bin/vite.js --config tests/browser/vite.config.ts > /tmp/wehouse-media-vite.log 2>&1 &
@@ -45,7 +93,9 @@ jobs:
           retention-days: 7
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Chromium/OS provisioning took over 16 minutes on a hosted runner.
+    # Leave room for every sequential journey and artifact upload afterward.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,7 +107,7 @@ jobs:
           output = pathlib.Path('test-results/review-source')
           output.mkdir(parents=True, exist_ok=True)
           (output / 'reviewed-commit.txt').write_text(subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True))
-          prefixes = ('public/', 'src/', 'tests/', 'supabase/migrations/', 'supabase/tests/', '.github/workflows/')
+          prefixes = ('public/', 'src/', 'tests/', 'scripts/', 'docs/licenses/', 'supabase/migrations/', 'supabase/tests/', '.github/workflows/')
           configs = {'package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.app.json', 'tailwind.config.js', 'tailwind.config.ts', 'postcss.config.js', 'postcss.config.cjs', 'eslint.config.js', 'index.html'}
           names = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
           with tarfile.open(output / 'review-source.tar.gz', 'w:gz') as bundle:
@@ -86,16 +136,13 @@ jobs:
       - run: pip install playwright==1.57.0
       - run: python -m playwright install --with-deps chromium
       - name: Install video encoder for public media QA
-        run: |
-          set -euo pipefail
-          if ! command -v ffmpeg >/dev/null 2>&1; then
-            timeout 300s sudo apt-get install -y --no-install-recommends ffmpeg
-          fi
-          ffmpeg -version >/dev/null
+        timeout-minutes: 5
+        run: python scripts/prepare-browser-encoder.py
       - name: Capture Account phone screens and verify workspace tab motion
         run: python tests/browser/account_motion_preview.py
       - name: Run isolated browser interactions
         run: |
+          node node_modules/vite/bin/vite.js build
           node node_modules/vite/bin/vite.js --config tests/browser/vite.config.ts > /tmp/wehouse-browser-vite.log 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" || true' EXIT
@@ -104,7 +151,7 @@ jobs:
             sleep 1
           done
           failed=0
-          for test in release_six shared_discovery public_entry worker_documents money_rules media_viewport profile_refinement stabilisation_practical message_attachments workspace_repair property_experience property_link property_routing experience bookings_layout native_choices welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability; do
+          for test in provider_reviews service_review_link account_authenticator release_six shared_discovery public_entry worker_documents money_rules media_viewport profile_refinement stabilisation_practical message_attachments workspace_repair property_experience property_link property_routing experience bookings_layout native_choices welcome-layout communication-stability overview_arrival login_entry profile_help message_swipe entry_help_availability rent_terms later_rent shared_rent error_states security_controls workspace_recovery creator_sanction report_recovery service_quote friend_history media_preparation service_discovery gallery_sharing discovery_location experience_commerce experience_help experience_sharing experience_sponsored experience_discounts approved_dates provider_account hotel_checkout personal_data_review paid_plan_billing; do
             python "tests/browser/$test.py" || failed=1
           done
           test "$failed" = 0
@@ -132,5 +179,18 @@ jobs:
         if: always()
         with:
           name: experience-browser-results
-          path: test-results/experience
+          path: |
+            test-results/experience
+            test-results/experience-commerce
+            test-results/experience-sharing
+            test-results/later-rent
+            test-results/rent-terms
+            test-results/error-states
+            test-results/workspace-recovery
+            test-results/security-controls
+            test-results/friend-history
+            test-results/service-quote
+            test-results/hotel-checkout
+            test-results/personal-data-review
+            test-results/paid-plan-billing
           retention-days: 7

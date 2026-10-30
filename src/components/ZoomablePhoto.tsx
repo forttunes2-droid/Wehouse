@@ -84,6 +84,9 @@ export default function ZoomablePhoto({ src, title, onReady, onError, onPrevious
       start = null; pinch = null;
     };
     const doubleClick = (event: MouseEvent) => {
+      // Touch double taps are handled by pointerup; Chromium also synthesizes
+      // dblclick for them, which would otherwise toggle the camera twice.
+      if ((event as MouseEvent & { sourceCapabilities?: { firesTouchEvents: boolean } }).sourceCapabilities?.firesTouchEvents) return;
       event.preventDefault(); const box = node.getBoundingClientRect();
       move.current(camera.current.scale > 1.01 ? restingCamera() : zoomAt(camera.current, 2, { x: event.clientX - box.left - box.width / 2, y: event.clientY - box.top - box.height / 2 }, bounds.current));
     };

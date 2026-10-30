@@ -1,6 +1,8 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.106.1";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.106.1";
+import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
+import {recordRentChargeRoute} from '../_shared/later-rent.ts';
 
-type Db = ReturnType<typeof createClient>;
+type Db = SupabaseClient;
 
 async function hmacHex(body: string, secret: string) {
   const encoder = new TextEncoder();
@@ -447,6 +449,7 @@ Deno.serve(async (req) => {
     if (
       !reference ||
       !transactionId ||
+      !Number.isSafeInteger(amountMinor) ||
       status !== "success" ||
       currency !== "NGN" ||
       amount <= 0
@@ -454,7 +457,7 @@ Deno.serve(async (req) => {
       return new Response("Invalid event", { status: 200 });
     const { data: payment, error: lookupError } = await db
       .from("booking_payments")
-      .select("id,purpose,status,amount,amount_total,worker_booking_id")
+      .select("id,purpose,status,amount,amount_total,currency,worker_booking_id")
       .eq("paystack_reference", reference)
       .maybeSingle();
     if (lookupError) return new Response("Database error", { status: 500 });
@@ -472,8 +475,10 @@ Deno.serve(async (req) => {
         status: 200,
       });
     }
-    const expected = Number(payment.amount_total ?? payment.amount ?? 0);
-    if (Math.round(expected * 100) !== Math.round(amount * 100))
+    const market=resolvePaymentMarket(payment.currency);
+    if (!market || market.currency!==currency)
+      return new Response("Currency mismatch", { status: 400 });
+    if (paymentMinorUnits(payment.amount_total ?? payment.amount,market.minorDigits) !== amountMinor)
       return new Response("Amount mismatch", { status: 400 });
 
     // This retired purpose may exist only on old test/checkouts. Preserve the
@@ -515,8 +520,8 @@ Deno.serve(async (req) => {
       if (error) return new Response("Sponsored payment processing error", { status: 500 });
       // A paid campaign without a live slot needs Finance review; acknowledge the
       // signed charge so Paystack does not retry a correctly recorded payment.
-      return new Response(data?.success ? "OK" : data?.requires_review ? "Review required" : "Activation rejected",
-        { status: data?.success || data?.requires_review ? 200 : 409 });
+      return new Response(data?.success === true ? "OK" : data?.requires_review === true ? "Review required" : "Activation rejected",
+        { status: data?.success === true || data?.requires_review === true ? 200 : 409 });
     }
 
     if (payment.purpose === "partner_pro_access") {
@@ -528,8 +533,8 @@ Deno.serve(async (req) => {
         p_source: "webhook",
       });
       if (error) return new Response("Partner Pro payment processing error", { status: 500 });
-      return new Response(data?.success ? "OK" : "Partner Pro payment needs review",
-        { status: data?.success || data?.requires_review ? 200 : 409 });
+      return new Response(data?.success === true ? "OK" : "Partner Pro payment needs review",
+        { status: data?.success === true || data?.requires_review === true ? 200 : 409 });
     }
 
     if (payment.purpose === "worker_pro_subscription") {
@@ -561,33 +566,10 @@ Deno.serve(async (req) => {
           "Subscription payment conflict recorded for review",
           { status: 200 },
         );
-      if (!data?.success)
+      if (data?.success !== true)
         return new Response("Subscription activation rejected", {
           status: 409,
         });
-      return new Response("OK", { status: 200 });
-    }
-
-    const canonicalPurpose = new Set([
-      "worker_booking",
-      "shared_housing_share",
-      "apartment_reservation",
-      "apartment_rent",
-      "rent_plan_contribution",
-      "hotel_booking",
-    ]).has(String(payment.purpose || ""));
-
-    if (!canonicalPurpose) {
-      const { data, error } = await db.rpc("confirm_booking_payment", {
-        p_reference: reference,
-        p_transaction_id: transactionId || null,
-        p_verified_amount: amount,
-        p_verification_source: "webhook",
-        p_purpose: payment.purpose,
-      });
-      if (error) return new Response("Processing error", { status: 500 });
-      if (!data?.success)
-        return new Response("Payment confirmation rejected", { status: 409 });
       return new Response("OK", { status: 200 });
     }
 
@@ -596,6 +578,7 @@ Deno.serve(async (req) => {
     // ledger linkage as one idempotent transaction. Do not return early merely
     // because a legacy path already marked the booking payment paid: replaying
     // here is how an otherwise-valid paid row is reconciled fail closed.
+    if(payment.purpose==='rent_plan_contribution')await recordRentChargeRoute(db,reference,event.data);
     const receiptHash = await sha256Hex(
       canonicalChargeReceipt(reference, transactionId, amountMinor, currency),
     );
@@ -610,7 +593,7 @@ Deno.serve(async (req) => {
       p_transaction_id: transactionId,
     });
     if (error) return new Response("Processing error", { status: 500 });
-    if (!data?.success)
+    if (data?.success !== true || data?.ignored === true)
       return new Response("Payment requires Finance review", { status: 500 });
     const { error: modeError } = await db.rpc("record_verified_payment_mode", {
       p_reference: reference, p_transaction_id: transactionId,

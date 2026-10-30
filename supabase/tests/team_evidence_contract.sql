@@ -1,5 +1,8 @@
 \set ON_ERROR_STOP on
 begin;
+-- Exercise an explicit operational pause, not the ordinary open discovery default.
+update public.platform_settings set value='false',updated_at=now()
+ where key='worker_marketplace_launch_enabled';
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,assigned_state,assigned_lga,state,city,local_government) values
 ('77777777-0000-4000-8000-000000000001','team-creator@example.invalid','team-creator','creator',true,null,null,'Nasarawa','Lafia','Lafia'),
@@ -39,11 +42,32 @@ insert into public.announcement_recipients(announcement_id,user_id) values
 (-920001,'team-user'),(-920002,'team-partner');
 update public.profiles set full_name='Team Worker',worker_occupation='Plumber',worker_skills='["Plumbing"]'::jsonb where user_id='team-worker';
 insert into public.worker_service_coverage(worker_id,state,lga) values('team-worker','Nasarawa','Lafia');
+-- Eligibility includes current reviewed service credentials. Do not weaken the
+-- marketplace gate to retain an older incomplete synthetic provider fixture.
+insert into public.worker_verifications(worker_id,status,credential_requirements,
+ credential_revision,credential_requirements_set_by,credential_requirements_set_at)
+values('team-worker','verified','[{"code":"trade","label":"Plumbing credential","requires_expiry":false}]',
+ 1,'team-creator',now());
+update public.worker_verifications set credential_context=private.worker_credential_context('team-worker')
+ where worker_id='team-worker';
+insert into public.worker_credential_documents(worker_id,requirement_code,requirements_revision,
+ version,request_key,original_name,mime_type,byte_size,object_path,status,submitted_at,
+ reviewed_at,reviewed_by,review_note)
+values('team-worker','trade',1,1,'77777777-0000-4000-8000-000000000009',
+ 'synthetic-trade.pdf','application/pdf',12,'team-worker/synthetic-trade.pdf',
+ 'approved',now(),now(),'team-creator','Synthetic reviewed trade credential');
+-- Legitimate internal actors carry a verified account factor and AAL2.
+insert into auth.users(id,email,email_confirmed_at)
+ select auth_id::uuid,email,now() from public.profiles where user_id in('team-creator','team-admin','team-staff','team-outside','team-revoked');
+insert into auth.sessions(id,user_id,created_at,updated_at)
+ select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles where user_id in('team-creator','team-admin','team-staff','team-outside','team-revoked');
+insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at)
+ select auth_id::uuid,auth_id::uuid,'totp','verified',now(),now() from public.profiles where user_id in('team-creator','team-admin','team-staff','team-outside','team-revoked');
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.role','authenticated',true);
 set local role authenticated;
 do $$ declare rows jsonb; n integer; begin
-  perform set_config('request.jwt.claim.sub','77777777-0000-4000-8000-000000000001',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','77777777-0000-4000-8000-000000000001','session_id','77777777-0000-4000-8000-000000000001','role','authenticated','aal','aal2')::text,true);
   select count(*) into n from public.announcements where id in (-920001,-920002);
   if n<>2 then raise exception 'Active Creator cannot read announcement history'; end if;
   select count(*) into n from public.announcement_recipients where announcement_id in (-920001,-920002);
@@ -59,7 +83,7 @@ do $$ declare rows jsonb; n integer; begin
   end if;
   select count(*) into n from storage.objects where bucket_id='worker-identity-private' and name='team-partner/review.jpg';
   if n<>1 then raise exception 'Creator cannot read assigned private review reference'; end if;
-  perform set_config('request.jwt.claim.sub','77777777-0000-4000-8000-000000000002',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','77777777-0000-4000-8000-000000000002','session_id','77777777-0000-4000-8000-000000000002','role','authenticated','aal','aal2')::text,true);
   select count(*) into n from public.announcements where id in (-920001,-920002);
   if n<>1 or not exists(select 1 from public.announcements where id=-920002) then raise exception 'Admin history escaped own sends'; end if;
   select count(*) into n from public.announcement_recipients where announcement_id in (-920001,-920002);
@@ -72,7 +96,7 @@ do $$ declare rows jsonb; n integer; begin
   perform public.manage_staff_permission('team-staff','finance',true,null::uuid);
   rows:=public.get_my_managed_team();
   if not rows @> '[{"user_id":"team-staff","work_areas":["finance_operations"]}]'::jsonb or rows @> '[{"user_id":"team-staff","work_areas":["property_operations"]}]'::jsonb then raise exception 'Work area replacement was not atomic'; end if;
-  perform set_config('request.jwt.claim.sub','77777777-0000-4000-8000-000000000006',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','77777777-0000-4000-8000-000000000006','session_id','77777777-0000-4000-8000-000000000006','role','authenticated','aal','aal1')::text,true);
   if public.get_my_workspace_access()->'privileged_workspaces'<>'[]'::jsonb then raise exception 'Personal account sees team access'; end if;
   select count(*) into n from public.get_public_workers(null,null,null) where user_id='team-worker';
   if n<>0 then raise exception 'Ordinary account bypassed the public Worker marketplace gate'; end if;
@@ -84,14 +108,14 @@ do $$ declare rows jsonb; n integer; begin
   if n<>0 then raise exception 'Ordinary account sees private evidence'; end if;
   begin perform public.get_my_managed_team();raise exception 'Ordinary account manages team';
   exception when raise_exception then if sqlerrm<>'Active team management access required' then raise; end if; end;
-  perform set_config('request.jwt.claim.sub','77777777-0000-4000-8000-000000000005',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','77777777-0000-4000-8000-000000000005','session_id','77777777-0000-4000-8000-000000000005','role','authenticated','aal','aal2')::text,true);
   if public.get_my_workspace_access()->'privileged_workspaces'<>'[]'::jsonb then raise exception 'Revoked account sees team access'; end if;
 end $$;
 reset role;
 update public.workspace_role_assignments set status='revoked',revoked_at=now() where user_id='team-creator';
 set local role authenticated;
 do $$ declare n integer; begin
-  perform set_config('request.jwt.claim.sub','77777777-0000-4000-8000-000000000001',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','77777777-0000-4000-8000-000000000001','session_id','77777777-0000-4000-8000-000000000001','role','authenticated','aal','aal2')::text,true);
   select count(*) into n from storage.objects where bucket_id='worker-identity-private' and name='team-partner/review.jpg';
   if n<>0 then raise exception 'Revoked Creator retained evidence access'; end if;
   select count(*) into n from public.announcements where id in (-920001,-920002);

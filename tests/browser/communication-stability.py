@@ -3,7 +3,7 @@ import asyncio
 import json
 import re
 from playwright.async_api import async_playwright, expect
-from experience import Scenario, BASE, OUT, A, open_account_workspaces
+from experience import Scenario, BASE, OUT, A, ROWS, bundle, open_account_workspaces
 
 class SendingScenario(Scenario):
     async def route(self, route):
@@ -12,7 +12,13 @@ class SendingScenario(Scenario):
         if req.method == 'OPTIONS':
             return await route.fulfill(status=204,headers={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,PATCH,DELETE,OPTIONS'})
         name = req.url.split('/')[-1].split('?')[0]
-        if req.url.startswith('http://127.0.0.1:54321/') and name == 'send_support_message':
+        if req.url.startswith('http://127.0.0.1:54321/') and name in ('support_inbox','get_operational_conversation_bundle'):
+            if name=='support_inbox': data=[{**row,'assigned_staff_id':'experience-creator'} for row in ROWS]
+            else:
+                data=bundle(req.post_data_json['p_conversation_id'])
+                data['conversation']['assigned_staff_id']='experience-creator'
+            return await route.fulfill(content_type='application/json',body=json.dumps(data),headers={'access-control-allow-origin':'*'})
+        if req.url.startswith('http://127.0.0.1:54321/') and name == 'send_support_message_v2':
             self.calls.append((name,req.post_data_json))
             await asyncio.sleep(1.2)
             return await route.fulfill(content_type='application/json',body=json.dumps('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),headers={'access-control-allow-origin':'*'})
@@ -54,7 +60,7 @@ async def main():
                 await page.locator('textarea').fill('Keep this Beta draft')
                 await page.wait_for_timeout(1600)
                 await expect(page.locator('textarea')).to_have_value('Keep this Beta draft')
-                sends=[args for name,args in s.calls if name=='send_support_message']
+                sends=[args for name,args in s.calls if name=='send_support_message_v2']
                 assert len(sends)==1 and sends[0]['p_conversation_id']==A,sends
                 await page.screenshot(path=str(OUT/'pending-send-new-draft.png'))
                 assert not s.errors,s.errors

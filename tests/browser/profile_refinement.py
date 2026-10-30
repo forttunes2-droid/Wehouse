@@ -20,11 +20,9 @@ async def settled_capture(page, name, media=False):
     const box = node.getBoundingClientRect();
     return box.bottom > 0 && box.top < innerHeight && box.right > 0 && box.left < innerWidth;
    });
-   return visible.length > 0 && visible.every(node => {
-    const image = node.querySelector('img'), video = node.querySelector('video');
-    return (image && image.complete && image.naturalWidth > 0) || (video && video.readyState >= 2 && video.videoWidth > 0);
-   });
-  }""", timeout=6000)
+   const states = visible.map(node => node.querySelector('[data-media-thumbnail]')?.getAttribute('data-media-state'));
+   return states.length > 0 && states.every(state => state === 'ready' || state === 'unavailable') && states.includes('ready');
+  }""", timeout=15000)
  await page.screenshot(path=str(OUT/name))
 
 async def main():
@@ -34,7 +32,7 @@ async def main():
   if os.getenv('CHROMIUM_PATH'):opts['executable_path']=os.environ['CHROMIUM_PATH']
   browser=await p.chromium.launch(**opts)
   for width in [320,390,768,1440]:
-   for mode in ['public','preview','creator-list','owner','owner-link','private','error','media-error','pending-media','stale','help','help-error','help-wrong-user']:
+   for mode in [m for m in ['public','preview','creator-list','owner','owner-new','owner-link','private','error','media-error','pending-media','stale','help','help-error','help-wrong-user'] if not os.getenv('WEHOUSE_PROFILE_QA_MODES') or m in os.environ['WEHOUSE_PROFILE_QA_MODES'].split(',')]:
     context=await browser.new_context(viewport={'width':width,'height':844},has_touch=True,service_workers='block');page=await context.new_page();page.set_default_timeout(6000)
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'case':mode,'width':width,'passed':False,'page_errors':errors}
     async def route(handler):
@@ -51,7 +49,7 @@ async def main():
       assert 'Hidden' not in await page.locator('[data-showcase-grid]').inner_text()
       assert await page.locator('video').evaluate_all('(v)=>v.every(e=>e.paused)')
       # A sticky action must be opaque; blurred grid tiles must not show through.
-      assert await page.get_by_role('button',name='Request service',exact=True).evaluate('(button)=>getComputedStyle(button.parentElement.parentElement).backgroundColor')=='rgb(9, 11, 16)'
+      assert await page.get_by_role('button',name='Request a service',exact=True).evaluate('(button)=>getComputedStyle(button.parentElement.parentElement).backgroundColor')=='rgb(9, 11, 16)'
       await settled_capture(page,f'worker-public-profile-{width}.png',media=True)
       await page.get_by_role('tab',name='Reviews',exact=True).click();await expect(page.get_by_text('Careful work and a tidy finish.',exact=True)).to_be_visible()
       assert await page.locator('[data-showcase-grid]').count()==0
@@ -79,7 +77,7 @@ async def main():
       assert len(set(await tiles.evaluate_all('(els)=>els.map(e=>e.getAttribute("aria-label"))')))==27
      elif mode=='preview':
       await expect(page.get_by_text('Creator preview · customer actions are disabled.',exact=False)).to_be_visible()
-      await expect(page.get_by_role('button',name='Request service · preview only')).to_be_disabled()
+      await expect(page.get_by_role('button',name='Request a service · preview only')).to_be_disabled()
       await expect(tiles).to_have_count(24)
       await settled_capture(page,f'worker-creator-preview-{width}.png',media=True)
       await tiles.nth(0).click()
@@ -99,7 +97,7 @@ async def main():
       await expect(opener).to_be_visible();await opener.click()
       await expect(page.get_by_role('dialog',name='Sani Example profile')).to_be_visible()
       await expect(page.get_by_text('Creator preview · customer actions are disabled.',exact=False)).to_be_visible()
-      await expect(page.get_by_role('button',name='Request service · preview only')).to_be_disabled()
+      await expect(page.get_by_role('button',name='Request a service · preview only')).to_be_disabled()
       await page.screenshot(path=str(OUT/f'worker-creator-list-preview-{width}.png'))
       await page.get_by_role('button',name='Back',exact=True).click()
       await expect(opener).to_be_visible();await expect(opener).to_be_focused()
@@ -111,6 +109,11 @@ async def main():
       await tiles.nth(0).click();await page.get_by_label('Post options',exact=True).click();await page.get_by_role('button',name='Hide from profile',exact=True).click()
       await expect(page.get_by_role('dialog',name='Sani Example work post')).to_have_count(0)
       assert len([x for x in await page.evaluate('window.__fixtureState.calls') if x['name']=='set_my_worker_work_post_hidden'])==1
+      await page.locator('input[type=file][accept^="image/"]').set_input_files({'name':'work.jpg','mimeType':'image/jpeg','buffer':Path('public/hero-interior.jpg').read_bytes()})
+      await expect(page.get_by_text('Your showcase has 12 work samples. Remove an old sample before adding another.',exact=True)).to_be_visible()
+      await expect(page.get_by_role('dialog',name='New work post')).to_have_count(0)
+     elif mode=='owner-new':
+      await expect(tiles).to_have_count(3)
       await page.locator('input[type=file][accept^="image/"]').set_input_files({'name':'work.jpg','mimeType':'image/jpeg','buffer':Path('public/hero-interior.jpg').read_bytes()})
       await expect(page.get_by_role('dialog',name='New work post')).to_be_visible()
       await page.get_by_placeholder('Describe this work').fill('Sample cabinet fitting')

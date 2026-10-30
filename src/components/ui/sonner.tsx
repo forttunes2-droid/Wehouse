@@ -5,15 +5,15 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { useTheme } from "next-themes"
+import { resolvedAppearance, useAppearance } from '@/lib/appearance'
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const appearance = useAppearance()
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={resolvedAppearance(appearance)}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
@@ -24,9 +24,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
+          "--normal-bg": "var(--wh-elevated)",
+          "--normal-text": "var(--wh-text)",
+          "--normal-border": "var(--wh-border)",
           "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }

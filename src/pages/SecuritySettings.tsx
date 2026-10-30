@@ -1,23 +1,37 @@
-import { useCallback,useEffect,useMemo,useState } from 'react';
-import { changePassword,getStoredSessionId,logPasswordChange,parseDeviceInfo,supabase } from '@/lib/supabase';
+import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import { startEmailChangeWithGoogle,requestEmailChange,changePassword,getStoredSessionId,logPasswordChange,parseDeviceInfo,supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { getAuthenticationRequirement } from '@/lib/accountAuthentication';
+import { withTimeout } from '@/lib/withTimeout';
 import AccountShell, { AccountInfo } from '@/components/AccountShell';
+import AccountPasskeySettings from '@/components/AccountPasskeySettings';
 import type { Profile } from '@/types';
 
-type Props={profile:Profile;onBack?:()=>void;embedded?:boolean;focus?:'all'|'password'|'sessions'|'close'};
+type Props={profile:Profile;onBack?:()=>void;onLogout?:()=>Promise<unknown>;embedded?:boolean;focus?:'all'|'password'|'sessions'|'close'};
 type DeviceSession={id:string;device:string|null;browser:string|null;os:string|null;ip_address:string|null;is_current:boolean;login_time:string;last_seen:string|null;trust_status:'trusted'};
-export default function SecuritySettings({profile,onBack,embedded=false,focus='all'}:Props){
+export default function SecuritySettings({profile,onBack,onLogout,embedded=false,focus='all'}:Props){
   const [emailVerified,setEmailVerified]=useState<boolean|null>(null);
   const [sessions,setSessions]=useState<DeviceSession[]>([]);
   const [loading,setLoading]=useState(true);
   const [sessionBusy,setSessionBusy]=useState<string|null>(null);
+  const [signingOut,setSigningOut]=useState(false);
   const [showPassword,setShowPassword]=useState(false);
   const [currentPassword,setCurrentPassword]=useState('');
   const [newPassword,setNewPassword]=useState('');
   const [confirmPassword,setConfirmPassword]=useState('');
   const [changing,setChanging]=useState(false);
+  const [showEmail,setShowEmail]=useState(false);
+  const [newEmail,setNewEmail]=useState('');
+  const [emailPassword,setEmailPassword]=useState('');
+  const [emailBusy,setEmailBusy]=useState(false);
+  const [passwordChecked,setPasswordChecked]=useState(false);
+  const [emailSent,setEmailSent]=useState('');
+  const [usesPassword,setUsesPassword]=useState(false);
   const [deleteText,setDeleteText]=useState('');
   const [deleting,setDeleting]=useState(false);
+  const [closureHelp,setClosureHelp]=useState(false);
+  const closureLock=useRef(false);
+  const [mfaRequired,setMfaRequired]=useState<boolean|null>(null);
   const [mfaFactorId,setMfaFactorId]=useState('');
   const [mfaEnrollment,setMfaEnrollment]=useState<{id:string;qr:string;secret:string}|null>(null);
   const [mfaCode,setMfaCode]=useState('');
@@ -35,9 +49,11 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
   const device=useMemo(()=>parseDeviceInfo(),[]);
 
   const currentSessionId=getStoredSessionId();
-  const load=useCallback(async()=>{setLoading(true);const [{data:{user}},{data,error}]=await Promise.all([supabase.auth.getUser(),supabase.rpc('get_my_active_device_sessions')]);setEmailVerified(Boolean(user?.email_confirmed_at));if(error)toast.error('Active sessions could not be loaded');setSessions((data||[]) as DeviceSession[]);setLoading(false)},[]);
+  const load=useCallback(async()=>{setLoading(true);const [{data:{user}},{data,error}]=await Promise.all([supabase.auth.getUser(),supabase.rpc('get_my_active_device_sessions')]);setEmailVerified(Boolean(user?.email_confirmed_at));setUsesPassword(Boolean(user?.app_metadata?.providers?.includes('email')));if(error)toast.error('Active sessions could not be loaded');setSessions((data||[]) as DeviceSession[]);setLoading(false)},[]);
   useEffect(()=>{if(focus==='all'||focus==='sessions')void load();else setLoading(false)},[focus,load]);
   const loadStrongAuth=useCallback(async()=>{
+    try { setMfaRequired((await getAuthenticationRequirement(profile.auth_id)).required); }
+    catch { setMfaRequired(null); toast.error('Authenticator requirements could not be checked. Try reopening security settings.'); }
     const factors=await supabase.auth.mfa.listFactors();
     if(!factors.error){
       const verified=factors.data.totp.find(factor=>factor.status==='verified');
@@ -47,7 +63,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
       const {data}=await supabase.rpc('creator_security_status');
       if(data) setCreatorStatus(data as any);
     }
-  },[isCreator]);
+  },[isCreator,profile.auth_id]);
   useEffect(()=>{void loadStrongAuth()},[loadStrongAuth]);
 
   async function beginMfa(){
@@ -73,7 +89,7 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
   }
   async function removeMfa(){
     if(!mfaFactorId)return;
-    if(isCreator&&creatorStatus?.enrolled)return toast.error('Keep an authenticator enrolled while Creator security is active. Use Creator recovery for a factor replacement.');
+    if(mfaRequired!==false)return toast.error(mfaRequired?'An authenticator is required for your WeHouse Team access.':'Your security requirements must be confirmed before removing an authenticator.');
     setMfaBusy(true);
     const {error}=await supabase.auth.mfa.unenroll({factorId:mfaFactorId});
     setMfaBusy(false);
@@ -113,14 +129,47 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
   }
 
   async function savePassword(){if(!currentPassword||!newPassword||!confirmPassword)return toast.error('Complete all password fields');if(newPassword!==confirmPassword)return toast.error('New passwords do not match');if(newPassword.length<8)return toast.error('Password must be at least 8 characters');setChanging(true);const {error}=await changePassword(currentPassword,newPassword,profile.email);setChanging(false);if(error)return toast.error(error.message);await logPasswordChange(profile.user_id,profile.auth_id);setCurrentPassword('');setNewPassword('');setConfirmPassword('');setShowPassword(false);toast.success('Password changed')}
+  async function checkEmailPassword(){if(!emailPassword)return toast.error('Enter your current password');if(emailBusy)return;setEmailBusy(true);try{const {error}=await withTimeout(supabase.auth.signInWithPassword({email:profile.email,password:emailPassword}),15000,'Password check timed out. Try again.');if(error)return toast.error('Current password is incorrect');setPasswordChecked(true)}catch(error){toast.error(error instanceof Error?error.message:'Email confirmation could not finish. Try again.')}finally{setEmailBusy(false)}}
+  async function saveEmailWithGoogle(){if(!emailPassword||!newEmail)return toast.error('Enter the new email and your password');if(emailBusy)return;setEmailBusy(true);try{const {error}=await withTimeout(startEmailChangeWithGoogle(emailPassword,profile.email,newEmail),20000,'Email confirmation could not be started. Check your account before retrying.');if(error)toast.error(error.message)}catch(error){toast.error(error instanceof Error?error.message:'Email confirmation could not finish. Try again.')}finally{setEmailBusy(false)}}
+  async function saveEmail(){if(!emailPassword||!newEmail)return toast.error('Enter the new email and your password');if(emailBusy)return;setEmailBusy(true);try{const {error}=await withTimeout(requestEmailChange(emailPassword,profile.email,newEmail),20000,'The email request outcome is unknown. Check your inbox and account before retrying.');if(error)return toast.error(error.message);setEmailSent(newEmail.trim().toLowerCase());setEmailPassword('');setNewEmail('');setPasswordChecked(false);setShowEmail(false)}catch(error){toast.error(error instanceof Error?error.message:'Email confirmation could not finish. Try again.')}finally{setEmailBusy(false)}}
   async function startPasswordRecovery(){setChanging(true);await supabase.auth.signOut({scope:'local'}).catch(()=>{});window.location.assign('/?auth=recovery')}
-  async function logoutAll(){await supabase.auth.signOut({scope:'global'})}
+  async function logoutAll(){
+    if(signingOut)return;
+    setSigningOut(true);
+    try{
+      const {error}=await withTimeout(supabase.auth.signOut({scope:'global'}),15000,'Signing out everywhere took too long. Check your connection and try again.');
+      if(error)throw error;
+      await onLogout?.();
+    }catch(error){toast.error(error instanceof Error?error.message:'Devices could not be signed out. Check your connection and try again.')}finally{setSigningOut(false)}
+  }
   async function signOutDevice(sessionId:string):Promise<void>{setSessionBusy(sessionId);const{error}=await supabase.rpc('terminate_my_device_session',{p_session_id:sessionId});setSessionBusy(null);if(error){toast.error(error.message||'Device could not be signed out');return}toast.success('Device signed out');await load()}
-  async function closeAccount(){if(deleteText!=='DELETE')return;setDeleting(true);const {error}=await supabase.rpc('delete_user_account',{p_user_id:profile.user_id});setDeleting(false);if(error)return toast.error(error.message||'Account could not be closed');await supabase.auth.signOut({scope:'global'})}
+  async function closeAccount(){
+    if(deleteText!=='CLOSE'||closureLock.current)return;
+    closureLock.current=true;setDeleting(true);
+    try{
+      const {error}=await withTimeout(supabase.rpc('delete_user_account',{p_user_id:profile.user_id}),15000,'Account closure could not be confirmed. Check account access or ask WeHouse before retrying.');
+      if(error)throw error;
+      const result=await withTimeout(supabase.auth.signOut({scope:'global'}),15000,'Account closed. Signing out is taking longer than expected; close this page and sign in again to check access.');
+      if(result.error)throw new Error('Account closed. Sign-out could not be confirmed; close this page and check account access.');
+    }catch(cause){setClosureHelp(true);toast.error((cause as {message?:string})?.message||'Account closure could not be confirmed. Ask WeHouse before retrying.');}
+    finally{closureLock.current=false;setDeleting(false);}
+  }
+  function requestManagedClosure(){window.dispatchEvent(new CustomEvent('openSupportChat',{detail:{subject:'Account closure request',category:'account_access',contextType:'general',contextSnapshot:{source_type:'account_closure',source_id:profile.user_id}}}))}
 
   const content=<>
 
+    {(focus==='all'||focus==='password')&&<AccountPasskeySettings/>}
+
     {(focus==='all'||focus==='sessions')&&<section className="grid gap-3 sm:grid-cols-3"><AccountInfo label="Email" value={emailVerified===null?'Checking…':emailVerified?'Verified':'Verification required'}/><AccountInfo label="Current device" value={`${device.device} · ${device.browser}`}/><AccountInfo label="Active sessions" value={loading?'Checking…':String(sessions.length)}/></section>}
+
+    {(focus==='all'||focus==='password')&&usesPassword&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div><h2 className="text-sm font-semibold">Change email</h2><p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-muted)]">Google confirms the new address, like when you signed up. It works for any email that is a Google account. If it is not, we send a confirmation link instead. Your current email stays active until the change is confirmed.</p></div>
+        <button onClick={()=>setShowEmail(v=>!v)} className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2 text-[10px] font-semibold text-[var(--wh-text-secondary)]">{showEmail?'Cancel':'Change'}</button>
+      </div>
+      {emailSent&&<p className="mt-3 rounded-xl bg-emerald-500/10 p-3 text-[11px] leading-5 text-emerald-300">Check {emailSent} and open the link to finish. Until then you keep signing in with {profile.email}.</p>}
+      {showEmail&&<div className="mt-4 space-y-3"><Field label="Current password" value={emailPassword} onChange={v=>{setEmailPassword(v);setPasswordChecked(false)}}/>{!passwordChecked?<button onClick={()=>void checkEmailPassword()} disabled={emailBusy} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold text-white disabled:opacity-60">{emailBusy?'Checking…':'Continue'}</button>:<><label className="block"><span className="mb-1 block text-[10px] text-[var(--wh-text-muted)]">New email</span><input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} className="h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none focus:border-violet-500/40"/></label><button onClick={()=>void saveEmailWithGoogle()} disabled={emailBusy} className="w-full rounded-xl bg-violet-500 px-4 py-3 text-xs font-semibold text-white disabled:opacity-60">{emailBusy?'Opening Google…':'Confirm with Google'}</button><button onClick={()=>void saveEmail()} disabled={emailBusy} className="w-full rounded-xl border border-[var(--wh-border-subtle)] px-4 py-3 text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-60">Not a Google account? Send a confirmation link</button></>}</div>}
+    </section>}
 
     {(focus==='all'||focus==='password')&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
       <div className="flex items-center justify-between gap-3">
@@ -135,23 +184,23 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
       </div>
     </section>}
 
-    {isCreator&&(focus==='all'||focus==='password')&&<section className="border-y border-[var(--wh-border-subtle)] py-5">
+    {(focus==='all'||focus==='password')&&<section className="border-y border-[var(--wh-border-subtle)] py-5">
       <div className="flex items-start justify-between gap-4">
-        <div><h2 className="text-sm font-semibold">Creator action authenticator</h2><p className="mt-1 text-[11px] leading-5 text-[var(--wh-text-secondary)]">A Supabase authenticator code confirms sensitive Creator actions after sign-in. It is not a code requested at every WeHouse sign-in. No code is sent by email or SMS.</p></div>
+        <div><h2 className="text-sm font-semibold">Two-factor authentication</h2><p className="mt-1 text-[11px] leading-5 text-[var(--wh-text-secondary)]">One authenticator protects your WeHouse account across all workspaces. After signing in, enter its code before using the app. Required for Creator, Admin and Staff; optional for customers and Providers. Sensitive actions may ask for a fresh code from the same authenticator.</p></div>
         <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${mfaFactorId?'bg-emerald-500/10 text-emerald-300':'bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}>{mfaFactorId?'Enrolled':'Not set'}</span>
       </div>
       {!mfaFactorId&&!mfaEnrollment?<button type="button" disabled={mfaBusy} onClick={()=>void beginMfa()} className="mt-4 min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-xs font-semibold disabled:opacity-50">{mfaBusy?'Starting…':'Set up authenticator'}</button>:null}
       {mfaEnrollment?<div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-4">
         <p className="text-xs font-semibold">Scan with your authenticator app</p>
         {mfaEnrollment.qr?<img src={mfaEnrollment.qr} alt="Authenticator QR code" className="mt-3 h-44 w-44 rounded-xl bg-white p-2"/>:null}
-        {mfaEnrollment.secret?<p className="mt-3 break-all text-[10px] text-[var(--wh-text-secondary)]">Manual key: <span className="font-mono text-[#D8DAE3]">{mfaEnrollment.secret}</span></p>:null}
+        {mfaEnrollment.secret?<p className="mt-3 break-all text-[10px] text-[var(--wh-text-secondary)]">Manual key: <span className="font-mono text-[var(--wh-text)]">{mfaEnrollment.secret}</span></p>:null}
         <label className="mt-3 block"><span className="text-[10px] text-[var(--wh-text-muted)]">6-digit code</span><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={mfaCode} onChange={e=>setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))} className="mt-1 h-11 w-full max-w-xs rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base tracking-[.2em] outline-none"/></label>
         <div className="mt-3 flex gap-2"><button type="button" disabled={mfaBusy||mfaCode.length!==6} onClick={()=>void confirmMfa()} className="min-h-11 rounded-xl bg-violet-500 px-4 text-xs font-semibold disabled:opacity-40">{mfaBusy?'Verifying…':'Enable authenticator'}</button><button type="button" disabled={mfaBusy} onClick={()=>void cancelMfa()} className="min-h-11 px-3 text-xs text-[var(--wh-text-secondary)]">Cancel</button></div>
       </div>:null}
-      {mfaFactorId?<button type="button" disabled={mfaBusy} onClick={()=>void removeMfa()} className="mt-4 min-h-11 text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40">{mfaBusy?'Updating…':'Remove authenticator'}</button>:null}
+      {mfaFactorId&&mfaRequired===false?<button type="button" disabled={mfaBusy} onClick={()=>void removeMfa()} className="mt-4 min-h-11 text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40">{mfaBusy?'Updating…':'Remove authenticator'}</button>:null}
     </section>}
 
-    {!isCreator&&mfaFactorId&&(focus==='all'||focus==='password')&&<section className="border-y border-[var(--wh-border-subtle)] py-5"><h2 className="text-sm font-semibold">Authenticator enrolled</h2><p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Your Supabase account has an authenticator factor. WeHouse does not currently use it to protect Personal, Worker or Property Partner actions. It is not requested on every sign-in.</p><button type="button" disabled={mfaBusy} onClick={()=>void removeMfa()} className="mt-3 min-h-11 text-xs font-semibold text-[var(--wh-text-secondary)] disabled:opacity-40">{mfaBusy?'Updating…':'Remove authenticator'}</button></section>}
+
 
     {isCreator&&(focus==='all'||focus==='password')&&<section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.035] p-4 sm:p-5">
       <div className="flex items-start gap-3">
@@ -179,9 +228,9 @@ export default function SecuritySettings({profile,onBack,embedded=false,focus='a
       </div>
     </section>}
 
-    {(focus==='all'||focus==='sessions')&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-semibold">Active sessions</h2><p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Only devices currently signed in to your account appear here.</p></div><button onClick={()=>void logoutAll()} className="rounded-xl border border-red-500/15 bg-red-500/[.05] px-3 py-2 text-[10px] font-semibold text-red-300">Sign out everywhere</button></div><div className="mt-4 divide-y divide-[var(--wh-border-subtle)]">{loading?<p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">Loading active sessions…</p>:sessions.length===0?<p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">No active sessions found.</p>:sessions.map(session=>{const current=session.is_current||session.id===currentSessionId;return <DeviceRow key={session.id} session={session} current={current} busy={sessionBusy===session.id} onSignOut={signOutDevice}/>})}</div></section>}
+    {(focus==='all'||focus==='sessions')&&<section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-semibold">Active sessions</h2><p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Only devices currently signed in to your account appear here.</p></div><button type="button" disabled={signingOut} onClick={()=>void logoutAll()} className="rounded-xl border border-red-500/15 bg-red-500/[.05] px-3 py-2 text-[10px] font-semibold text-red-300 disabled:opacity-50">{signingOut?'Signing out…':'Sign out everywhere'}</button></div><div className="mt-4 divide-y divide-[var(--wh-border-subtle)]">{loading?<p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">Loading active sessions…</p>:sessions.length===0?<p className="py-5 text-center text-[10px] text-[var(--wh-text-muted)]">No active sessions found.</p>:sessions.map(session=>{const current=session.is_current||session.id===currentSessionId;return <DeviceRow key={session.id} session={session} current={current} busy={sessionBusy===session.id} onSignOut={signOutDevice}/>})}</div></section>}
 
-    {canDelete&&(focus==='all'||focus==='close')&&<section className="rounded-2xl border border-red-500/15 bg-red-500/[.04] p-4 sm:p-5"><h2 className="text-sm font-semibold text-red-300">Close account</h2><p className="mt-1 text-[10px] leading-relaxed text-[#8C7077]">The server checks active bookings, balances and other obligations before allowing account closure.</p><div className="mt-4 space-y-3"><input value={deleteText} onChange={e=>setDeleteText(e.target.value)} placeholder="Type DELETE" className="h-11 w-full rounded-xl border border-red-500/15 bg-[var(--wh-surface)] px-3 text-xs outline-none"/><button onClick={()=>void closeAccount()} disabled={deleteText!=='DELETE'||deleting} className="w-full rounded-xl bg-red-500 px-4 py-3 text-xs font-semibold disabled:opacity-40">{deleting?'Closing…':'Close account'}</button></div></section>}
+    {canDelete&&(focus==='all'||focus==='close')&&<section className="rounded-2xl border border-red-500/25 bg-red-500/[.04] p-4 sm:p-5"><h2 className="text-sm font-semibold text-red-700 dark:text-red-300">Close account</h2><p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">Closing disables account access after active bookings, balances and other obligations are cleared. It does not erase all personal information. To request erasure, send a data-deletion request from Privacy &amp; Security before closing.</p><div className="mt-4 space-y-3"><label className="block space-y-2 text-sm"><span>Type CLOSE to confirm</span><input value={deleteText} disabled={deleting} onChange={e=>setDeleteText(e.target.value)} autoComplete="off" className="min-h-12 w-full rounded-xl border border-[var(--wh-border)] bg-[var(--wh-elevated)] px-3 text-base outline-none"/></label><button onClick={()=>void closeAccount()} disabled={deleteText!=='CLOSE'||deleting} className="min-h-12 w-full rounded-xl bg-red-700 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{deleting?'Closing…':'Close account'}</button>{(closureHelp||profile.role==='property_partner')&&<button type="button" onClick={requestManagedClosure} className="min-h-12 w-full rounded-xl border border-[var(--wh-border)] px-4 py-3 text-sm font-semibold">{profile.role==='property_partner'?'Request closure with WeHouse (required for properties and hotels)':'Ask WeHouse to help close this account'}</button>}</div></section>}
   </>;
   if(embedded)return content;
   return <AccountShell profile={profile} title="Access & security" description="Password, authenticator, devices and active sessions." onBack={onBack}>{content}</AccountShell>

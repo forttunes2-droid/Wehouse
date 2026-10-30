@@ -9,9 +9,12 @@ const out = 'test-results/release-six-offline';
 fs.mkdirSync(out, { recursive: true });
 
 const mock = [
+  "export const isWebPasskeyEnabled=false;",
   "const s=()=>window.__releaseSix;",
   "export const getStoredSessionId=()=> 'current-session';",
   "export const parseDeviceInfo=()=>({device:'Test phone',browser:'Chrome',os:'Android'});",
+  "export const startEmailChangeWithGoogle=async()=>({error:null});",
+  "export const requestEmailChange=async()=>({error:null});",
   "export const changePassword=async()=>({error:null});",
   "export const logPasswordChange=async()=>({error:null});",
   "export const supabase={",
@@ -26,6 +29,7 @@ const mock = [
   "  if(name==='set_my_property_booking_availability'){x.controls={...x.controls,accepting_reservations:Boolean(args.p_accepting),host_booking_paused:!args.p_accepting,status:args.p_accepting?'available':'unavailable',availability_status:args.p_accepting?'available':'unavailable'};return{data:x.controls,error:null};}",
   "  if(name==='block_my_property_dates'){x.controls={...x.controls,date_blocks:[...(x.controls.date_blocks||[]),{block_id:'block-a',start_date:args.p_start_date,reopen_date:args.p_reopen_date}]};return{data:x.controls,error:null};}",
   "  if(name==='unblock_my_property_dates'){x.controls={...x.controls,date_blocks:(x.controls.date_blocks||[]).filter(row=>row.block_id!==args.p_block_id)};return{data:x.controls,error:null};}",
+  "  if(name==='get_my_authentication_requirements')return{data:{auth_id:'auth-a',required:true,enrolled:false,stage:'setup'},error:null};",
   "  if(name==='creator_security_status')return{data:{enrolled:false,totp_enrolled:false,locked_until:null},error:null};",
   "  if(name==='get_my_active_device_sessions')return{data:[{id:'current-session',device:'Test phone',browser:'Chrome',os:'Android',is_current:true,login_time:'2026-09-26T06:00:00Z',trust_status:'trusted'}],error:null};",
   "  return{data:null,error:null};},",

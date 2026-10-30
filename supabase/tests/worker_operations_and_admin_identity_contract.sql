@@ -34,6 +34,7 @@ insert into public.worker_identity_checks(
 ) values(
   'ops-worker','worker','pending_review','ops-worker/pending.jpg',now()
 );
+insert into public.worker_service_coverage(worker_id,country_code,state,lga) values('ops-worker','NG','Nasarawa','Lafia');
 
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.role','authenticated',true);
@@ -69,6 +70,15 @@ begin
   end if;
 end $$;
 
+reset role;
+update public.profiles set country='Ghana',state='Greater Accra',city='Accra',local_government='Accra',precise_address='Synthetic private home',precise_latitude=5.6,precise_longitude=-0.1 where user_id='ops-worker';
+set local role authenticated;
+do $$declare workers jsonb;begin
+ workers:=public.admin_get_my_branch_profiles('worker');
+ if jsonb_array_length(workers)<>1 or workers->0->>'state'<>'Nasarawa' or workers->0->>'precise_address' is not null
+  or workers->0->>'precise_latitude' is not null or (public.admin_get_my_branch_stats()->>'workers')::integer<>1 then
+  raise exception 'A private home move changed the operating branch, dashboard count or exposed a home address';end if;
+end $$;
 select set_config('request.jwt.claim.sub','77777777-7777-4777-8777-000000000003',true);
 do $$
 declare n integer;
@@ -99,6 +109,9 @@ begin
 end $$;
 
 reset role;
+-- The separate Partner identity fixture retains its original personal branch;
+-- Worker Operations above proved the independent professional-area boundary.
+update public.profiles set country='Nigeria',state='Nasarawa',city='Lafia',local_government='Lafia' where user_id='ops-worker';
 update public.worker_identity_checks
 set account_role='property_partner'
 where worker_id='ops-worker';

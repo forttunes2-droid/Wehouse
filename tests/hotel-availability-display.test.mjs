@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 import ts from 'typescript';
 const exports = {};
-vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/propertyNavigation.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, Date, Intl });
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/propertyNavigation.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, Date, Intl, require: () => ({ formatMoney: String }) });
 const { hotelRoomAvailability: calculate } = exports;
 const date = '2026-09-23';
 const now = Date.parse('2026-09-23T10:00:00Z');

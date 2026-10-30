@@ -7,21 +7,22 @@ import { isTestEnvironment } from '@/lib/supabase/client';
 import PersonalBottomNav, { type PersonalNavPage } from '@/components/PersonalBottomNav';
 import { PublicInvitationPreview } from '@/components/ResourceInvitationAction';
 import { clearInvitationIntent, readInvitationIntent, saveInvitationIntent } from '@/lib/resourceInvitation';
-import BackButton from '@/components/BackButton';
+import DiscoveryShell from '@/components/DiscoveryShell';
+import {guestActivityReturn} from '@/lib/navigationRoute';
 
 const Search = lazy(() => import('@/pages/Search'));
 const HotelsHome = lazy(() => import('@/pages/HotelsHome'));
 const ListingDetail = lazy(() => import('@/pages/ListingDetailCore'));
 const HotelDetail = lazy(() => import('@/pages/HotelDetailExperience'));
 const noSavedHomes = new Set<string>();
-type Props = { active: boolean; busy?: boolean; showSignedOutNav?: boolean; sharedProperty?: SharedProperty | null; onDismissSharedProperty?: () => void; onSignIn: (property: SharedProperty | null) => void; onBrowse?: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; notice?: string; children: ReactNode };
+type Props = { active: boolean; busy?: boolean; showSignedOutNav?: boolean; sharedProperty?: SharedProperty | null; sharedActivityId?:string|null; onDismissSharedProperty?: () => void; onSignIn: (property: SharedProperty | null) => void; onBrowse?: () => void; notice?: string; children: ReactNode };
 
 /** Only coordinates public navigation. Search, cards and property details are the
  * SAME components as the authenticated routes. No fake Profile or private reads. */
-export default function GuestBrowseEntry({ active, busy = false, showSignedOutNav = false, sharedProperty, onDismissSharedProperty, onSignIn, onBrowse, onOpenLegal, notice, children }: Props) {
+export default function GuestBrowseEntry({ active, busy = false, showSignedOutNav = false, sharedProperty, sharedActivityId, onDismissSharedProperty, onSignIn, onBrowse, notice, children }: Props) {
   const [page, setPage] = useState<'search' | 'hotels'>('search');
   const [section, setSection] = useState<'explore' | 'bookings' | 'inbox'>('explore');
-  const [publicProduct, setPublicProduct] = useState<'roommate' | 'services' | null>(null);
+  const [publicProduct, setPublicProduct] = useState<'roommate' | 'services' | null>(sharedActivityId?'services':null);
   const [target, setTarget] = useState<SharedProperty | null>(() => sharedProperty || null);
   useEffect(() => {
     if (sharedProperty) { setSection('explore'); setTarget(sharedProperty); setPublicProduct(null); }
@@ -33,10 +34,10 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
     setTarget(null);
     if (sharedProperty && sharedProperty.kind === target?.kind && sharedProperty.id === target.id) onDismissSharedProperty?.();
   }, active && Boolean(target));
-  function requireSignIn(property = target, destination?: 'bookings' | 'inbox' | 'account') {
+  function requireSignIn(property = target, destination?: 'bookings' | 'inbox' | 'account' | 'roommate' | 'services') {
     if (busy) return;
     if (destination) {
-      try { sessionStorage.setItem('wh_guest_return_tab_v1', destination); } catch {}
+      try { sessionStorage.setItem('wh_guest_return_tab_v1', destination==='services'&&sharedActivityId?guestActivityReturn(sharedActivityId)||destination:destination); } catch {}
     }
     if (property) {
       try { savePropertyLinkIntent(property, sessionStorage); } catch { /* Auth works without storage. */ }
@@ -49,7 +50,12 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
     onSignIn(property);
   }
   function navigate(route: string, id?: string) {
-    if (route === 'search' || route === 'hotels') { setPage(route); return; }
+    if (route === 'search' || route === 'hotels') {
+      setPage(route);
+      setPublicProduct(null);
+      setTarget(null);
+      return;
+    }
     if (id && route === 'detail') { setPublicProduct(null); setTarget({ kind: 'listing', id }); return; }
     if (id && route === 'hotel_detail') { setPublicProduct(null); setTarget({ kind: 'hotel', id }); return; }
     if (route === 'roommate') { setPublicProduct('roommate'); setTarget(null); return; }
@@ -88,11 +94,15 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
     <div className="wh-public-entry bg-[var(--wh-bg)] text-[var(--wh-text)]" data-shared-discovery>
       {section === 'explore' ? <Suspense fallback={<div role="status" className="mx-auto max-w-7xl p-5 text-sm text-[var(--wh-text-secondary)]">Loading places…</div>}>
         {target ? target.kind === 'listing'
-          ? <ListingDetail key={target.id} listingId={target.id} profile={null} isSaved={false} onNavigate={back} onToggleSave={() => requireSignIn()} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onOpenBooking={() => requireSignIn()} />
+          ? <ListingDetail key={target.id} listingId={target.id} onOpenListing={id=>setTarget({kind:"listing",id})} profile={null} isSaved={false} onNavigate={back} onToggleSave={() => requireSignIn()} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onOpenBooking={() => requireSignIn()} />
           : <HotelDetail key={target.id} hotelId={Number(target.id)} profile={null} onBack={back} onRequireAuth={() => requireSignIn()} onGoToChat={() => requireSignIn()} onBook={() => requireSignIn()} />
-          : publicProduct ? <GuestProductPreview product={publicProduct} busy={busy} onBack={() => setPublicProduct(null)} onSignIn={() => requireSignIn(null)} />
+          : publicProduct ? (
+            <DiscoveryShell active={publicProduct==='roommate'?'roommates':'services'} onNavigate={navigate}>
+              <GuestAccess section={publicProduct} busy={busy} onSignIn={() => requireSignIn(null,publicProduct)} />
+            </DiscoveryShell>
+          )
           : page === 'hotels' ? <HotelsHome onNavigate={navigate} /> : <Search savedIds={noSavedHomes} onToggleSave={id => requireSignIn({ kind: 'listing', id })} onNavigate={navigate} />}
-      </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} onOpenLegal={onOpenLegal} busy={busy} />}
+      </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} busy={busy} />}
       <PersonalBottomNav
         activePage={sectionPage[section]}
         onNavigate={(page) => {
@@ -109,57 +119,29 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
   </DiscoveryAccessContext.Provider>;
 }
 
-function GuestAccess({ section, onSignIn, busy }: { section: 'bookings' | 'inbox'; onSignIn: () => void; onOpenLegal: (page: 'privacy_policy' | 'terms_of_service') => void; busy: boolean }) {
-  const content = {
-    bookings: { title: 'Sign in to see your bookings' },
-    inbox: { title: 'Sign in to open your inbox' },
-  }[section];
-  return <main className="wh-public-gate" aria-labelledby={`guest-${section}-title`}>
-    <div>
-      <h1 id={`guest-${section}-title`}>{content.title}</h1>
-      <button type="button" onClick={onSignIn} disabled={busy} aria-busy={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-    </div>
-  </main>;
-}
-
-function GuestProductPreview({ product, busy, onBack, onSignIn }: { product: 'roommate' | 'services'; busy: boolean; onBack: () => void; onSignIn: () => void }) {
-  const roommate = product === 'roommate';
-  const content = roommate
+type GuestSection='bookings'|'inbox'|'roommate'|'services';
+export function guestAccessCopy(section: GuestSection) {
+  if(section==='roommate')return {title:'Sign in to find a roommate',body:'Set your location, budget and living preferences to find compatible people.'};
+  if(section==='services')return {title:'Sign in to find a professional',body:'Browse services, compare work and agree the details before you pay.'};
+  return section === 'bookings'
     ? {
-        eyebrow: 'ROOMMATE CONNECTIONS',
-        title: 'Find a shared home that fits the way you live.',
-        body: 'Tell WeHouse where you want to live, what you can spend and the everyday things that matter at home. We show practical compatibility first, then you decide who to connect with.',
-        points: ['Choose your State, LGA and preferred area', 'Set budget, move-in timing and living preferences', 'Review a person’s profile and connect privately'],
-        note: 'Your matching preferences stay private. A match is a starting point for conversation, not a promise that living together will work.',
-        action: 'Sign in to find a roommate',
+        title: 'Sign in to view your bookings',
+        body: 'Track your stay, review confirmed details and keep your upcoming plans in one place.',
       }
     : {
-        eyebrow: 'WEHOUSE SERVICES',
-        title: 'Find the right professional for the job.',
-        body: 'Discover independent service professionals, see what they do and review real work evidence before you decide who to contact.',
-        points: ['Choose the service and where you need it', 'Review skills, profile details and work showcase', 'Connect and keep the service job protected through WeHouse'],
-        note: 'Service professionals are independent providers, not WeHouse employees. WeHouse helps organise the connection and supported payment flow.',
-        action: 'Sign in to find a professional',
+        title: 'Sign in to open your inbox',
+        body: 'View messages, updates and service conversations without losing context from the last screen you left.',
       };
-  return <main className="mx-auto max-w-2xl px-4 py-4 pb-28 sm:px-6" aria-labelledby="guest-product-title">
-    <div className="flex items-center gap-3">
-      <BackButton onClick={onBack} ariaLabel="Back to Explore" />
-      <div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">WeHouse</p><p className="text-sm font-semibold">Explore</p></div>
-    </div>
-    <section className="mt-5" aria-describedby="guest-product-body">
-      <p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">{content.eyebrow}</p>
-      <h1 id="guest-product-title" className="mt-2 max-w-xl text-2xl font-bold tracking-tight sm:text-3xl">{content.title}</h1>
-      <p id="guest-product-body" className="mt-3 max-w-xl text-sm leading-6 text-[var(--wh-text-secondary)]">{content.body}</p>
-      <div className="mt-6 overflow-hidden rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]">
-        {content.points.map((point, index) => (
-          <div key={point} className="flex items-center gap-3 px-4 py-4">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-violet-500/10 text-xs font-semibold text-violet-300">{index + 1}</span>
-            <span className="text-sm font-medium">{point}</span>
-          </div>
-        ))}
+}
+
+function GuestAccess({ section, onSignIn, busy }: { section: GuestSection; onSignIn: () => void; busy: boolean }) {
+  const content = guestAccessCopy(section);
+  const Heading = section==='roommate'||section==='services' ? 'h2' : 'h1';
+  return <main className="mx-auto w-full max-w-7xl px-4 pb-28 pt-8 sm:px-6 lg:px-8" aria-labelledby={`guest-${section}-title`} data-guest-access={section}>
+      <div className="max-w-md">
+        <Heading id={`guest-${section}-title`} className="text-2xl font-semibold tracking-tight text-[var(--wh-text)]">{content.title}</Heading>
+        <p className="mt-3 text-sm leading-6 text-[var(--wh-text-secondary)]">{content.body}</p>
+        <button type="button" onClick={onSignIn} disabled={busy} aria-busy={busy} className="mt-5 min-h-12 rounded-xl bg-violet-600 px-6 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50">{busy ? 'Signing in…' : 'Sign in to continue'}</button>
       </div>
-      <p className="mt-4 text-xs leading-5 text-[var(--wh-text-muted)]">{content.note}</p>
-      <button type="button" onClick={onSignIn} disabled={busy} className="mt-5 min-h-12 w-full rounded-2xl bg-violet-500 px-5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Signing in…' : content.action}</button>
-    </section>
   </main>;
 }

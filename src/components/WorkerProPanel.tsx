@@ -6,6 +6,9 @@ import { supabase } from '@/lib/supabase';
 import { isAndroid, isIOS, isNative } from '@/lib/native';
 import { getNativeStorePlan, purchaseNativeStoreProduct, restoreNativeStoreSubscriptions, type NativeStorePlan } from '@/lib/nativePurchases';
 import type { Profile, WorkerProBillingPeriod, WorkerProEntitlement } from '@/types';
+import { formatMoney } from "@/lib/regional";
+import { WORKER_PRO_TOOLS } from '@/content/proTools';
+import {openWorkSubscriptionManagement} from '@/lib/paidPlanBilling';
 
 type Props = {
   pro: WorkerProEntitlement | null;
@@ -13,9 +16,10 @@ type Props = {
   error: string;
   onRefresh: () => Promise<void>;
   profile: Profile;
+  initialBusinessTools?: boolean;
 };
 
-export default function WorkerProPanel({ pro, loading, error, onRefresh, profile }: Props) {
+export default function WorkerProPanel({ pro, loading, error, onRefresh, profile, initialBusinessTools=false }: Props) {
   const [busy, setBusy] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState<WorkerProBillingPeriod>('monthly');
@@ -43,7 +47,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
   async function subscribe(selectedBillingPeriod: WorkerProBillingPeriod) {
     if (!pro || underReview || (!native && !pro.sales_enabled)) return;
     if (!termsAccepted) {
-      toast.error('Please read and accept the current paid plan subscription terms');
+      toast.error('Please read and accept the current WeHouse Pro terms');
       return;
     }
     setBusy(true);
@@ -81,19 +85,14 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
 
   async function manage() {
     if (!pro?.provider) return;
-    if (pro.provider === 'apple') {
-      window.open('https://apps.apple.com/account/subscriptions', '_blank', 'noopener,noreferrer');
-      return;
-    }
-    if (pro.provider === 'google') {
-      window.open('https://play.google.com/store/account/subscriptions', '_blank', 'noopener,noreferrer');
-      return;
-    }
     setBusy(true);
-    const result = await supabase.functions.invoke('worker-pro-manage');
-    setBusy(false);
-    if (result.error || !result.data?.url) return toast.error(result.data?.error || result.error?.message || 'Subscription management could not open');
-    window.location.assign(String(result.data.url));
+    try {
+      const destination=await openWorkSubscriptionManagement(pro.provider);
+      if(pro.provider==='paystack')window.location.assign(destination);
+      else window.open(destination,'_blank','noopener,noreferrer');
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : 'Subscription management could not open. Please try again.');
+    } finally { setBusy(false); }
   }
 
   async function restore() {
@@ -111,9 +110,9 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
 
   // Ownership of existing records does not end with the subscription. Unknown
   // entitlement permits read/export only; all writes stay server-authorised.
-  const tools = <WorkerProTools key={profile.user_id} profile={profile} canUsePaidTools={Boolean(pro?.active) && !loading && !error} />;
-  if (loading) return <div className="space-y-4"><State text="Loading paid Worker plan…" />{tools}</div>;
-  if (error || !pro) return <div className="space-y-4"><State text={error || 'Paid Worker plan is unavailable'} retry={onRefresh} />{tools}</div>;
+  const tools = <WorkerProTools key={profile.user_id} profile={profile} canUsePaidTools={Boolean(pro?.active) && !loading && !error} initialBusinessTools={initialBusinessTools} />;
+  if (loading) return <div className="space-y-4"><State text="Loading WeHouse Pro…" />{tools}</div>;
+  if (error || !pro) return <div className="space-y-4"><State text={error || 'WeHouse Pro is unavailable'} retry={onRefresh} />{tools}</div>;
   const storeName = isIOS() ? 'App Store' : isAndroid() ? 'Google Play' : 'Paystack';
   const planOptions = Array.isArray(pro.plans) && pro.plans.length > 0 ? pro.plans : [{
     billing_period: 'monthly' as const,
@@ -149,7 +148,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           <span className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${pro.active ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-700 dark:text-emerald-200' : checkoutAvailable ? 'border-violet-400/25 bg-violet-400/10 text-violet-700 dark:text-violet-100' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]'}`}>{pro.active ? 'Active' : checkoutAvailable ? 'Available' : 'Sales closed'}</span>
         </div>
         <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--wh-text-secondary)]">Business tools for Service Workers: track completed jobs, make quotes and issue invoices. Membership does not change professional review or customer ranking.</p>
-        {checkoutAvailable || pro.active ? <p className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4 text-2xl font-semibold">{native ? storePlan?.price || 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `₦${Number(selectedPlan.price_ngn).toLocaleString()}` : 'Price unavailable'}<span className="ml-2 text-sm font-normal text-[var(--wh-text-secondary)]">{native ? `via ${storeName}` : `per ${selectedBillingPeriod === 'yearly' ? 'year' : 'month'}`}</span></p> : null}
+        {checkoutAvailable || pro.active ? <p className="mt-5 border-t border-[var(--wh-border-subtle)] pt-4 text-2xl font-semibold">{native ? storePlan?.price || 'Store price' : selectedPlan && selectedPlan.price_ngn > 0 ? `${formatMoney(Number(selectedPlan.price_ngn))}` : 'Price unavailable'}<span className="ml-2 text-sm font-normal text-[var(--wh-text-secondary)]">{native ? `via ${storeName}` : `per ${selectedBillingPeriod === 'yearly' ? 'year' : 'month'}`}</span></p> : null}
       </section>
 
       <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5">
@@ -160,7 +159,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           </div>
         </div>
         <div className="mt-4 divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
-          {[...pro.features.filter(feature => !/sponsored|priority/i.test(feature)), 'Schedule, calendar export and in-app work reminders', 'Job costs, released earnings and net-after-costs CSV', 'Service packages and featured work on your profile', 'Consented customer records and custom service receipts', 'Priority routing for ordinary support cases'].map((feature) => <div key={feature} className="flex min-h-12 items-center gap-3 py-3 text-sm leading-5 text-[var(--wh-text)]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-700 dark:text-violet-200">✓</span><span>{feature}</span></div>)}
+          {WORKER_PRO_TOOLS.map(([title, detail]) => <div key={title} className="flex min-h-12 items-start gap-3 py-3 text-sm leading-5 text-[var(--wh-text)]"><span aria-hidden="true" className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-violet-400/15 text-sm font-bold text-violet-700 dark:text-violet-200">✓</span><div><p className="font-semibold">{title}</p><p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">{detail}</p></div></div>)}
         </div>
         {!pro.active && !underReview && (native ? nativeSalesEnabled : pro.sales_enabled && anyWebPlanAvailable) && (
           <div className="mt-4 rounded-xl border border-[var(--wh-border-subtle)] bg-black/10 p-3">
@@ -175,15 +174,15 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
                   className={`rounded-xl border p-3 text-left disabled:cursor-not-allowed disabled:opacity-40 ${selectedBillingPeriod === plan.billing_period ? 'border-amber-300/35 bg-amber-300/10' : 'border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]'}`}
                 >
                   <span className="block text-sm font-semibold">{plan.label}</span>
-                  <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">{native ? plan.billing_period === selectedBillingPeriod ? storePlan?.price || 'Loading store price…' : 'See store price' : `₦${Number(plan.price_ngn).toLocaleString()}`}</span>
+                  <span className="mt-1 block text-xs text-[var(--wh-text-secondary)]">{native ? plan.billing_period === selectedBillingPeriod ? storePlan?.price || 'Loading store price…' : 'See store price' : `${formatMoney(Number(plan.price_ngn))}`}</span>
                   {!native && plan.billing_period === 'yearly' && plan.saving_ngn > 0 && (
-                    <span className="mt-1 block text-xs font-semibold text-amber-700 dark:text-amber-200">Save ₦{Number(plan.saving_ngn).toLocaleString()} ({Number(plan.discount_percent).toLocaleString()}%)</span>
+                    <span className="mt-1 block text-xs font-semibold text-amber-700 dark:text-amber-200">Save {formatMoney(Number(plan.saving_ngn))} ({Number(plan.discount_percent).toLocaleString()}%)</span>
                   )}
                 </button>
               ))}
             </div>
             <details>
-              <summary className="cursor-pointer text-sm font-semibold text-[var(--wh-text)]">Read paid plan subscription terms ({pro.terms_version || 'not published'})</summary>
+              <summary className="cursor-pointer text-sm font-semibold text-[var(--wh-text)]">Read WeHouse Pro terms ({pro.terms_version || 'not published'})</summary>
               <p className="mt-3 max-h-44 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-[var(--wh-text-secondary)]">{pro.terms_content || 'Subscription terms are not available. Sales must remain off.'}</p>
             </details>
             <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm leading-6 text-[var(--wh-text-secondary)]">
@@ -202,7 +201,7 @@ export default function WorkerProPanel({ pro, loading, error, onRefresh, profile
           <p className="mt-4 text-sm leading-6 text-[var(--wh-text-secondary)]">Paid Worker subscriptions are not open yet. Your free Worker profile, review status and job eligibility are unchanged.</p>
         )}
       </section>
-      {underReview && <p role="status" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--wh-text)]">Your Worker Pro payment is under Finance review after a provider refund or dispute notice. Paid tools and new checkout are paused. Your free Worker profile, bookings and existing work documents remain available.</p>}
+      {underReview && <p role="status" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-[var(--wh-text)]">Your WeHouse Pro payment is under Finance review after a provider refund or dispute notice. Paid tools and new checkout are paused. Your free Worker profile, bookings and existing work documents remain available.</p>}
       {native && <button onClick={() => void restore()} disabled={busy || import.meta.env.VITE_NATIVE_BILLING_ENABLED !== 'true'} className="w-full rounded-xl border border-[var(--wh-border-subtle)] px-4 py-3 text-[10px] font-semibold disabled:opacity-40">Restore store subscription</button>}
       {tools}
     </div>

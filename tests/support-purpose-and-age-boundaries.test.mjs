@@ -1,3 +1,4 @@
+import timeoutApi from './helpers/with-timeout.mjs';
 import chatMediaPolicy from './helpers/chat-media-policy.mjs';
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -14,7 +15,7 @@ async function supportModule() {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   vm.runInNewContext(code, { exports, require(name) {
-    if(name === '@/lib/chatMediaPolicy') return chatMediaPolicy;
+    if(name === '@/lib/withTimeout') return timeoutApi; if(name === '@/lib/chatMediaPolicy') return chatMediaPolicy;
     if (name === "./client") return { supabase: { async rpc(name, args) {
       calls.push({ name, args: JSON.parse(JSON.stringify(args)) });
       return { data: { conversation_id: "test-conversation" }, error: null };
@@ -109,10 +110,13 @@ test("Worker Jobs and Partner Properties remain the existing operational homes",
     read("src/pages/PropertyOwnerDashboard.tsx"),
   ]);
   assert.match(worker, /\{ id: "jobs", label: "Jobs" \}/);
-  assert.doesNotMatch(worker, /label: "Overview"/);
+  // Requested-service providers keep Jobs. Activity-only providers need an
+  // operational home before they have an unrelated requested-service profile.
+  assert.match(worker, /canManageJobs \? \{ id: "jobs", label: "Jobs" \} : \{ id: "home", label: "Overview" \}/);
+  assert.match(worker, /<WorkerActivationHome[\s\S]*activityBookings=\{access\.capabilities\?\.experience_next\}/);
   assert.match(worker, /<WorkerAvailabilityControl profile=\{profile\}/);
   assert.match(worker, /<WorkerJobsPanelV2/);
   assert.match(partner, /key: "properties"[\s\S]*label: "Properties"/);
   assert.doesNotMatch(partner, /label: "Overview"/);
-  assert.match(partner, /<WeHouseSelect[\s\S]*label: "Apartments"[\s\S]*label: "Hotels"/);
+  assert.match(partner, /<WeHouseSelect[\s\S]*label: "Homes"[\s\S]*label: "Hotels"/);
 });

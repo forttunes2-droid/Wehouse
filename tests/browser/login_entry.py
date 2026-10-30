@@ -6,7 +6,7 @@ import asyncio
 import json
 import os
 from playwright.async_api import async_playwright, expect
-from experience import OUT, Scenario
+from experience import BASE, OUT, Scenario
 
 
 def password_input(page):
@@ -59,7 +59,7 @@ async def run(browser):
             await expect(page.locator('.wh-auth-form')).to_have_css('border-top-width', '0px')
             await page.wait_for_timeout(250)
             await page.screenshot(path=str(OUT / f'welcome-repaired-{width}.png'), full_page=True)
-            await page.get_by_role('button', name='Continue with email', exact=True).click()
+            await page.get_by_role('button', name='Continue with username or email', exact=True).click()
             await expect(page.get_by_role('heading', name='Welcome back', exact=True)).to_be_visible()
             await page.get_by_label('Username or email', exact=True).fill('layout-check@example.invalid')
             await password_input(page).fill('Test-only-password')
@@ -83,7 +83,7 @@ async def run(browser):
     async def short_viewport():
         scenario = Scenario()
         context, page = await scenario.page(browser, 'login', 390, 844)
-        await page.get_by_role('button', name='Continue with email', exact=True).click()
+        await page.get_by_role('button', name='Continue with username or email', exact=True).click()
         await page.get_by_label('Username or email', exact=True).fill('layout-check@example.invalid')
         await password_input(page).fill('Test-only-password')
         await page.set_viewport_size({'width': 390, 'height': 360})
@@ -110,7 +110,7 @@ async def run(browser):
         context, page = await scenario.page(browser, 'login', reduced=True)
         await expect(page.locator('.wh-auth-brand')).to_have_css('animation-name', 'none')
         await expect(page.locator('.wh-auth-form')).to_have_css('animation-name', 'none')
-        button = page.get_by_role('button', name='Continue with email', exact=True)
+        button = page.get_by_role('button', name='Continue with username or email', exact=True)
         await button.hover()
         await page.mouse.down()
         try:
@@ -144,6 +144,21 @@ async def run(browser):
             assert not scenario.errors, scenario.errors
             await context.close()
     await check('Simulated auth readiness replaces a stable shell without stacked route motion', arrival_motion)
+
+    async def legacy_recovery_notice():
+        scenario = Scenario()
+        context, page = await scenario.page(browser, 'login', 390, 844)
+        await page.goto(BASE + '/tests/browser/experience.html?fixture=login&auth=recovery')
+        await expect(page.get_by_role('heading', name='Reset your password', exact=True)).to_be_visible()
+        await expect(page.get_by_text('This recovery link is no longer used.', exact=False)).to_contain_text('verified account email')
+        await expect(page.get_by_text('No reset link or code is sent.', exact=False)).to_have_count(0)
+        await expect(page.get_by_text('Get a code at your verified account email.', exact=False)).to_be_visible()
+        assert 'auth=recovery' not in page.url
+        assert not [call for call in scenario.calls if call[0] == 'email-account-security'], 'Opening an old link must not silently send a code'
+        await no_overflow(page)
+        assert not scenario.errors, scenario.errors
+        await context.close()
+    await check('Old recovery links lead to the email-code flow without contradictory notice or automatic sends', legacy_recovery_notice)
     assert all(result['passed'] for result in results), 'Login/entry checks failed; see login-entry-results.json'
 
 

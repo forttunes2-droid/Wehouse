@@ -1,6 +1,8 @@
-# WeHouse Communication, Activity, Saved and Followed Search Contract
+# Historical snapshot — Communication, Activity, Saved and Followed Search
 
-This is the single authoritative communication contract for WeHouse. It supersedes older communication notes, including any description of a separate top-level Conversation destination or the pre-PR-71 hotel thread-creation mismatch.
+**Superseded:** this dated snapshot is not the current product authority. Use [Chat and Communication](CHAT_AND_COMMUNICATION.md), [Decision Log](DECISION_LOG.md) and [Product Master](PRODUCT_MASTER.md) for current behavior. Older rows below may describe a pre-launch state.
+
+This file preserves a dated design snapshot. It is not authoritative; see the current Chat and Communication contract linked above.
 
 ## 1. Customer navigation
 
@@ -107,6 +109,7 @@ The current production read model still excludes a hotel conversation from the I
 
 - Roommate direct chat uses the private E2EE message/attachment path.
 - Service-job direct chat uses the private E2EE message/attachment path.
+- Friend has a separate end-to-end encrypted chat. It never reuses a Roommate conversation.
 - WeHouse support cases are operational support records and are **not** presented as E2EE participant chat.
 - Hotel chat is business/operational hotel communication; current implementation is not the roommate/service E2EE path.
 - Encryption readiness must never make the composer visually jump, disappear under the keyboard, or send an unintended message from the mobile Enter key.

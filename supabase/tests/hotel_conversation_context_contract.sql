@@ -119,8 +119,14 @@ insert into public.hotel_booking_conversations(id,booking_id,hotel_id,guest_user
 ('88999999-1000-4000-8000-000000000001',-8899,-8899,'media-guest');
 insert into public.hotel_booking_messages(id,conversation_id,sender_id,content,attachments,attachment_types) values
 ('88999999-2000-4000-8000-000000000001','88999999-1000-4000-8000-000000000001','media-owner','Legacy note',array['legacy.pdf'],array['application/pdf']);
+insert into auth.sessions(id,user_id,created_at,updated_at)
+values('88999999-3000-4000-8000-000000000002','88999999-0000-4000-8000-000000000002',now(),now());
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+values('media-guest','88999999-0000-4000-8000-000000000002','88999999-3000-4000-8000-000000000002',
+ 'media-contract-device','Synthetic contract browser',true,'trusted');
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims','{"sub":"88999999-0000-4000-8000-000000000002","session_id":"88999999-3000-4000-8000-000000000002"}',true);
 select set_config('request.jwt.claim.role','authenticated',true);
 -- Create the support thread via its actual atomic first-send routine.
 do $$ declare r jsonb; begin
@@ -225,9 +231,11 @@ insert into public.booking_conversations(id,booking_id,user_id,worker_id) values
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000002',true);
 set local role authenticated;
-insert into storage.objects(bucket_id,name,owner_id,metadata) values
-('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/room.bin','88999999-0000-4000-8000-000000000002','{"mimetype":"application/octet-stream","size":86}'),
-('chat-files','e2ee/worker/88999999-5000-4000-8000-000000000001/voice.bin','88999999-0000-4000-8000-000000000002','{"mimetype":"application/octet-stream","size":200}');
+select public.reserve_my_media_upload('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/room.bin');
+select public.reserve_my_media_upload('chat-files','e2ee/worker/88999999-5000-4000-8000-000000000001/voice.bin');
+insert into storage.objects(bucket_id,name,owner_id,metadata,version) values
+('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/room.bin','88999999-0000-4000-8000-000000000002','{"mimetype":"application/octet-stream","size":86}',gen_random_uuid()::text),
+('chat-files','e2ee/worker/88999999-5000-4000-8000-000000000001/voice.bin','88999999-0000-4000-8000-000000000002','{"mimetype":"application/octet-stream","size":200}',gen_random_uuid()::text);
 do $$ declare p text; c uuid; k text; item jsonb; begin
  for k,c,p in select * from (values
   ('roommate','88999999-3000-4000-8000-000000000001'::uuid,'e2ee/roommate/88999999-3000-4000-8000-000000000001/room.bin'),
@@ -282,8 +290,9 @@ reset role;
 select set_config('request.jwt.claim.sub','88999999-0000-4000-8000-000000000002',true);
 set local role authenticated;
 do $$ declare n integer; begin
- insert into storage.objects(bucket_id,name,owner_id,metadata) values
- ('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/discard.bin',auth.uid()::text,'{"mimetype":"application/octet-stream","size":100}');
+ perform public.reserve_my_media_upload('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/discard.bin');
+ insert into storage.objects(bucket_id,name,owner_id,metadata,version) values
+ ('chat-files','e2ee/roommate/88999999-3000-4000-8000-000000000001/discard.bin',auth.uid()::text,'{"mimetype":"application/octet-stream","size":100}',gen_random_uuid()::text);
  perform set_config('storage.allow_delete_query','true',true);
  delete from storage.objects where bucket_id='chat-files' and name='e2ee/roommate/88999999-3000-4000-8000-000000000001/discard.bin';
  get diagnostics n=row_count;

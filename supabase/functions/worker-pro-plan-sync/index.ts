@@ -1,5 +1,8 @@
 import { hasLiveSession, hasActiveWorkspace } from "../_shared/liveSession.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.1';
+import { paymentMinorUnits } from '../_shared/payment-market.ts';
+import { resolvePaymentReturnUrl } from '../_shared/payment-return.ts';
+import { consumeUserAction } from '../_shared/rateLimit.ts';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -26,11 +29,15 @@ Deno.serve(async (req) => {
       return json({ success: false, error: 'Subscription server configuration is incomplete' }, 503);
     }
 
+    if(!resolvePaymentReturnUrl(url,Deno.env.get('APP_URL'),paystackSecret,'worker_dashboard'))
+      return json({success:false,error:'Payment environment configuration is incomplete or mismatched'},503);
     const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const token = authHeader.replace(/^Bearer\s+/i, '');
     const { data: { user }, error: authError } = await admin.auth.getUser(token);
     if (authError || !user) return json({ success: false, error: 'Invalid or expired session' }, 401);
     if (!await hasLiveSession(admin, user.id, token)) return json({success:false,error:'Session ended. Sign in again.'},401);
+    const limit=await consumeUserAction(admin,user.id,'worker_pro_plan_sync',5,600,true);
+    if(!limit.allowed)return json({success:false,error:'Too many plan synchronization attempts. Please wait.',retry_after_seconds:limit.retryAfterSeconds},429);
     const { data: creator } = await admin.from('profiles').select('user_id,role,deleted,suspended,banned')
       .eq('auth_id', user.id).maybeSingle();
     if (!creator || !await hasActiveWorkspace(admin,creator.user_id,'creator') || creator.deleted || creator.suspended || creator.banned) {
@@ -54,15 +61,16 @@ Deno.serve(async (req) => {
     if (settingsError) return json({ success: false, error: settingsError.message }, 500);
     const values = new Map((settings || []).map((setting) => [setting.key, String(setting.value || '')]));
     const price = Number(values.get(priceKey) || 0);
+    const amountMinor=paymentMinorUnits(values.get(priceKey),2);
     const existingCode = values.get(planCodeKey) || '';
     const productName = (values.get('worker_pro_product_name') || 'WeHouse Works').trim().slice(0, 40) || 'WeHouse Works';
-    if (!Number.isFinite(price) || price <= 0 || price > 10_000_000) {
+    if (amountMinor===null || price > 10_000_000 || (existingCode && !/^PLN_[A-Za-z0-9]+$/.test(existingCode))) {
       return json({ success: false, error: `Set a valid ${billingPeriod} price before syncing Paystack` }, 409);
     }
 
     const body = {
       name: `${productName} ${isYearly ? 'Yearly' : 'Monthly'}`,
-      amount: Math.round(price * 100),
+      amount: amountMinor,
       interval: paystackInterval,
       currency: 'NGN',
       description: `Optional ${billingPeriod} business tools for WeHouse Workers`,
@@ -73,6 +81,7 @@ Deno.serve(async (req) => {
       : 'https://api.paystack.co/plan';
     const response = await fetch(endpoint, {
       method: existingCode ? 'PUT' : 'POST',
+      signal:AbortSignal.timeout(12000),
       headers: { Authorization: `Bearer ${paystackSecret}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
@@ -84,14 +93,15 @@ Deno.serve(async (req) => {
     if (!/^PLN_[A-Za-z0-9]+$/.test(code)) return json({ success: false, error: 'Paystack returned an invalid plan code' }, 502);
 
     const verifyResponse = await fetch(`https://api.paystack.co/plan/${encodeURIComponent(code)}`, {
+      signal:AbortSignal.timeout(12000),
       headers: { Authorization: `Bearer ${paystackSecret}` },
     });
     const verifyPayload = await verifyResponse.json().catch(() => null);
     const plan = verifyPayload?.data;
     if (!verifyResponse.ok || !verifyPayload?.status || !plan
       || String(plan.interval || '').toLowerCase() !== paystackInterval
-      || String(plan.currency || 'NGN').toUpperCase() !== 'NGN'
-      || Math.round(Number(plan.amount || 0)) !== Math.round(price * 100)) {
+      || plan.currency !== 'NGN'
+      || !Number.isSafeInteger(plan.amount) || plan.amount !== amountMinor) {
       return json({ success: false, error: `Paystack did not confirm the requested ${billingPeriod} price` }, 502);
     }
 
@@ -103,7 +113,7 @@ Deno.serve(async (req) => {
       p_key: planCodeKey,
       p_value: code,
     });
-    if (saved.error) return json({ success: false, error: 'Plan was synced but its code could not be recorded safely' }, 500);
+    if (saved.error || saved.data!==true) return json({ success: false, error: 'Plan was synced but its code could not be recorded safely' }, 500);
     return json({
       success: true,
       billing_period: billingPeriod,

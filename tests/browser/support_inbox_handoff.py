@@ -11,13 +11,15 @@ async def main():
   options={'headless':True,'args':['--no-sandbox']}
   if os.getenv('CHROMIUM_PATH'):options['executable_path']=os.environ['CHROMIUM_PATH']
   browser=await p.chromium.launch(**options)
-  for width in [390,768,1440]:
+  for theme,width in [(theme,width) for theme in ["dark","light"] for width in [390,768,1440]]:
    for role in ['user','worker','property_partner','hotel_staff']:
     context=await browser.new_context(viewport={'width':width,'height':844},service_workers='block');page=await context.new_page();page.set_default_timeout(5000)
-    errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'width':width,'role':role,'passed':False,'page_errors':errors}
+    errors=[];page.on('pageerror',lambda e:errors.append(str(e)));row={'theme':theme,'width':width,'role':role,'passed':False,'page_errors':errors}
     await page.route('**/*',lambda route:route.abort())
     try:
-     await page.set_content('<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0"><div id="root"></div></body></html>')
+     await page.route('https://wehouse.test/**',lambda route:route.fulfill(content_type='text/html',body='<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0"><div id="root"></div></body></html>'))
+     await page.goto('https://wehouse.test/')
+     await page.evaluate('(theme)=>document.documentElement.setAttribute("data-wh-theme",theme)',theme)
      await page.evaluate('(role)=>window.__supportRole=role',role)
      await page.add_style_tag(path=str(BUNDLE/'fixture.css'));await page.add_script_tag(path=str(BUNDLE/'fixture.js'))
      await page.get_by_role('button',name='Using WeHouse',exact=True).click()
@@ -41,8 +43,15 @@ async def main():
      await inbox.get_by_role('button',name='My account',exact=False).click()
      await expect(dialog.get_by_text('Please help me with my account.',exact=True)).to_be_visible()
      await dialog.locator('textarea').fill('Here is my follow-up.')
+     await page.evaluate('window.__supportInbox.loseReplyReceipt=true')
      await dialog.get_by_role('button',name='Send',exact=True).click()
-     await expect(dialog.get_by_text('Here is my follow-up.',exact=True)).to_be_visible()
+     await expect(dialog.get_by_role('button',name='Send',exact=True)).to_be_enabled()
+     assert await dialog.locator('textarea').input_value()=='Here is my follow-up.'
+     await dialog.get_by_role('button',name='Send',exact=True).click()
+     await expect(dialog.locator('p').filter(has_text='Here is my follow-up.')).to_have_count(1)
+     assert await dialog.locator('textarea').input_value()==''
+     replies=await page.evaluate('window.__supportInbox.calls.filter(c=>c.name==="send_support_message_v2")')
+     assert len(replies)==2 and replies[0]['args']['p_request_id']==replies[1]['args']['p_request_id']
      await dialog.get_by_role('button',name='Back',exact=True).click();await expect(dialog).to_have_count(0)
      await inbox.get_by_role('button',name='Open Help',exact=True).click()
      await page.get_by_role('button',name='Using WeHouse',exact=True).click()
@@ -52,7 +61,7 @@ async def main():
      workspace='personal' if role=='user' else 'hotel' if role=='hotel_staff' else role
      queries=await page.evaluate('window.__supportInbox.calls.filter(c=>c.name==="get_my_workspace_inbox").map(c=>c.args.p_workspace)')
      assert queries and set(queries)=={workspace},queries
-     await page.screenshot(path=str(OUT/f'help-inbox-conversation-{role}-{width}.png'))
+     await page.screenshot(path=str(OUT/f'help-inbox-conversation-{theme}-{role}-{width}.png'))
      await page.keyboard.press('Escape');await expect(dialog).to_have_count(0)
      await page.evaluate('window.__supportInbox.failInbox=true;window.dispatchEvent(new Event("wehouse:unread-changed"))')
      await expect(inbox.get_by_role('alert')).to_contain_text('could not be refreshed')
@@ -63,7 +72,7 @@ async def main():
      assert not errors,errors
      row['passed']=True;row['checks']=['no send on open','Help hands off to Inbox','native Back during send','acknowledgement refresh','one thread on reentry','follow-up preserved','workspace alias and scope','retry is not empty']
     except Exception as e:
-     row['error']=str(e);await page.screenshot(path=str(OUT/f'FAIL-support-inbox-{role}-{width}.png'))
+     row['calls']=await page.evaluate('window.__supportInbox.calls');row['error']=str(e);await page.screenshot(path=str(OUT/f'FAIL-support-inbox-{theme}-{role}-{width}.png'))
     finally:results.append(row);print(json.dumps(row),flush=True);await context.close()
   await browser.close()
  (OUT/'support-inbox-handoff-results.json').write_text(json.dumps(results,indent=2));assert all(r['passed'] for r in results)

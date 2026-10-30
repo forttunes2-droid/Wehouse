@@ -23,12 +23,15 @@ import ChatCore from "@/pages/ChatCore";
 import Notifications from "@/pages/Notifications";
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import ActivityHeader from "@/components/ActivityHeader";
+import FriendsPanel from "@/components/FriendsPanel";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 
 type Props = {
   profile: Profile;
   onNavigate: (page: string, id?: string) => void;
   conversationId?: string | null;
+  initialFriendChatId?: string | null;
+  onFriendChatOpened?: () => void;
   peerUserId?: string | null;
   onConversationClose?: () => void;
   chatUnreadCount?: number;
@@ -116,6 +119,8 @@ export default function Chat({
   profile,
   onNavigate,
   conversationId,
+  initialFriendChatId,
+  onFriendChatOpened,
   peerUserId,
   onConversationClose,
   activityUnreadCount = 0,
@@ -149,6 +154,7 @@ export default function Chat({
   const [category, setCategory] = useState<InboxCategory>("all");
   const [activeTarget, setActiveTarget] = useState<ActiveTarget>(null);
   const [view, setView] = useState<"messages" | "activity">("messages");
+  useEffect(() => { if (initialFriendChatId) setView("messages"); }, [initialFriendChatId]);
 
   useEffect(() => {
     if (view !== "activity") return;
@@ -599,6 +605,7 @@ export default function Chat({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-3 sm:px-5 lg:px-8">
+        {!conversationOnly && <FriendsPanel myUserId={profile.user_id} initialChatId={initialFriendChatId} onInitialChatOpened={onFriendChatOpened} onNavigate={onNavigate} />}
         <section className="pt-4">
           <h2 className="sr-only">Messages</h2>
           <label className="flex h-12 items-center gap-3 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 focus-within:border-violet-500/45">

@@ -7,8 +7,8 @@ from playwright.async_api import async_playwright,expect
 OUT=Path('test-results/experience');BUNDLE=Path('test-results/media-viewport-offline')
 async def touches(session,kind,points):
  await session.send('Input.dispatchTouchEvent',{'type':kind,'touchPoints':[{'x':x,'y':y,'id':i} for i,x,y in points]})
-async def swipe(session, box, dx, dy=0, cancel=False):
- x=box['x']+box['width']/2;y=box['y']+box['height']/2
+async def swipe(session, box, dx, dy=0, cancel=False, position_y=.5):
+ x=box['x']+box['width']/2;y=box['y']+box['height']*position_y
  await touches(session,'touchStart',[(1,x,y)])
  for i in range(1,7):
   await touches(session,'touchMove',[(1,x+dx*i/6,y+dy*i/6)])
@@ -69,7 +69,11 @@ async def mixed_gallery(browser,width):
   await expect(viewer).to_have_attribute('data-media-index','2')
   await expect(viewer.get_by_text('This media could not be loaded',exact=True)).to_be_visible()
   assert await page.evaluate('window.__previousVideo.paused')
-  await swipe(session,await stage.bounding_box(),-110)
+  # The error card's center is its Retry button. Interactive controls must not
+  # page the gallery, while a swipe on the surrounding canvas must still work.
+  await swipe(session,await viewer.get_by_role('button',name='Try again',exact=True).bounding_box(),-110)
+  await expect(viewer).to_have_attribute('data-media-index','2')
+  await swipe(session,await stage.bounding_box(),-110,position_y=.25)
   await expect(viewer).to_have_attribute('data-media-index','3')
   await page.wait_for_function('document.querySelector("[data-photo-stage] img")?.naturalWidth>0')
   await expect(page.locator('[data-photo-stage]')).to_have_attribute('data-image-scale','1')

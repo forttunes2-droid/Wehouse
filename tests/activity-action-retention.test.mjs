@@ -32,6 +32,32 @@ const event = (id, minutesAgo, extra = {}) => ({
 });
 const ids = rows => Array.from(currentActivityRows(rows, now), row => row.id);
 
+test('a due work reminder stays actionable and opens business tools with its booking context',()=>{
+ const row={id:'reminder-activity',type:'worker.reminder.due',source_type:'worker_pro_reminder',source_id:'reminder-1',
+  destination_route:'worker_paid_tools',destination_params:{reminder_id:'reminder-1',booking_id:'job-1'},
+  created_at:at(10),read:false,action_required:true,workspace:'worker'};
+ assert.deepEqual(ids([row]),['reminder-activity']);
+ const destination=resolveActivityDestination(row);assert.equal(destination.route,'worker_paid_tools');assert.equal(destination.id,'job-1');
+ assert.equal(exports.activityNeedsAction(row),true);
+ assert.equal(exports.activityNeedsAction({...row,resolved_at:at(1)}),false);
+});
+
+test('support case routing follows the selected workspace rather than profile role',()=>{
+ for(const scope of ['creator','admin','staff','property_operations','field_operations','worker_operations','finance_operations','security_operations','support'])assert.equal(workspaceExports.isInternalActivityWorkspace(scope),true);
+ for(const scope of ['personal','account','worker','partner','property_partner','hotel'])assert.equal(workspaceExports.isInternalActivityWorkspace(scope),false);
+ const screen=fs.readFileSync('src/pages/Notifications.tsx','utf8');assert.match(screen,/!isInternalActivityWorkspace\(scope\)/);assert.doesNotMatch(screen,/includes\(profile\.role\)/);
+});
+
+test('destination IDs cannot be coerced from objects into a broken record link',()=>{
+ const destination=resolveActivityDestination({type:'property_booking',source_type:'reservation',source_id:'booking',destination_route:'reservation',destination_params:{reservation_id:{id:'wrong'},context_id:['wrong']}});
+ assert.equal(destination.id,'booking');
+});
+
+test('an explicit informational domain state overrides actionable words',()=>{
+  assert.equal(exports.activityNeedsAction({type:'payment_required',title:'Payment required',action_required:false,resolved_at:null}),false);
+  assert.equal(exports.activityNeedsAction({type:'payment_required',action_required:true,resolved_at:null}),true);
+});
+
 test('newer informational update does not hide an unresolved hotel action', () => {
   const older = event('arrival-action', 15, { type: 'hotel.arrival_review_required', action_required: true });
   assert.deepEqual(ids([older, event('stay-update', 2)]), ['stay-update', 'arrival-action']);
@@ -124,7 +150,7 @@ test('retaining an action does not change the caller array or its typed destinat
 });
 
 
-test('hotel team invitation responses route to the inviter hotel with a canonical destination', () => {
+test('hotel team invitation responses route to the inviter workspace', () => {
   assert.deepEqual(
     JSON.parse(JSON.stringify(resolveActivityDestination({
       type: 'hotel_team_invitation_response',
@@ -133,6 +159,6 @@ test('hotel team invitation responses route to the inviter hotel with a canonica
       destination_route: 'property-owner',
       destination_params: { hotel_id: 42 },
     }))),
-    { route: 'hotel_detail', id: '42' },
+    { route: 'property_partner' },
   );
 });

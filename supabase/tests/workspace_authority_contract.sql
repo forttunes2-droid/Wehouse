@@ -94,12 +94,16 @@ declare flag text;
 begin
   perform set_config('request.jwt.claim.sub','77777777-1111-4111-8111-000000000001',true);
   foreach flag in array array['suspended','banned','deleted'] loop
+    -- Fixture maintenance has no caller identity; assertions use the restricted actor.
+    perform set_config('request.jwt.claim.sub','',true);
     execute format('update public.profiles set %I=true where user_id=%L',flag,'workspace-contract-creator');
+    perform set_config('request.jwt.claim.sub','77777777-1111-4111-8111-000000000001',true);
     if public.user_has_active_workspace('workspace-contract-creator','creator')
       or public.current_actor_has_workspace('creator',null)
       or public.current_actor_in_scope('Nasarawa','Lafia') then
       raise exception 'Inactive Creator retained authority through %',flag;
     end if;
+    perform set_config('request.jwt.claim.sub','',true);
     execute format('update public.profiles set %I=false where user_id=%L',flag,'workspace-contract-creator');
   end loop;
 end;

@@ -14,6 +14,8 @@ insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_
 values(-19100001,-19000001,'Synthetic',100,10),(-19100002,-19000002,'Synthetic',100,10);
 insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,cancellation_template,price_per_night,active)
 values(-19200001,-19000001,-19100001,'Synthetic price override','room_only','pay_now',false,'standard',200,true);
+update public.listings set city='Keffi',state='Nasarawa',bedrooms=0,sub_type='short_let'
+ where id='f1000000-0000-0000-0000-000000000001';
 set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"role":"anon"}',true);
 set local role anon;
@@ -31,5 +33,10 @@ begin
  if jsonb_array_length(public.search_discoverable_hotels(p_query=>'Capacity price contract',p_min_price=>50,p_max_price=>150)->'items')<>1 then raise exception 'Hotel without active rate plan must use room base price'; end if;
  if jsonb_array_length(public.search_discoverable_hotels(p_query=>'Capacity price contract',p_min_price=>250,p_max_price=>300)->'items')<>0 then raise exception 'Hotel price range returned an out-of-range hotel'; end if;
  if public.search_discoverable_hotels(p_limit=>999)->'items' is null then raise exception 'Hotel search response shape changed'; end if;
+ if jsonb_array_length(public.search_discoverable_hotels(p_query=>'Nasarawa A contract',p_min_price=>150,p_max_price=>250)->'items')<>1 then raise exception 'Hotel words across name and location must match with price filters'; end if;
+ if jsonb_array_length(public.search_discoverable_hotels(p_query=>'Capacity Lagos')->'items')<>0 then raise exception 'Every query word must match'; end if;
+ if jsonb_array_length(public.search_discoverable_hotels(p_query=>'%')->'items')<>0 then raise exception 'Query wildcard must stay literal'; end if;
+ if not public.search_discoverable_homes(p_query=>'Keffi studio public',p_min_bedrooms=>0)->'items' @> '[{"id":"f1000000-0000-0000-0000-000000000001"}]'::jsonb then raise exception 'Home words across title location and studio layout did not match'; end if;
+ if public.search_discoverable_homes(p_query=>'Unapproved Keffi')->'items' @> '[{"id":"f1000000-0000-0000-0000-000000000002"}]'::jsonb then raise exception 'Text search exposed unpublished property'; end if;
 end $$;
 rollback;

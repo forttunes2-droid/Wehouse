@@ -1,6 +1,13 @@
 # Supabase Configuration
 project_id = "wehouse"
 
+[functions.email-account-security]
+# Password recovery is public; device approval verifies its bearer in the body.
+verify_jwt = false
+
+[auth]
+enable_manual_linking = true
+
 [auth.hook.before_user_created]
 enabled = true
 uri = "pg-functions://postgres/public/require_reviewed_legal_signup"
@@ -16,3 +23,41 @@ verify_jwt = true
 
 [functions.creator-security-setup]
 verify_jwt = true
+
+# Status validates Auth; dispatch validates a dedicated worker secret in the body handler.
+[functions.native-push]
+verify_jwt = false
+
+# Scheduled dispatch validates its private cron secret before service authority.
+[functions.financial-action-processor]
+verify_jwt = false
+
+[functions.financial-action-reconcile]
+verify_jwt = true
+
+[functions.rent-settlement-setup]
+verify_jwt = true
+
+[functions.rent-automatic-payment]
+verify_jwt = true
+
+# PMS partners use a hashed, scoped connection token, checked on every request.
+[functions.hotel-pms-api]
+verify_jwt = false
+
+# Email OTP ownership is exchanged server-side for a short-lived review-only token.
+# Signed-in users reuse their existing trusted session through my_account_reviews.
+[functions.account-recovery]
+verify_jwt = false
+
+# Include a code for the review-only recovery journey while retaining ordinary sign-in links.
+[auth.email.template.magic_link]
+subject = "Your WeHouse verification code and sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+# Match the supported hosted authenticator flow in disposable Auth tests.
+[auth.mfa]
+max_enrolled_factors = 10
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true

@@ -1,9 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 192" role="img" aria-labelledby="title">
-  <title id="title">WeHouse</title>
-  <defs><linearGradient id="purple" x1="24" y1="26" x2="150" y2="158" gradientUnits="userSpaceOnUse"><stop stop-color="#8B5CF6"/><stop offset="1" stop-color="#6D28D9"/></linearGradient></defs>
-  <path d="M24 38 58 142 94 38 118 142 142 94" fill="none" stroke="url(#purple)" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
-  <path fill="#F8FAFC" d="M144 151V28l36-20v67c9-9 20-14 34-14 25 0 38 15 38 43v47h-36v-45c0-12-5-18-16-18-12 0-20 8-20 22v41h-36Z"/>
-  <path fill="#F8FAFC" d="M124 151v-35c0-20 13-33 33-33s33 13 33 33v35h-24v-34c0-7-3-11-9-11s-9 4-9 11v34h-24Z"/>
-  <path fill="url(#purple)" d="M151 151v-30c0-5 2-8 6-8s6 3 6 8v30h-12Z"/>
-  <circle cx="160" cy="134" r="2.5" fill="#09090D"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="WeHouse symbol"><path d="M24 65 L62 181 Q68 198 83 198 Q98 198 105 181 L132 103 L110 60 L79 157 L54 65 Z" fill="#F8FAFC"/><path d="M132 103 V45 L163 28 V104 Q177 88 197 88 Q230 88 230 125 V198 H196 V133 Q196 119 181 119 Q165 119 165 138 V198 H132 Z" fill="#F8FAFC"/><path d="M132 198 V156 Q132 134 153 134 Q174 134 174 156 V198 H151 V158 Q151 153 147 153 Q143 153 143 158 V198 Z" fill="#F8FAFC"/></svg>

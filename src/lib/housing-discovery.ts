@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { Listing } from '@/types';
+import {publicCatalogRead} from './publicCatalogRead';
 
 export type HomeStayType = 'long_stay' | 'short_let';
 
@@ -12,11 +13,12 @@ export type HomeSearchFilters = {
   maxPrice?: number | '';
   bedrooms?: number | '';
   bathrooms?: number | '';
+  homeStyle?: string;
 };
 export type HomePageCursor = { createdAt: string; id: string };
 
-export async function getDiscoverableHomes(filters: HomeSearchFilters = {}, cursor: HomePageCursor | null = null) {
-  const { data, error } = await supabase.rpc('search_discoverable_homes', {
+export async function getDiscoverableHomes(filters: HomeSearchFilters = {}, cursor: HomePageCursor | null = null, signal?: AbortSignal) {
+  const body = {
     p_query: filters.query?.trim() || null,
     p_state: filters.state || null,
     p_city: filters.city || null,
@@ -28,6 +30,11 @@ export async function getDiscoverableHomes(filters: HomeSearchFilters = {}, curs
     p_cursor_created_at: cursor?.createdAt || null,
     p_cursor_id: cursor?.id || null,
     p_limit: 24,
+    p_home_style: filters.homeStyle || null,
+  };
+  const {data,error}=await publicCatalogRead('homes',body,()=>{
+    const request=supabase.rpc('search_discoverable_homes',body);
+    return signal?request.abortSignal(signal):request;
   });
 
   // The server RPC is the publication/operational boundary. Short Let date

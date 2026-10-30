@@ -1,4 +1,5 @@
-import { activityWorkspaceMatches } from "@/lib/activityWorkspace";
+import { ActivityKindIcon } from "@/components/WorkspaceMark";
+import { activityWorkspaceMatches, isInternalActivityWorkspace } from "@/lib/activityWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { withTimeout } from "@/lib/withTimeout";
 import { supabase } from "@/lib/supabase";
@@ -87,6 +88,8 @@ function NotificationFeed({
   const [workPost, setWorkPost] = useState<WorkPostConfirmation | null>(null),
     [confirmBusy, setConfirmBusy] = useState(false);
   const [invitationId,setInvitationId]=useState<string|null>(null);
+  const readActionLock=useRef(false),mounted=useRef(true);
+  const [readBusy,setReadBusy]=useState(false);
 
   async function load(quiet = false) {
     const request = ++requestVersion.current;
@@ -126,9 +129,10 @@ function NotificationFeed({
           };
         },
       );
+      const retained = activityCache.get(cacheKey) || [];
       const next = [
-        ...events,
-        ...announcements.filter((row) => activityIsCurrent(row)),
+        ...(eventResult.error ? retained.filter(row=>row.source==='event') : events),
+        ...(announcementResult.error ? retained.filter(row=>row.source==='announcement') : announcements.filter((row) => activityIsCurrent(row))),
       ].sort(
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -143,15 +147,18 @@ function NotificationFeed({
   }
 
   useEffect(() => {
+    mounted.current=true;
     setRows(activityCache.get(cacheKey) || []);
     setExpanded(null);
     setWorkPost(null);
     setError("");
     void load(Boolean(activityCache.get(cacheKey)));
+    let refreshTimer:ReturnType<typeof setTimeout>|undefined;
+    const refresh=()=>{if(refreshTimer!==undefined)clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{refreshTimer=undefined;void load(true);},200);};
     const channel = subscribeToCanonicalActivity(
       profile.user_id,
       `activity-feed:${profile.user_id}:${scope}`,
-      () => void load(true),
+      refresh,
     )
       .on(
         "postgres_changes",
@@ -161,11 +168,13 @@ function NotificationFeed({
           table: "announcement_recipients",
           filter: `user_id=eq.${profile.user_id}`,
         },
-        () => void load(true),
+        refresh,
       )
       .subscribe();
     return () => {
       requestVersion.current += 1;
+      mounted.current=false;
+      if(refreshTimer!==undefined)clearTimeout(refreshTimer);
       void supabase.removeChannel(channel);
     };
   }, [profile.user_id, scope]);
@@ -192,16 +201,18 @@ function NotificationFeed({
 
   async function markRead(row: Activity) {
     if (row.read) return true;
-    const result =
+    try {
+    const result = await withTimeout<{error:{message?:string}|null}>(
       row.source === "announcement"
-        ? await markAnnouncementRead(
+        ? markAnnouncementRead(
             Number(row.sourceNumericId),
             profile.user_id,
           )
-        : await markCanonicalActivityRead(
+        : markCanonicalActivityRead(
             row.id.replace("event:", ""),
             scope,
-          );
+          ),10000,'The read outcome could not be confirmed. Refresh Activity.');
+    if(!mounted.current)return false;
     if (result.error) {
       toast.error(
         result.error.message || "Activity could not be marked as read",
@@ -219,6 +230,10 @@ function NotificationFeed({
     onUnreadChange?.(rows.filter(item => !item.read && item.id !== row.id).length);
     window.dispatchEvent(new Event("wehouse:unread-changed"));
     return true;
+    } catch {
+      if(mounted.current)toast.error('The read outcome could not be confirmed. Refresh Activity.');
+      return false;
+    }
   }
 
   async function open(row: Activity) {
@@ -229,6 +244,7 @@ function NotificationFeed({
     // Finish the read write before opening another screen. Otherwise the
     // Activity panel can unmount with a stale badge, especially for work posts.
     await markRead(row);
+    if(!mounted.current)return;
     if (row.source === "announcement") {
       setExpanded((current) => (current === row.id ? null : row.id));
       return;
@@ -264,7 +280,7 @@ function NotificationFeed({
       } as WorkPostConfirmation);
       return;
     }
-    if (row.source_type === "wehouse_case" && !["creator", "admin", "staff"].includes(profile.role)) {
+    if (row.source_type === "wehouse_case" && !isInternalActivityWorkspace(scope)) {
       window.dispatchEvent(new CustomEvent("openSupportChat", { detail: { conversationId: row.source_id } }));
       return;
     }
@@ -289,46 +305,35 @@ function NotificationFeed({
   }
 
   async function markAll() {
-    const unreadEvents = rows.filter(
-      (row) => !row.read && row.source === "event",
-    );
-    const unreadAnnouncements = rows.filter(
-      (row) => !row.read && row.source === "announcement",
-    );
-    const [eventResult, announcementResults] = await Promise.all([
-      unreadEvents.length
-        ? markAllCanonicalActivityRead(scope)
-        : Promise.resolve({ count: 0, error: null }),
-      Promise.all(
-        unreadAnnouncements.map((row) =>
-          markAnnouncementRead(Number(row.sourceNumericId), profile.user_id),
-        ),
-      ),
-    ]);
-    const eventError = eventResult.error;
-    const announcementError = announcementResults.find(
-      (result) => result.error,
-    )?.error;
-    if (eventError || announcementError)
-      return toast.error(
-        eventError?.message ||
-          announcementError?.message ||
-          "Activity could not be marked as read",
-      );
-    setRows((current) => {
-      const next = current.map((row) => ({ ...row, read: true }));
-      activityCache.set(cacheKey, next);
-      return next;
-    });
-    onUnreadChange?.(0);
-    window.dispatchEvent(new Event("wehouse:unread-changed"));
-    toast.success("Activity marked as read");
+    if(readActionLock.current)return;
+    readActionLock.current=true;setReadBusy(true);
+    const pending=rows.filter(row=>!row.read),ids=new Set(pending.map(row=>row.id));
+    const unreadEvents=pending.filter(row=>row.source==='event');
+    const unreadAnnouncements=pending.filter(row=>row.source==='announcement');
+    try {
+      const [events,announcements]=await withTimeout(Promise.all([
+        unreadEvents.length?markAllCanonicalActivityRead(scope):Promise.resolve({count:0,error:null}),
+        Promise.all(unreadAnnouncements.map(row=>markAnnouncementRead(Number(row.sourceNumericId),profile.user_id))),
+      ]),15000,'The read outcome could not be confirmed. Refresh Activity.');
+      if(!mounted.current)return;
+      const failure=events.error||announcements.find(result=>result.error)?.error;
+      if(failure)throw failure;
+      if(unreadEvents.length&&events.count===0) {await load(true);return;}
+      setRows(current=>{
+        const next=current.map(row=>ids.has(row.id)?{...row,read:true}:row);
+        activityCache.set(cacheKey,next);return next;
+      });
+      window.dispatchEvent(new Event('wehouse:unread-changed'));
+      toast.success('Activity marked as read');
+    } catch {
+      if(mounted.current)toast.error('The read outcome could not be confirmed. Refresh Activity.');
+    } finally {readActionLock.current=false;if(mounted.current)setReadBusy(false);}
   }
 
   const unread = rows.filter((row) => !row.read).length;
   useEffect(() => {
-    onUnreadChange?.(unread);
-  }, [onUnreadChange, unread]);
+    if(!loading&&!error)onUnreadChange?.(unread);
+  }, [onUnreadChange, unread, loading, error]);
   const content = (
     <main className={embedded ? "mx-auto w-full max-w-5xl px-4 py-3 sm:px-5 lg:px-8" : "mx-auto max-w-4xl px-4 py-5"}>
       {loading ? (
@@ -339,15 +344,11 @@ function NotificationFeed({
         <Empty />
       ) : (
         <div className="space-y-5">
+          {error&&<div role="alert" className="rounded-xl border border-amber-500/30 p-3 text-sm text-[var(--wh-text-secondary)]"><p>Some updates could not be refreshed. Previously loaded updates remain visible.</p><p>{error}</p><button type="button" onClick={()=>void load()} className="mt-2 min-h-11 font-semibold text-violet-700 dark:text-violet-300">Refresh Activity</button></div>}
           {!compact && <div className="flex items-center justify-between gap-3 border-b border-[var(--wh-border-subtle)] pb-3">
-            <div>
-              <p className="text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
-                Activity
-              </p>
-              <p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">
-                Meaningful updates and actions
-              </p>
-            </div>
+            <p className="text-xs text-[var(--wh-text-secondary)]">
+              {error ? "Activity refresh incomplete" : unread > 0 ? `${unread} new` : "All caught up"}
+            </p>
             <WeHouseSelect
               value={activityFilter}
               options={[
@@ -372,9 +373,11 @@ function NotificationFeed({
             <div className="flex items-center justify-end">
               <button
                 onClick={() => void markAll()}
-                className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-3 py-2 text-[9px] font-semibold text-violet-300"
+                disabled={readBusy}
+                aria-busy={readBusy}
+                className="min-h-11 shrink-0 rounded-full border border-[var(--wh-border-subtle)] px-3 py-2 text-xs font-semibold text-violet-700 dark:text-violet-300 disabled:opacity-40"
               >
-                Mark all read
+                {readBusy ? 'Marking read…' : 'Mark all read'}
               </button>
             </div>
           )}
@@ -382,7 +385,7 @@ function NotificationFeed({
             <div className="grid min-h-48 place-items-center text-center">
               <div>
                 <p className="text-sm font-semibold">No updates in this group</p>
-                <p className="mt-2 text-[10px] text-[var(--wh-text-muted)]">
+                <p className="mt-2 text-xs text-[var(--wh-text-muted)]">
                   Choose another filter to see other meaningful activity.
                 </p>
               </div>
@@ -390,7 +393,7 @@ function NotificationFeed({
           ) : groups.map(([day, items]) => (
             <section key={day}>
               <h2
-                className={`mb-2 text-[9px] font-bold uppercase tracking-[.15em] ${day === "New" ? "text-violet-300" : "text-[var(--wh-text-muted)]"}`}
+                className={`mb-2 text-[11px] font-bold uppercase tracking-[.15em] ${day === "New" ? "text-violet-300" : "text-[var(--wh-text-muted)]"}`}
               >
                 {day}
               </h2>
@@ -410,32 +413,34 @@ function NotificationFeed({
                       <span
                         className={`mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full ${row.read ? "bg-[var(--wh-interactive)] text-[var(--wh-text-muted)]" : "bg-violet-500/12 text-violet-300"}`}
                       >
-                        {icon(row.type)}
+                        <ActivityKindIcon kind={activityKind(row)} />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="mb-1 block text-[7px] font-bold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">
-                          {activityKind(row)}
-                        </span>
+                        {activityKind(row) !== "WeHouse" && (
+                          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--wh-text-muted)]">
+                            {activityKind(row)}
+                          </span>
+                        )}
                         <span
                           className={`block text-xs ${row.read ? "font-medium text-[var(--wh-text-secondary)]" : "font-semibold text-[var(--wh-text)]"}`}
                         >
                           {activityTitle(row)}
                         </span>
-                        {activityMessage(row) && (
+                        {showMessage(row) && (
                           <span
-                            className={`${expanded === row.id ? "whitespace-pre-wrap" : "line-clamp-2"} mt-1 block text-[10px] leading-4 text-[var(--wh-text-muted)]`}
+                            className={`${expanded === row.id ? "whitespace-pre-wrap" : "line-clamp-2"} mt-1 block text-xs leading-4 text-[var(--wh-text-muted)]`}
                           >
                             {activityMessage(row)}
                           </span>
                         )}
                         <span className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                          <span className="text-[8px] text-[var(--wh-text-muted)]">
+                          <span className="text-[11px] text-[var(--wh-text-muted)]">
                             {new Date(row.created_at).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
                           </span>
-                          <span className="text-[8px] font-semibold text-violet-300">
+                          <span className="text-[11px] font-semibold text-violet-300">
                             {activityAction(row, expanded === row.id)}
                           </span>
                         </span>
@@ -489,7 +494,7 @@ function NotificationFeed({
           <p className="text-sm font-semibold">
             Does this show the completed work?
           </p>
-          <p className="text-[9px] text-[var(--wh-text-muted)]">
+          <p className="text-[11px] text-[var(--wh-text-muted)]">
             Confirm only the work from your linked WeHouse job
           </p>
         </div>
@@ -514,7 +519,7 @@ function NotificationFeed({
           )}
           {workPost.job_confirmation_status === "pending" ? (
             <>
-              <p className="text-[10px] leading-5 text-[var(--wh-text-secondary)]">
+              <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">
                 Yes adds the “Completed through WeHouse” badge. No keeps this as
                 an ordinary showcase post without that badge.
               </p>
@@ -558,7 +563,7 @@ function NotificationFeed({
 
       <header className="sticky top-0 z-40 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-bg)]/95 px-4 py-4 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl">
-          <h1 className="text-xl font-bold">Inbox</h1>
+          <h1 className="text-xl font-bold">Activity</h1>
         </div>
       </header>
       {content}
@@ -590,23 +595,13 @@ function dayLabel(value: string) {
     day: "numeric",
   });
 }
-function icon(type: string) {
-  if (type === "announcement") return "W";
-  if (/resource_invitation|invitation/.test(type)) return "✓";
-  if (type === "saved_search_match" || type === "followed_search_match") return "⌕";
-  if (type.includes("payment")) return "₦";
-  if (type.includes("roommate")) return "◉";
-  if (type.includes("security")) return "⌾";
-  if (type.includes("booking") || type.includes("reservation")) return "✓";
-  return "•";
-}
 function ActivityLoading() {
   return (
     <div className="space-y-2 py-3" role="status" aria-label="Loading activity">
       <div className="h-10 animate-pulse rounded-xl bg-[var(--wh-interactive)]" />
       <div className="h-20 animate-pulse rounded-xl bg-[var(--wh-interactive)]" />
       <div className="h-20 animate-pulse rounded-xl bg-[var(--wh-interactive)]" />
-      <p className="pt-1 text-[10px] text-[var(--wh-text-muted)]">Loading recent activity…</p>
+      <p className="pt-1 text-xs text-[var(--wh-text-muted)]">Loading recent activity</p>
     </div>
   );
 }
@@ -615,10 +610,10 @@ function Empty() {
     <div className="grid min-h-[55dvh] place-items-center text-center">
       <div>
         <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-violet-500/10 text-violet-300">
-          ✓
+          <ActivityKindIcon kind="WeHouse" size={22} />
         </div>
         <p className="mt-4 text-sm font-semibold">You’re up to date</p>
-        <p className="mt-2 max-w-xs text-[10px] leading-5 text-[var(--wh-text-muted)]">
+        <p className="mt-2 max-w-xs text-xs leading-5 text-[var(--wh-text-muted)]">
           Nothing needs your attention right now.
         </p>
       </div>
@@ -629,10 +624,10 @@ function ErrorState({ text, retry }: { text: string; retry: () => void }) {
   return (
     <div className="rounded-2xl border border-red-500/15 p-5 text-center">
       <p className="text-xs font-semibold">Activity could not be loaded</p>
-      <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">{text}</p>
+      <p className="mt-1 text-[11px] text-[var(--wh-text-muted)]">{text}</p>
       <button
         onClick={retry}
-        className="mt-3 text-[10px] font-semibold text-violet-300"
+        className="mt-3 text-xs font-semibold text-violet-300"
       >
         Try again
       </button>
@@ -657,6 +652,11 @@ function activityKind(row: Activity) {
     return "Booking";
   if (/roommate|shared_home|match/.test(value)) return "Roommates";
   return "WeHouse";
+}
+function showMessage(row: Activity) {
+  const normalise = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const message = normalise(activityMessage(row));
+  return Boolean(message) && message !== normalise(activityTitle(row));
 }
 function activityTitle(row: Activity) {
   if (row.type === "roommate_match") return "Roommate connection ready";

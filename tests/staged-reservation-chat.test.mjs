@@ -22,7 +22,7 @@ test('Reserve date validates selection without reading or calculating money', ()
 test('date reservation rejects invalid dates, capacity and stay rules without a price dependency', () => {
   for (const change of [{checkIn:''},{checkOut:'2026-09-24'},{checkIn:'2026-02-30'},{guests:3},{guests:1.5},{guests:0},{maxGuests:0},{minNights:3},{maxNights:1},{checkOut:'2028-01-01'}]) assert.equal(dates.validateShortLetDates({...selection,...change}).valid,false);
 });
-test('the public date step charges only Reserve date and still does not calculate the later stay/deposit bill', () => {
+test('the public date step opens a reservation-fee review without calculating the later stay/deposit bill', () => {
   const source=read('src/pages/ListingDetailCore.tsx');
   const start=source.indexOf('Reserve your dates');
   const end=source.indexOf('Reserve date pays only the reservation fee.', start);
@@ -32,7 +32,7 @@ test('the public date step charges only Reserve date and still does not calculat
   assert.doesNotMatch(source,/shortLetQuote\(/);
   assert.match(source,/initializeReservationPayment/);
   assert.match(source,/shortReservationFee/);
-  assert.match(step,/Reserve date/);
+  assert.match(step,/Review dates/);
 });
 test('a history refresh preserves pending and failed local messages without resurrecting removed server messages', () => {
   const sent={id:'old',created_at:'2026-09-23T00:00:00Z'};

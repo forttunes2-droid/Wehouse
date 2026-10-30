@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react';
 import WorkerVerificationChecklist from '@/components/WorkerVerificationChecklist';
+import ProviderOfferingEntry from '@/components/ProviderOfferingEntry';
 import { supabase } from '@/lib/supabase';
+import WeHouseLoadingState from '@/components/WeHouseLoadingState';
 import type { Profile } from '@/types';
+import { withTimeout } from '@/lib/withTimeout';
+import { assertWorkerActivation } from '@/lib/workerActivation';
+import type {ProviderActivityWork} from '@/hooks/useProviderWorkspaceCapabilities';
+import {displayDateTimeAtProperty} from '@/lib/displayDate';
+import {Button} from '@/components/ui/button';
+import {RefreshCw} from 'lucide-react';
 
-type Props = { profile: Profile; onProfile: () => void; onVerification: () => void };
+type Props = { profile: Profile; onProfile: () => void; onVerification: () => void; onExperiences?: () => void; activityBookings?:ProviderActivityWork[];hasActivityBookings?:boolean;onActivityBooking?:(id?:string)=>void;onRefresh?:()=>void };
 type Activation = {
   worker_status: string;
   live: boolean;
@@ -13,30 +21,65 @@ type Activation = {
   identity_required?: boolean;
   identity_gate_satisfied?: boolean;
   identity_captured?: boolean;
+  identity_current?: boolean;
   identity_passed: boolean;
   evidence_saved: boolean;
   submitted: boolean;
   rejection_reason: string | null;
 };
 
-export default function WorkerActivationHome({ profile, onProfile, onVerification }: Props) {
+export default function WorkerActivationHome(props: Props) {
+  return <div className="space-y-5">
+    {props.onActivityBooking&&(props.hasActivityBookings||Boolean(props.activityBookings?.length))&&<ProviderActivityOverview rows={props.activityBookings||[]} onOpen={props.onActivityBooking} onRefresh={props.onRefresh}/>}
+    {props.onExperiences && <ProviderOfferingEntry onService={props.onProfile} onExperience={props.onExperiences} />}
+    <ServiceReadinessSummary {...props} />
+  </div>;
+}
+
+function ProviderActivityOverview({rows,onOpen,onRefresh}:{rows:ProviderActivityWork[];onOpen:(id?:string)=>void;onRefresh?:()=>void}){
+  return <section aria-label="Next activity bookings" className="space-y-4 rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4 sm:p-5">
+    <header className="flex items-center justify-between gap-2"><h2 className="text-xl font-semibold">Activity bookings</h2>
+      {onRefresh&&<Button type="button" variant="ghost" aria-label="Refresh overview" className="h-11 w-11 shrink-0 p-0" onClick={onRefresh}><RefreshCw aria-hidden="true" className="h-4 w-4"/></Button>}
+    </header>
+    {rows.length===0&&<p className="text-sm text-[var(--wh-text-secondary)]">No confirmed activity bookings to show here. View all bookings for payments and history.</p>}
+    <div className="divide-y divide-[var(--wh-border)]">{rows.map(row=><button type="button" key={row.booking_id} onClick={()=>onOpen(row.booking_id)} className="block min-h-20 w-full space-y-1 py-4 text-left">
+      <span className="block font-semibold">{row.title}</span><span className="block text-sm text-[var(--wh-text-secondary)]">{displayDateTimeAtProperty(row.starts_at,row.timezone)} · {row.participants} {row.participants===1?'participant':'participants'}</span>
+      <span className="block text-sm font-medium text-[var(--wh-accent-text)]">{row.host_finished?'Waiting for participant completion':Date.parse(row.ends_at)<=Date.now()?'Review and finish this session':'View confirmed booking'}</span>
+    </button>)}</div>
+    <Button type="button" variant="outline" className="w-full" onClick={()=>onOpen()}>View all activity bookings</Button>
+  </section>;
+}
+
+function ServiceReadinessSummary({ profile, onProfile, onVerification, onExperiences }: Props) {
   const [data, setData] = useState<Activation | null>(null);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    let active = true;
+    setData(null);
+    setError('');
     void (async () => {
-      const { data: activation, error: activationError } = await supabase.rpc('get_my_worker_activation');
-      if (activationError) { setError(activationError.message); return; }
-      setData(activation as Activation);
-      setError('');
+      try {
+        const { data: activation, error: activationError } = await withTimeout(
+          supabase.rpc('get_my_worker_activation'), 15000,
+          'Setup status took too long to load. Please try again.',
+        );
+        if (activationError) throw activationError;
+        assertWorkerActivation(activation);
+        if (active) setData(activation as Activation);
+      } catch (cause) {
+        if (active) setError(cause instanceof Error ? cause.message : 'Setup status could not be loaded. Please try again.');
+      }
     })();
-  }, [profile.user_id, profile.worker_status, profile.worker_verified]);
+    return () => { active = false; };
+  }, [profile.user_id, profile.worker_status, profile.worker_verified, attempt]);
 
-  if (error) return <State text={error} />;
-  if (!data) return <State text="Loading…" />;
+  if (error) return <section role="alert" className="rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-5 text-[var(--wh-text)]"><h2 className="text-base font-semibold">Setup status unavailable</h2><p className="mt-2 text-sm text-[var(--wh-text-secondary)]">{error}</p><button type="button" onClick={() => setAttempt(value => value + 1)} className="mt-4 min-h-11 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white">Retry setup status</button></section>;
+  if (!data) return <WeHouseLoadingState compact label="Loading" />;
 
   const identityRequired = data.identity_required === true;
-  const actualIdentityPassed = data.identity_captured === true && data.identity_passed === true;
+  const actualIdentityPassed = data.identity_captured === true && data.identity_passed === true && data.identity_current === true;
   const identityGateSatisfied = data.identity_gate_satisfied ?? (!identityRequired || actualIdentityPassed);
   const requirements = [
     ...(identityRequired ? [identityGateSatisfied] : []),
@@ -45,23 +88,22 @@ export default function WorkerActivationHome({ profile, onProfile, onVerificatio
   const requirementsDone = requirements.filter(Boolean).length;
   const verificationDone = requirementsDone === requirements.length;
   const underReview = data.worker_status === 'profile_under_review' || (data.submitted && !['rejected','verified'].includes(data.worker_status));
-  const reviewed = data.reviewed || data.worker_status === 'verified';
+  const reviewed = data.reviewed === true;
 
-  if (underReview && identityGateSatisfied) return <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-4 sm:p-5"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">WEHOUSE REVIEW</p><h2 className="mt-2 text-xl font-bold">Review in progress</h2><p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">WeHouse is reviewing your professional evidence.</p><button onClick={onVerification} className="mt-4 h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[11px] font-semibold text-white">View status</button></section>;
+  if (underReview && identityGateSatisfied) return <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-4 sm:p-5"><p className="text-xs font-bold uppercase tracking-[.16em] text-[var(--wh-accent-text)]">WEHOUSE REVIEW</p><h2 className="mt-2 text-xl font-bold">Service review in progress</h2><p className="mt-1 text-sm text-[var(--wh-text-muted)]">WeHouse is reviewing the evidence for your requested services.</p><button type="button" onClick={onVerification} className="mt-4 h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-sm font-semibold text-[var(--wh-text)]">View status</button></section>;
 
-  if (!data.profile_complete) return <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.09] via-[#12141C] to-[#0F1218] p-4 sm:p-5"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">WEHOUSE SERVICES</p><h2 className="mt-2 text-xl font-bold">Set up your Service Worker profile</h2><p className="mt-1 text-[10px] leading-relaxed text-[var(--wh-text-muted)]">Add your service, experience, price and service area first. You can continue the remaining review steps afterward.</p><button onClick={onProfile} className="mt-4 h-12 w-full rounded-2xl bg-violet-500 text-[11px] font-semibold text-white">Continue Service Worker setup</button></section>;
+  if (!data.profile_complete && onExperiences) return null;
+  if (!data.profile_complete) return <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-4 sm:p-5"><p className="text-xs font-bold uppercase tracking-[.16em] text-[var(--wh-accent-text)]">WEHOUSE SERVICES</p><h2 className="mt-2 text-xl font-bold">Set up your Service Worker profile</h2><p className="mt-1 text-sm leading-relaxed text-[var(--wh-text-muted)]">Add your service, relevant work experience, price and service area first. You can continue the remaining review steps afterward.</p><button type="button" onClick={onProfile} className="mt-4 h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">Continue Service Worker setup</button></section>;
 
-  if (reviewed) return <section className="rounded-3xl border border-emerald-500/15 bg-emerald-500/[.04] p-4 sm:p-5"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-emerald-300">WEHOUSE REVIEWED</p><h2 className="mt-2 text-xl font-bold">Your Service Worker review is complete</h2><p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">{data.live?'Your Service Worker profile is live in WeHouse Services.':'Your review is complete. We’ll let you know when bookings open.'}</p><button onClick={onProfile} className="mt-4 h-12 w-full rounded-2xl bg-violet-500 text-[11px] font-semibold text-white">View Service Worker profile</button></section>;
+  if (reviewed) return <section className="rounded-3xl border border-emerald-500/15 bg-emerald-500/[.04] p-4 sm:p-5"><p className="text-xs font-bold uppercase tracking-[.16em] text-emerald-700 dark:text-emerald-300">WEHOUSE REVIEWED</p><h2 className="mt-2 text-xl font-bold">Your requested services have been reviewed</h2><p className="mt-1 text-sm text-[var(--wh-text-muted)]">{data.live?'Your requested services are visible in WeHouse Services.':'Your service review is complete, but your service profile is not currently visible. Open your profile to check availability and review requirements.'}</p><button type="button" onClick={onProfile} className="mt-4 h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">View service profile</button></section>;
 
 
 
   return <div className="space-y-3">
-    <section className="rounded-3xl border border-violet-500/15 bg-gradient-to-br from-violet-500/[.09] via-[#12141C] to-[#0F1218] p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">WEHOUSE SERVICES · SERVICE PROVIDER</p><h2 className="mt-2 text-xl font-bold">{verificationDone?'Ready for WeHouse review':'Complete your work profile'}</h2><p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">{verificationDone?'Your free review requirements are complete.':'Complete the review requirements below. No onboarding payment is required.'}</p></div><div className="shrink-0 rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 px-3 py-2 text-center"><p className="text-lg font-bold">{requirementsDone}/{requirements.length}</p><p className="text-[8px] text-[var(--wh-text-muted)]">complete</p></div></div></section>
+    <section className="rounded-3xl border border-violet-500/15 bg-[var(--wh-surface)] p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[var(--wh-accent-text)]">WEHOUSE SERVICES · SERVICE PROVIDER</p><h2 className="mt-2 text-xl font-bold">{verificationDone?'Ready for WeHouse review':'Complete your work profile'}</h2><p className="mt-1 text-sm text-[var(--wh-text-muted)]">{verificationDone?'Your free review requirements are complete.':'Complete the review requirements below. No onboarding payment is required.'}</p></div><div className="shrink-0 rounded-2xl border border-[var(--wh-border-subtle)] bg-black/10 px-3 py-2 text-center"><p className="text-lg font-bold">{requirementsDone}/{requirements.length}</p><p className="text-xs text-[var(--wh-text-muted)]">complete</p></div></div></section>
     <WorkerVerificationChecklist identityPassed={actualIdentityPassed} identityRequired={identityRequired} skillVideoSaved={data.evidence_saved}/>
-    {!identityRequired && <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-4 py-3"><p className="text-[9px] leading-5 text-[var(--wh-text-secondary)]">Identity verification is not currently required. Submit your work evidence for review.</p></section>}
-    <button onClick={onVerification} className="h-12 w-full rounded-2xl bg-violet-500 text-[11px] font-semibold text-white">{verificationDone?'Submit for WeHouse review':'Continue setup'}</button>
-    {data.rejection_reason&&<section className="rounded-xl border border-red-500/20 bg-red-500/[.05] p-3"><p className="text-[9px] font-semibold text-red-200">Review feedback</p><p className="mt-1 text-[10px] text-red-100/70">{data.rejection_reason}</p></section>}
+    {!identityRequired && <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-4 py-3"><p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Identity verification is not currently required. Submit your work evidence for review.</p></section>}
+    <button type="button" onClick={onVerification} className="h-12 w-full rounded-2xl bg-violet-600 text-sm font-semibold text-white">{verificationDone?'Submit for WeHouse review':'Continue setup'}</button>
+    {data.rejection_reason&&<section className="rounded-xl border border-red-500/20 bg-red-500/[.05] p-3"><p className="text-xs font-semibold text-red-700 dark:text-red-200">Review feedback</p><p className="mt-1 text-sm text-red-700 dark:text-red-100/80">{data.rejection_reason}</p></section>}
   </div>;
 }
-
-function State({ text }: { text: string }) { return <div className="grid min-h-36 place-items-center rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-5 text-center text-xs text-[var(--wh-text-muted)]">{text}</div>; }

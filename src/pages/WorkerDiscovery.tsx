@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import SponsoredPlacement from "@/components/SponsoredPlacement";
+import {matchesDiscoveryText} from '@/lib/discoveryText';
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   getCategoryWithSubcategories,
-  getWorkers,
   supabase,
 } from "@/lib/supabase";
-import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
+import {searchServiceProviders,getServiceProvidersByIds,type ServiceProviderCursor} from '@/lib/supabase/workers-public';
+import {withTimeout} from '@/lib/withTimeout';
+import { useSponsoredDiscovery, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { getUserActiveBookings } from "@/lib/supabase/worker-bookings";
-import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
+import LocationFilterFields from "@/components/LocationFilterFields";
 import WorkerBookingRequestSheetV2 from "@/components/WorkerBookingRequestSheetV2";
 import BookingNegotiationChat from "@/components/BookingNegotiationChat";
 import WorkerTrustBadge from "@/components/WorkerTrustBadge";
@@ -20,59 +24,56 @@ import DiscoveryShell, {
   DiscoveryToolbar,
 } from "@/components/DiscoveryShell";
 import { workerServiceNames } from "@/lib/workerTaxonomy";
+import {workerServesLocation,workerCoverageSearchText} from '@/lib/serviceCoverageMatch';
+import {locationLabel} from '@/lib/locationPresentation';
 import { workerAvatarUrl, workerDisplayName, workerInitial, workerRoleLabel } from "@/lib/workerIdentity";
 import type { Profile, ServiceCategory, ServiceSubcategory } from "@/types";
-import VideoPlayer from "@/components/VideoPlayer";
 import { usePlatformSettings } from "@/hooks/usePlatformSettings";
+import { formatRecordedMoney,getRegionalDefaults } from "@/lib/regional";
 
 type Category = ServiceCategory & { subcategories: ServiceSubcategory[] };
+const ExperienceDiscovery=lazy(()=>import('@/components/ExperienceDiscovery'));
+function OfferingChoice({value,onChange}:{value:'services'|'experiences';onChange:(value:'services'|'experiences')=>void}){
+ return <div aria-label="Service offering" className="inline-flex gap-1 rounded-full border border-[var(--wh-border)] bg-[var(--wh-surface)] p-1">{(['services','experiences'] as const).map(kind=><button key={kind} type="button" aria-pressed={value===kind} onClick={()=>onChange(kind)} className={`min-h-11 rounded-full px-5 text-sm font-medium ${value===kind?'bg-[var(--wh-accent-surface)] text-[var(--wh-accent-text)]':'text-[var(--wh-text-secondary)]'}`}>{kind==='services'?'Request a service':'Book an activity'}</button>)}</div>;
+}
 type ActiveBooking = { worker_id?: string | null };
-type WorkStatusRow = Omit<WorkStatus, "url">;
 type Props = {
   userCity?: string | null;
   profile?: Profile | null;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, id?: string) => void;
   preSelectedCategory?: string | null;
-};
-type WorkStatus = {
-  id: string;
-  worker_id: string;
-  media_type: "image" | "video";
-  storage_path: string;
-  caption: string | null;
-  verified_job: boolean;
-  expires_at: string;
-  created_at: string;
-  url?: string;
+  initialWorkerId?: string | null;
+  initialExperienceId?:string|null;
+  onInitialExperienceOpened?:()=>void;
+  onInitialWorkerOpened?: () => void;
 };
 
 function workerMatchesFilters(worker: Profile, filters: {
   search: string;
   category: string;
   specialty: string;
+  categoryServices: string[];
   state: string;
   city: string;
 }) {
   const hay = [
     workerDisplayName(worker),
+    worker.username || '',
     worker.worker_occupation || "",
     worker.worker_bio || "",
     worker.city || "",
     worker.local_government || "",
     worker.state || "",
-    ...((worker.worker_skills as string[]) || []),
+    workerCoverageSearchText(worker),
+    ...workerServiceNames(worker),
   ].join(" ").toLowerCase();
-  const needle = filters.search.trim().toLowerCase();
-  if (needle && !hay.includes(needle)) return false;
-  if (filters.category && ![
-    worker.worker_occupation || "",
-    ...((worker.worker_skills as string[]) || []),
-  ].join(" ").toLowerCase().includes(filters.category.toLowerCase())) return false;
-  if (filters.specialty && !((worker.worker_skills as string[]) || []).some(
-    (skill) => skill.toLowerCase() === filters.specialty.toLowerCase(),
+  if (!matchesDiscoveryText([hay], filters.search)) return false;
+  const offered=[worker.worker_occupation||'',...workerServiceNames(worker)].map(name=>name.trim().toLowerCase());
+  if (filters.category && ![filters.category,...filters.categoryServices].some(name=>offered.includes(name.trim().toLowerCase()))) return false;
+  if (filters.specialty && !workerServiceNames(worker).some(
+    (skill) => skill.trim().toLowerCase() === filters.specialty.trim().toLowerCase(),
   )) return false;
-  if (filters.state && String(worker.state || "").toLowerCase() !== filters.state.toLowerCase()) return false;
-  if (filters.city && String(worker.city || worker.local_government || "").toLowerCase() !== filters.city.toLowerCase()) return false;
+  if (!workerServesLocation(worker,filters.state,filters.city)) return false;
   return true;
 }
 
@@ -81,15 +82,22 @@ export default function WorkerDiscovery({
   profile,
   onNavigate = () => {},
   preSelectedCategory,
+  initialWorkerId,
+  initialExperienceId,
+  onInitialExperienceOpened,
+  onInitialWorkerOpened,
 }: Props) {
+  const [offering,setOffering]=useState<'services'|'experiences'>(initialExperienceId?'experiences':'services');
   const { getBoolean, loading: settingsLoading } = usePlatformSettings();
   const marketplaceEnabled = getBoolean("worker_marketplace_launch_enabled", false);
+  const country=getRegionalDefaults().countryCode;
   const savedState = profile?.state || "",
-    savedCity = profile?.local_government || profile?.city || userCity || "";
+    savedCity = savedState ? profile?.local_government || profile?.city || userCity || "" : '';
   const [workers, setWorkers] = useState<Profile[]>([]),
     [categories, setCategories] = useState<Category[]>([]),
-    [statuses, setStatuses] = useState<WorkStatus[]>([]),
     [loading, setLoading] = useState(true),
+    [loadError, setLoadError] = useState(''),
+    [reload, setReload] = useState(0),
     [search, setSearch] = useState(""),
     [category, setCategory] = useState(""),
     [specialty, setSpecialty] = useState(""),
@@ -98,10 +106,6 @@ export default function WorkerDiscovery({
     [filtersOpen, setFiltersOpen] = useState(false),
     [bookingWorker, setBookingWorker] = useState<Profile | null>(null),
     [viewWorker, setViewWorker] = useState<Profile | null>(null),
-    [story, setStory] = useState<{
-      status: WorkStatus;
-      worker: Profile;
-    } | null>(null),
     [active, setActive] = useState<Set<string>>(new Set()),
     [profileBlock, setProfileBlock] = useState({
       blockedByMe: false,
@@ -112,71 +116,60 @@ export default function WorkerDiscovery({
       conversationId: string;
       bookingId: string;
     } | null>(null);
-  const sponsoredResults = useSponsoredDiscovery('worker', state, city);
+  const sponsoredResults = useSponsoredDiscovery('worker', state, city, category,offering==='services');
+  const [hasMore,setHasMore]=useState(false),[cursor,setCursor]=useState<ServiceProviderCursor|null>(null),[paging,setPaging]=useState(false),[categoryError,setCategoryError]=useState(''),[promotedWorkers,setPromotedWorkers]=useState<Profile[]>([]);
+  const searchVersion=useRef(0),pagingLock=useRef(false);
+  const appliedCategory=useRef<string|null>(null);
+  const searchText=search.trim();
+  const sponsoredIds=JSON.stringify(sponsoredResults.map(row=>row.resource_id));
+  useEffect(()=>{let live=true;setPromotedWorkers([]);const ids=JSON.parse(sponsoredIds) as string[];if(offering==='services'&&ids.length)void getServiceProvidersByIds(ids).then(rows=>{if(live)setPromotedWorkers(rows);}).catch(()=>{});return()=>{live=false;};},[sponsoredIds,offering,profile?.user_id]);
+  useEffect(()=>{setViewWorker(null);setBookingWorker(null);setChat(null);setActive(new Set());},[profile?.user_id]);
+  useEffect(()=>{if(initialExperienceId){setOffering('experiences');setViewWorker(null);setChat(null);}},[initialExperienceId]);
   useEffect(() => {
+    if(offering!=='services')return;
     let live = true;
-    void (async () => {
+    setCategoryError('');
+    void withTimeout(getCategoryWithSubcategories(),15000,'Service categories took too long.').then(({categories:rows,error})=>{
+      if(error)throw error;if(live)setCategories((rows||[]) as Category[]);
+    }).catch(()=>{if(live)setCategoryError('Service categories could not be loaded. Refresh to use category filters.');});
+    return()=>{live=false;};
+  },[reload,offering]);
+  useEffect(() => {
+    const request=++searchVersion.current;
+    if(offering!=='services')return;
+    const controller=new AbortController();
+    setLoading(true);
+    setLoadError('');
+    setWorkers([]);setHasMore(false);setCursor(null);setPaging(false);pagingLock.current=false;
+    const timer=window.setTimeout(()=>{void (async () => {
       try {
-        const [{ workers: rows, error }, { categories: cats }] =
-          await Promise.all([
-            getWorkers(),
-            getCategoryWithSubcategories().catch(() => ({ categories: [], error: null })),
-          ]);
-        if (!live) return;
-        if (error)
-          toast.error(
-            error.message || "Unable to load Workers",
-          );
-        setWorkers(rows || []);
-        setCategories((cats || []) as Category[]);
+        const page=await searchServiceProviders({country,query:searchText,category,specialty,state,city},null,controller.signal);
+        if(request!==searchVersion.current)return;
+        setWorkers(page.workers);setHasMore(page.hasMore);setCursor(page.nextCursor);
       } catch (error: unknown) {
-        if (live) {
+        if (request===searchVersion.current) {
           setWorkers([]);
-          setCategories([]);
-          toast.error(error instanceof Error ? error.message : "Unable to load home services");
+          setLoadError(error instanceof Error ? error.message : 'Service Providers could not be loaded.');
         }
       } finally {
-        if (live) setLoading(false);
+        if (request===searchVersion.current) setLoading(false);
       }
-    })();
-    return () => {
-      live = false;
-    };
-  }, []);
+    })();},300);
+    return()=>{window.clearTimeout(timer);searchVersion.current++;controller.abort();};
+  }, [reload,offering,country,searchText,category,specialty,state,city,profile?.user_id]);
+  async function moreProviders(){
+    if(pagingLock.current||!cursor||!hasMore)return;
+    pagingLock.current=true;setPaging(true);setLoadError('');const request=searchVersion.current;
+    try{const page=await searchServiceProviders({country,query:search,category,specialty,state,city},cursor);if(request===searchVersion.current){setWorkers(previous=>[...new Map([...previous,...page.workers].map(row=>[row.user_id,row])).values()]);setHasMore(page.hasMore);setCursor(page.nextCursor);}}
+    catch(error){if(request===searchVersion.current)setLoadError(error instanceof Error?error.message:'More Service Providers could not be loaded.');}
+    finally{if(request===searchVersion.current){pagingLock.current=false;setPaging(false);}}
+  }
   useEffect(() => {
-    let live = true;
-    void (async () => {
-      const { data, error } = await supabase
-        .from("worker_showcase_posts")
-        .select(
-          "id,worker_id,media_type,storage_path,caption,verified_job,expires_at,created_at",
-        )
-        .eq("kind", "story")
-        .is("deleted_at", null)
-        .gt("expires_at", new Date().toISOString())
-        .order("created_at", { ascending: false })
-        .limit(30);
-      if (!live || error) return;
-      const enriched = await Promise.all(
-        ((data || []) as WorkStatusRow[]).map(async (row) => {
-          const { data: signed } = await supabase.storage
-            .from("worker-showcase")
-            .createSignedUrl(row.storage_path, 3600);
-          return { ...row, url: signed?.signedUrl || "" } as WorkStatus;
-        }),
-      );
-      if (live) setStatuses(enriched);
-    })();
-    return () => {
-      live = false;
-    };
-  }, []);
-  useEffect(() => {
-    if (!profile?.user_id) return;
+    if (!profile?.user_id||offering!=='services') return;
     void getUserActiveBookings(profile.user_id).then(({ bookings }) =>
       setActive(new Set(((bookings || []) as ActiveBooking[]).map((row) => row.worker_id).filter((id): id is string => Boolean(id)))),
     );
-  }, [profile?.user_id]);
+  }, [profile?.user_id,offering]);
   useEffect(() => {
     if (!viewWorker || !active.has(viewWorker.user_id)) {
       setProfileBlock({ blockedByMe: false, blockedMe: false, busy: false });
@@ -198,11 +191,19 @@ export default function WorkerDiscovery({
     };
   }, [active, viewWorker]);
   useEffect(() => {
-    if (!preSelectedCategory || !categories.length) return;
+    if(!initialWorkerId)return;
+    let live=true;
+    void getServiceProvidersByIds([initialWorkerId]).then(rows=>{if(!live)return;if(rows[0])setViewWorker(rows[0]);else toast.error('This Service Provider is unavailable. You can search for another provider.');}).catch(()=>{if(live)toast.error('This Service Provider could not be opened. Please retry the shared link.');}).finally(()=>{if(live)onInitialWorkerOpened?.();});
+    return()=>{live=false;};
+  }, [initialWorkerId,onInitialWorkerOpened,profile?.user_id]);
+  useEffect(() => {
+    if(!preSelectedCategory){appliedCategory.current=null;return;}
+    if (!categories.length || appliedCategory.current===preSelectedCategory) return;
     const direct = categories.find((item) => item.name === preSelectedCategory);
     if (direct) {
       setCategory(direct.name);
       setSpecialty("");
+      appliedCategory.current=preSelectedCategory;
       return;
     }
     const parent = categories.find((item) =>
@@ -213,19 +214,13 @@ export default function WorkerDiscovery({
     if (parent) {
       setCategory(parent.name);
       setSpecialty(preSelectedCategory);
+      appliedCategory.current=preSelectedCategory;
     }
   }, [preSelectedCategory, categories]);
-  useEffect(() => {
-    if (!state && savedState) {
-      setState(savedState);
-      setCity(savedCity);
-    }
-  }, [savedState, savedCity, state]);
   const selected = useMemo(
     () => categories.find((item) => item.name === category) || null,
     [categories, category],
   );
-  const cities = useMemo(() => getCitiesForState(state), [state]);
   const categoryOptions = useMemo(
     () => categories.map((item) => ({ value: item.name, label: item.name })),
     [categories],
@@ -238,15 +233,7 @@ export default function WorkerDiscovery({
       })),
     [selected],
   );
-  const stateOptions = useMemo(
-    () =>
-      NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })),
-    [],
-  );
-  const cityOptions = useMemo(
-    () => cities.map((item) => ({ value: item, label: item })),
-    [cities],
-  );
+  const categoryServices=useMemo(()=>(selected?.subcategories||[]).map(item=>item.name),[selected]);
   const liveWorkers = useMemo(
     () =>
       workers.filter(
@@ -257,57 +244,17 @@ export default function WorkerDiscovery({
       ),
     [workers],
   );
-  const latestStatusByWorker = useMemo(() => {
-    const map = new Map<string, WorkStatus>();
-    statuses.forEach((status) => {
-      if (!map.has(status.worker_id)) map.set(status.worker_id, status);
-    });
-    return map;
-  }, [statuses]);
-  const statusWorkers = useMemo(
-    () =>
-      liveWorkers
-        .map((worker) => ({
-          worker,
-          status: latestStatusByWorker.get(worker.user_id),
-        }))
-        .filter((entry): entry is { worker: Profile; status: WorkStatus } =>
-          Boolean(entry.status),
-        ),
-    [liveWorkers, latestStatusByWorker],
-  );
-  const shown = useMemo(
-    () =>
-      liveWorkers
-        .filter((worker) => workerMatchesFilters(worker, { search, category, specialty, state, city }))
-        .sort((a, b) => {
-          const aLocal =
-              city &&
-              String(a.city || a.local_government || "").toLowerCase() ===
-                city.toLowerCase(),
-            bLocal =
-              city &&
-              String(b.city || b.local_government || "").toLowerCase() ===
-                city.toLowerCase();
-          if (aLocal !== bLocal) return aLocal ? -1 : 1;
-          const rating = Number(b.rating || 0) - Number(a.rating || 0);
-          return (
-            rating ||
-            workerDisplayName(a).localeCompare(workerDisplayName(b))
-          );
-        }),
-    [liveWorkers, search, category, specialty, state, city],
-  );
+  // The server filters before pagination. A second browser filter can drop a
+  // valid page or use different taxonomy/search rules from the next page.
+  const shown = liveWorkers;
   const visibleFeaturedWorkers = useMemo(
     () => sponsoredResults.map(item => ({ campaignId: item.campaign_id,
-      worker: liveWorkers.find(worker => worker.user_id === item.resource_id) }))
+      worker: promotedWorkers.find(worker => worker.user_id === item.resource_id) }))
       .filter((item): item is { campaignId: string; worker: Profile } =>
-        Boolean(item.worker && workerMatchesFilters(item.worker, { search, category, specialty, state, city }))),
-    [sponsoredResults, liveWorkers, search, category, specialty, state, city],
+        Boolean(item.worker && workerMatchesFilters(item.worker, { search, category, specialty, state, city,categoryServices }))),
+    [sponsoredResults, promotedWorkers, search, category, specialty, state, city,categoryServices],
   );
-  useEffect(() => {
-    visibleFeaturedWorkers.forEach(item => recordSponsoredImpression(item.campaignId, 'worker_discovery'));
-  }, [visibleFeaturedWorkers]);
+
   const filterCount = [category, specialty, state, city].filter(Boolean).length;
   function clear() {
     setSearch("");
@@ -319,8 +266,8 @@ export default function WorkerDiscovery({
   function resetStructured() {
     setCategory("");
     setSpecialty("");
-    setState(savedState);
-    setCity(savedCity);
+    setState("");
+    setCity("");
   }
   function created(
     workerId: string,
@@ -375,7 +322,10 @@ export default function WorkerDiscovery({
       <>
         <WorkerPublicProfile
           worker={viewWorker}
+          viewerUserId={profile?.user_id}
           onBack={() => setViewWorker(null)}
+          onGoToChat={(id) => onNavigate("chat", id)}
+          onGoToFriendChat={(id) => onNavigate("activity", id)}
           bookingActive={active.has(viewWorker.user_id)}
           showBookingAction={!viewingOwnWorker}
           onOpenBooking={() => onNavigate("my_reservations")}
@@ -400,8 +350,8 @@ export default function WorkerDiscovery({
                 {profileBlock.busy
                   ? "Updating…"
                   : profileBlock.blockedByMe
-                    ? "Unblock Worker"
-                    : "Block Worker"}
+                    ? "Resume contact"
+                    : "Stop contact"}
               </button>
             </div>
           ) : undefined}
@@ -419,6 +369,7 @@ export default function WorkerDiscovery({
       </>
     );
     }
+  if(offering==='experiences')return <DiscoveryShell active="services" onNavigate={onNavigate}><main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8"><OfferingChoice value={offering} onChange={setOffering}/><Suspense fallback={<p role="status">Loading Experiences...</p>}><ExperienceDiscovery viewerId={profile?.user_id} onNavigate={onNavigate} initialActivityId={initialExperienceId} onInitialActivityOpened={onInitialExperienceOpened} onBooking={id=>onNavigate('my_reservations',id?`experience:${id}`:undefined)}/></Suspense></main></DiscoveryShell>;
   return (
     <DiscoveryShell
       active="services"
@@ -426,43 +377,7 @@ export default function WorkerDiscovery({
     >
 
       <main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-        {statusWorkers.length > 0 && (
-          <section>
-            <div className="mb-3 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-400">
-                  WORK STATUS
-                </p>
-                <h2 className="mt-1 text-sm font-bold">
-                  Recent work from Workers
-                </h2>
-              </div>
-              <span className="text-[9px] text-[var(--wh-text-muted)]">24-hour updates</span>
-            </div>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {statusWorkers.map(({ worker, status }) => (
-                <button
-                  key={worker.user_id}
-                  onClick={() => setStory({ worker, status })}
-                  className="w-24 shrink-0 text-left"
-                >
-                  <div className="rounded-[26px] bg-gradient-to-br from-violet-300 via-violet-500 to-violet-500 p-[2px]">
-                    <StatusMedia
-                      status={status}
-                      className="h-32 w-full rounded-3xl bg-[var(--wh-bg)] object-cover"
-                    />
-                  </div>
-                  <p className="mt-1 truncate text-[9px] font-semibold text-[var(--wh-text-secondary)]">
-                    {workerDisplayName(worker)}
-                  </p>
-                  <p className="truncate text-[8px] text-[var(--wh-text-muted)]">
-                    {status.caption || "Work Status"}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+        <OfferingChoice value={offering} onChange={setOffering}/>
         <DiscoveryToolbar
           value={search}
           onChange={setSearch}
@@ -473,7 +388,7 @@ export default function WorkerDiscovery({
         {visibleFeaturedWorkers.length > 0 && (
           <section
             aria-labelledby="featured-workers-title"
-            className="overflow-hidden rounded-3xl border border-amber-300/15 bg-[radial-gradient(circle_at_top_right,rgba(245,190,48,.09),transparent_42%),#10131B] px-4 py-4"
+            className="overflow-hidden rounded-3xl border border-[var(--wh-border)] bg-[var(--wh-surface)] px-4 py-4"
           >
             <div className="mb-2">
               <p className="text-[9px] font-bold uppercase tracking-[.16em] text-amber-300">
@@ -488,17 +403,16 @@ export default function WorkerDiscovery({
             </div>
             <div className="divide-y divide-amber-300/10">
               {visibleFeaturedWorkers.map(({ worker, campaignId }) => (
-                <WorkerCard
-                  key={campaignId}
+                <SponsoredPlacement key={campaignId} campaignId={campaignId} context="worker_discovery"><WorkerCard
                   worker={worker}
+                  serviceArea={locationLabel(city,state)}
                   active={active.has(worker.user_id)}
                   bookable={worker.user_id !== profile?.user_id}
                   sponsored
-                  onStatus={() => openWorker(worker)}
                   onProfile={() => openWorker(worker)}
                   onBook={() => { recordSponsoredOpen(campaignId); setBookingWorker(worker); }}
                   onOpen={() => onNavigate("my_reservations")}
-                />
+                /></SponsoredPlacement>
               ))}
             </div>
           </section>
@@ -509,12 +423,12 @@ export default function WorkerDiscovery({
               {loading || settingsLoading
                 ? "Finding Workers…"
                 : marketplaceEnabled
-                  ? `${shown.length} ${shown.length === 1 ? "Worker" : "Workers"}`
+                  ? `${shown.length}${hasMore?'+':''} ${shown.length === 1 ? "Worker" : "Workers"}`
                   : "WeHouse Services"}
             </p>
             <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
               {!marketplaceEnabled && !settingsLoading
-                ? "The public Worker marketplace is currently closed."
+                ? "Service discovery is temporarily paused by WeHouse."
                 : state
                   ? `Searching ${[city, state].filter(Boolean).join(", ")}`
                   : "Choose State and LGA in filters."}
@@ -531,13 +445,16 @@ export default function WorkerDiscovery({
           )}
         </div>
         {loading || settingsLoading ? (
-          <div className="grid min-h-56 place-items-center">
-            <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-          </div>
+          <WeHouseLoadingState compact label="Loading" />
+        ) : loadError && workers.length===0 ? (
+          <section role="alert" className="rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-5">
+            <p className="text-sm text-[var(--wh-text-secondary)]">Service Providers could not be loaded. Try again to continue your search.</p>
+            <button type="button" onClick={()=>setReload(value=>value+1)} className="mt-3 min-h-11 rounded-full bg-[var(--wh-violet)] px-5 text-sm font-semibold text-white">Try again</button>
+          </section>
         ) : !marketplaceEnabled ? (
           <DiscoveryEmpty
-            title="WeHouse Services is not open yet"
-            text="Reviewed Workers are being prepared for public discovery. Your search and saved location are not the reason no Workers are showing."
+            title="Service discovery is temporarily paused"
+            text="WeHouse has paused new discovery for an operational issue. Existing conversations and bookings remain in your Inbox and Bookings."
           />
         ) : shown.length === 0 ? (
           <DiscoveryEmpty
@@ -550,10 +467,9 @@ export default function WorkerDiscovery({
               <WorkerCard
                 key={worker.user_id}
                 worker={worker}
-                status={latestStatusByWorker.get(worker.user_id)}
+                  serviceArea={locationLabel(city,state)}
                 active={active.has(worker.user_id)}
                 bookable={worker.user_id !== profile?.user_id}
-                onStatus={(status) => setStory({ worker, status })}
                 onProfile={() => openWorker(worker)}
                 onBook={() =>
                   profile
@@ -565,6 +481,8 @@ export default function WorkerDiscovery({
             ))}
           </div>
         )}
+        {!loading&&workers.length>0&&loadError&&<p role="alert" className="text-sm text-[var(--wh-text-secondary)]">{loadError}</p>}
+        {!loading&&hasMore&&<button type="button" disabled={paging} onClick={()=>void moreProviders()} className="min-h-11 rounded-xl border border-[var(--wh-border)] bg-[var(--wh-surface)] px-5 text-sm font-semibold disabled:opacity-50">{paging?'Loading more Providers...':'Show more Providers'}</button>}
       </main>
       {filtersOpen && (
         <DiscoveryFilterSheet
@@ -572,6 +490,7 @@ export default function WorkerDiscovery({
           onClose={() => setFiltersOpen(false)}
           onClear={resetStructured}
         >
+          {categoryError&&<p role="alert" className="text-sm">{categoryError}<button type="button" onClick={()=>setReload(value=>value+1)} className="ml-2 min-h-11 underline">Refresh categories</button></p>}
           <div className="grid grid-cols-2 gap-3">
             <SearchableSelect
               label="Work category"
@@ -594,28 +513,7 @@ export default function WorkerDiscovery({
               disabled={!category}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <SearchableSelect
-              label="State"
-              value={state}
-              onChange={(value) => {
-                setState(value);
-                setCity("");
-              }}
-              options={stateOptions}
-              placeholder="Any State"
-              searchPlaceholder="Search State"
-            />
-            <SearchableSelect
-              label="LGA"
-              value={city}
-              onChange={setCity}
-              options={cityOptions}
-              placeholder={state ? "Any LGA" : "Choose State"}
-              searchPlaceholder="Search LGA"
-              disabled={!state}
-            />
-          </div>
+          <LocationFilterFields region={state} locality={city} onRegionChange={(value) => { setState(value); setCity(""); }} onLocalityChange={setCity} />
           {(savedState || savedCity) && (
             <p className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-3 py-2.5 text-[9px] text-[var(--wh-text-muted)]">
               Your saved area is the default:{" "}
@@ -623,64 +521,6 @@ export default function WorkerDiscovery({
             </p>
           )}
         </DiscoveryFilterSheet>
-      )}
-      {story && (
-        <div
-          className="wh-media-immersive fixed inset-0 z-[95] bg-black/95"
-          onClick={() => setStory(null)}
-        >
-          <div
-            className="mx-auto flex h-full max-w-md flex-col justify-center p-4"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-violet-500 text-xs font-bold">
-                {workerAvatarUrl(story.worker) ? (
-                  <img
-                    src={workerAvatarUrl(story.worker) || ""}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  workerInitial(story.worker)
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold">
-                  {workerDisplayName(story.worker)}
-                </p>
-                <p className="mt-0.5 text-[9px] text-violet-300">
-                  Work Status · 24 hours
-                </p>
-              </div>
-              <button
-                onClick={() => setStory(null)}
-                className="grid h-10 w-10 place-items-center rounded-full bg-[var(--wh-interactive)]"
-              >
-                ×
-              </button>
-            </div>
-            <StatusMedia
-              status={story.status}
-              controls
-              className="max-h-[68dvh] w-full rounded-3xl bg-black object-contain"
-            />
-            {story.status.caption && (
-              <p className="mt-3 rounded-2xl bg-[var(--wh-interactive)] p-4 text-[11px] leading-relaxed text-[var(--wh-text-secondary)]">
-                {story.status.caption}
-              </p>
-            )}
-            <button
-              onClick={() => {
-                setViewWorker(story.worker);
-                setStory(null);
-              }}
-              className="mt-3 h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold"
-            >
-              View Worker profile
-            </button>
-          </div>
-        </div>
       )}
       {bookingWorker && profile && (
         <WorkerBookingRequestSheetV2
@@ -698,20 +538,18 @@ export default function WorkerDiscovery({
 
 function WorkerCard({
   worker,
-  status,
+  serviceArea,
   active,
   bookable,
-  onStatus,
   onProfile,
   onBook,
   onOpen,
   sponsored = false,
 }: {
   worker: Profile;
-  status?: WorkStatus;
+  serviceArea?: string;
   active: boolean;
   bookable: boolean;
-  onStatus: (status: WorkStatus) => void;
   onProfile: () => void;
   onBook: () => void;
   onOpen: () => void;
@@ -730,8 +568,8 @@ function WorkerCard({
       )}
       <div className="flex items-start gap-3">
         <button
-          onClick={() => (status ? onStatus(status) : onProfile())}
-          className={`shrink-0 rounded-[18px] ${status ? "bg-gradient-to-br from-violet-300 via-violet-500 to-violet-500 p-[2px]" : ""}`}
+          onClick={onProfile} aria-label={`Open ${displayName} profile`}
+          className="shrink-0 rounded-[18px]"
         >
           <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-violet-600 text-lg font-bold">
             {avatarUrl ? (
@@ -757,10 +595,9 @@ function WorkerCard({
             {occupation}
           </p>
           <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
-            {[worker.city || worker.local_government, worker.state]
-              .filter(Boolean)
-              .join(", ") || "Location not shown"}
+            Base: {locationLabel(worker.city || worker.local_government,worker.state) || "Location not shown"}
           </p>
+          {serviceArea&&<p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">Serves {serviceArea}</p>}
           {Number(worker.review_count || 0) > 0 && Number(worker.rating || 0) > 0 && (
             <p className="mt-2 text-[9px] font-semibold text-amber-300">
               ★ {Number(worker.rating).toFixed(1)} ·{" "}
@@ -769,17 +606,6 @@ function WorkerCard({
           )}
         </button>
       </div>
-      {status && (
-        <button
-          onClick={() => onStatus(status)}
-          className="mt-3 flex w-full items-center justify-between border-l-2 border-violet-400 pl-3 text-left"
-        >
-          <span className="text-[9px] font-semibold text-violet-300">
-            ● Work Status live
-          </span>
-          <span className="text-[9px] text-[var(--wh-text-muted)]">Watch →</span>
-        </button>
-      )}
       {skills.length > 0 && (
         <p className="mt-3 line-clamp-2 text-[9px] leading-4 text-[var(--wh-text-muted)]">
           {skills.slice(0, 4).join(" · ")}
@@ -789,7 +615,7 @@ function WorkerCard({
       <div className="mt-4 flex items-center justify-between gap-3">
         <p className="text-[10px] font-semibold text-[var(--wh-text)]">
           {worker.worker_price
-            ? `From ₦${Number(worker.worker_price).toLocaleString()}`
+            ? `From ${formatRecordedMoney(Number(worker.worker_price))}`
             : "Discuss price"}
         </p>
         {active && bookable ? (
@@ -809,20 +635,5 @@ function WorkerCard({
         ) : null}
       </div>
     </article>
-  );
-}
-function StatusMedia({
-  status,
-  className,
-  controls = false,
-}: {
-  status: WorkStatus;
-  className: string;
-  controls?: boolean;
-}) {
-  return status.media_type === "video" ? (
-    controls ? <VideoPlayer src={status.url || ""} className={className} autoPlay /> : <div className={`${className} grid place-items-center bg-[radial-gradient(circle_at_center,rgba(139,92,246,.16),transparent_42%),var(--wh-elevated)]`} role="img" aria-label="Worker video"><span className="grid h-11 w-11 place-items-center rounded-full border border-[var(--wh-border)] bg-[var(--wh-overlay)] text-sm text-[var(--wh-text)]">▶</span></div>
-  ) : (
-    <img src={status.url} alt="Work Status" className={className} />
   );
 }

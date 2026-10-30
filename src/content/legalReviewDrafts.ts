@@ -24,7 +24,7 @@ We may collect:
 • private face-reference and live-check results for Worker and Property Partner identity review;
 • photos, video, audio and Showcase content you choose to provide.
 
-Private Roommate and Worker-customer message bodies are end-to-end encrypted where the app says so. WeHouse cannot read those message bodies. Hotel, Property Partner, support and official WeHouse conversations are not described as end-to-end encrypted and may be accessed by authorised staff for service and safety work.
+Private Friend, Roommate and Worker-customer message bodies are end-to-end encrypted where the app says so. WeHouse cannot read those message bodies. Friend plan suggestions sent in Friend chat use the same encrypted message path. Hotel, Property Partner, support and official WeHouse conversations are not described as end-to-end encrypted and may be accessed by authorised staff for service and safety work.
 
 3. Why we use information
 We use information to create and protect accounts; provide searches, bookings, messages and workspaces; verify payments and protect payouts; review Workers, partners and listings; prevent fraud and abuse; answer complaints; keep audit and transaction records; meet legal duties; and improve reliability. We do not treat a paid Worker subscription as identity verification or WeHouse approval.
@@ -52,7 +52,7 @@ We keep each category only for a documented period. Account data is deleted or d
 Subject to applicable law, you may ask for access, correction, deletion, restriction, objection, portability or a copy of your information, and may withdraw consent without affecting earlier lawful use. You may ask for human review of an important automated decision. Send requests to [PRIVACY EMAIL]. We verify the requester before acting and explain any lawful refusal. You may complain to the Nigeria Data Protection Commission.
 
 10. Account export and deletion
-Account settings must provide a clear request route. WeHouse first protects active bookings, unpaid balances, disputes, payouts and evidence that must be retained. Closing an account removes public access and starts the documented deletion process; it does not erase records that WeHouse must lawfully preserve. We send the result and any retained categories to the verified account contact.
+Account settings provide separate requests for access, correction and deletion. Send the request in Messages to submit it, then follow its case updates and reply there. WeHouse reviews the request and records the completed work and any retained information with its specific reason. Closing an account disables access; it does not itself erase all personal information or submit a deletion request. Active bookings, balances, disputes, payouts and legally required evidence may affect what can be erased. No final retention period is approved in this draft.
 
 11. Security and incidents
 We use access control, encryption, session review, audit records, least-privilege workspaces and tested incident procedures. No service can promise perfect security. If an incident creates a legally reportable risk, WeHouse follows its incident plan and makes required regulator and user notices.
@@ -80,9 +80,9 @@ WeHouse provides technology for housing discovery, accommodation bookings, roomm
 One person has one account identity. Personal, Worker, Property Partner, Hotel Team and WeHouse Team workspaces have separate permissions and records. A Worker or Property Partner may also use Personal services where allowed. Creator and internal WeHouse Team identities are operational accounts, not consumer accounts. Do not share credentials, impersonate another person, create conflicting work identities or use a workspace without authority.
 
 2. Account security
-Keep your password, linked Google or Apple account, Inbox PIN and trusted device secure. Changing a known password requires the current password. Forgotten-password recovery requires control of the exact linked identity provider and a short, one-use recovery transaction. A linked-provider login alone does not change another account. WeHouse may end sessions or hold sensitive actions when security signals require review.
+Keep your password, linked Google or Apple account, Inbox PIN and trusted device secure. Changing a known password requires the current password. Forgotten-password recovery uses a short, one-use code sent to your verified account email, or confirmation through a Google or Apple identity already linked to that same WeHouse account. A linked-provider login alone does not change another account. WeHouse may end sessions or hold sensitive actions when security signals require review.
 
-Only Roommate and Worker-customer private chats are described as end-to-end encrypted. Your Inbox PIN unlocks the encrypted message key on that device. If the PIN and recovery key are lost, old private messages may be unreadable. Hotel and WeHouse support messages remain accessible to authorised participants and staff.
+Friend, Roommate and Worker-customer private chats are end-to-end encrypted. Friend plan suggestions sent in a Friend chat are encrypted message content too. Your Inbox PIN unlocks the encrypted message key on that device. If the PIN and recovery key are lost, old private messages may be unreadable. Hotel and WeHouse support messages remain accessible to authorised participants and staff.
 
 3. Guest hotel booking
 The guest chooses dates and guest count, chooses a room and rate, reviews the full price and cancellation rule, pays, receives a confirmed booking, may message the hotel, and then checks in and out. A room is not confirmed merely because it appeared in search or a payment page opened. The hotel team manages arrivals, departures, reservations, rooms, rates, availability, Inbox, team access and finance only for its assigned hotel.

@@ -83,3 +83,26 @@ test("Hotel Team has one Inbox surface with guest conversations and nested Activ
   assert.match(source, /<Notifications/);
   assert.doesNotMatch(source, /label: "Conversation"/);
 });
+
+
+test("Partner Activity opens authorized Home and support conversations and refreshes Home rows", async () => {
+  const source=await read("src/components/CommunicationInbox.tsx");
+  assert.match(source, /\[filter, hotelChats, hostChats, query, supportThreads\]/);
+  assert.match(source, /const host = hostChats.find/);
+  assert.match(source, /setActiveHost\(host\)/);
+  assert.match(source, /const support = supportThreads.find/);
+  assert.match(source, /openSupport\(support\)/);
+  assert.match(source, /This conversation could not be opened/);
+});
+
+test("Operational Activity preserves booking kind through both dashboard dispatchers", async () => {
+  for(const path of ["src/pages/AdminDashboard.tsx","src/pages/CreatorDashboard.tsx"]){
+    const source=await read(path);
+    assert.match(source,/openOperation\(target.operation, target.id, target.bookingKind\)/);
+    assert.match(source,/initialKind=\{target\?\.operation === "bookings" \? target.bookingKind : undefined\}/);
+  }
+  const services=await read("src/components/ServiceBookingOversight.tsx");
+  assert.match(services,/row.booking_code===target.booking_code/);
+  assert.match(services,/request!==generation.current/);
+  assert.match(services,/role="alert"/);
+});

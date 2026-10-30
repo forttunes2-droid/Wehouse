@@ -38,12 +38,15 @@ export default function MessageMedia({ items }: { items: MessageAttachment[] }) 
     {safe.map((item, index) => {
       const kind = messageAttachmentKind(item.type, item.url);
       if (kind === 'audio') return <div key={`${item.url}-${index}`} className="wh-media-audio"><VoiceNotePlayer url={item.url} /></div>;
+      if (kind === 'image' || kind === 'video') return <a key={`${item.url}-save-${index}`} href={item.url} download={`wehouse-${kind}-${index + 1}`} target="_blank" rel="noreferrer" className="wh-attachment-save" aria-label={`Save ${kind === 'image' ? 'photo' : 'video'} ${index + 1}`}>
+        <Download size={16} aria-hidden="true" />Save {kind === 'image' ? 'photo' : 'video'}{visual.length > 1 ? ` ${index + 1}` : ''}
+      </a>;
       if (kind !== 'file') return null;
       const label = attachmentFileLabel(item);
       return <a key={`${item.url}-${index}`} href={item.url} download={label} target="_blank" rel="noreferrer" className="wh-attachment-file" aria-label={`Open document ${label}`}>
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-200"><FileText size={21} aria-hidden="true" /></span>
+        <span className="wh-attachment-document-icon grid h-11 w-11 shrink-0 place-items-center rounded-xl"><FileText size={21} aria-hidden="true" /></span>
         <span><strong>{label}</strong><small>{item.type?.split(';')[0] || 'Document'} · Private attachment</small></span>
-        <Download size={18} className="shrink-0 text-violet-200" aria-hidden="true" />
+        <Download size={18} className="wh-attachment-document-icon shrink-0" aria-hidden="true" />
       </a>;
     })}
     {safe.length !== items.length && <AttachmentState error />}

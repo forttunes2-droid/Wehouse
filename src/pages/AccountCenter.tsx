@@ -1,14 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
-import { Check, Moon, Sun } from "lucide-react";
+import {lazy,Suspense,useEffect,useMemo,useRef,useState} from 'react';
+import { withTimeout } from '@/lib/withTimeout';
+import PhoneNotificationSettings from '@/components/PhoneNotificationSettings';
+import SettingSwitch from '@/components/SettingSwitch';
+import { saveNotificationPreference as persistNotificationPreference } from '@/lib/supabase/notification-preferences';
+import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { setNotificationSoundEnabled } from "@/lib/notificationSound";
-import { setAppearance, useAppearance } from "@/lib/appearance";
+import { resolvedAppearance, setAppearance, useAppearance } from "@/lib/appearance";
 import AccountShell, {
   AccountRow,
   AccountSection,
 } from "@/components/AccountShell";
+import { AccountIcon, WorkspaceIcon } from "@/components/WorkspaceMark";
 import AccountHelpCenter from "@/components/AccountHelpCenter";
+const OpenSourceLicences=lazy(()=>import('@/components/OpenSourceLicences'));
+const PaidPlanBilling=lazy(()=>import('@/components/PaidPlanBilling'));
 import type { Profile } from "@/types";
 import PrivacySecuritySettings from "@/pages/PrivacySecuritySettings";
 import MediaViewer from "@/components/MediaViewer";
@@ -75,6 +82,8 @@ type Panel =
   | "appearance"
   | "notifications"
   | "legal"
+  | "licences"
+  | "billing"
   | "privacy_security"
   | "workspaces"
   | "help"
@@ -84,7 +93,10 @@ type ProfilePreferences = {
   pref_push_notif?: boolean | null;
 };
 
-export default function AccountCenter({
+export default function AccountCenter(props:Props) {
+  return <AccountCenterContent key={props.profile.user_id} {...props}/>;
+}
+function AccountCenterContent({
   profile,
   onBack,
   onGoToSaved,
@@ -106,9 +118,6 @@ export default function AccountCenter({
   const p = profile as Profile & ProfilePreferences;
   const [panel, setPanel] = useState<Panel>(null);
   const appearance = useAppearance();
-  const [emailNotifs, setEmailNotifs] = useState(
-    p.pref_email_notif !== false,
-  );
   const [pushNotifs, setPushNotifs] = useState(
     p.pref_push_notif !== false,
   );
@@ -121,10 +130,13 @@ export default function AccountCenter({
     terms: false,
   });
   const [saving, setSaving] = useState(false);
+  const preferenceLock=useRef(false),preferenceAlive=useRef(true);
+  useEffect(()=>{preferenceAlive.current=true;return()=>{preferenceAlive.current=false;};},[]);
   const [signingOut, setSigningOut] = useState(false);
   const [activatingWorkspace, setActivatingWorkspace] = useState<
     "worker" | "property_partner" | null
   >(null);
+  const activationLock=useRef(false);
   const [photoPreview, setPhotoPreview] = useState(false);
   const [workspaceUnread, setWorkspaceUnread] = useState<Record<string, number>>({});
 
@@ -146,7 +158,7 @@ export default function AccountCenter({
   )[0].toUpperCase();
 
   // A previous identity's cached response must never supply account links.
-  const ownAccess = workspaceAccess?.identity?.user_id === profile.user_id && workspaceAccess.personal_workspace;
+  const ownAccess = workspaceAccess?.identity?.user_id === profile.user_id;
   const privilegedWorkspaces = ownAccess ? workspaceAccess?.privileged_workspaces || [] : [];
   const hasServiceProviderWorkspace = privilegedWorkspaces.some(
     (workspace) => workspace.role === "worker",
@@ -183,7 +195,7 @@ export default function AccountCenter({
       items.push({
         role: "worker",
         label: "Service Worker",
-        detail: serviceProviderLive ? "Jobs, Showcase and earnings" : serviceProviderStatusText(profile.worker_status),
+        detail: "Services, Experiences, bookings and earnings",
       });
     if (hasPartnerWorkspace)
       items.push({
@@ -210,8 +222,6 @@ export default function AccountCenter({
     assignedWorkspaces,
     hasPartnerWorkspace,
     hasServiceProviderWorkspace,
-    profile.worker_status,
-    serviceProviderLive,
     ownAccess,
   ]);
   const workspaceRolesKey = switchableWorkspaces.map(item => item.role).join(',');
@@ -269,24 +279,21 @@ export default function AccountCenter({
   }, [panel]);
 
   async function saveNotificationPreference(
-    key: "pref_email_notif" | "pref_push_notif",
     value: boolean,
   ) {
-    setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ [key]: value, updated_at: new Date().toISOString() })
-      .eq("auth_id", profile.auth_id);
-    setSaving(false);
-    if (error) {
-      if (key === "pref_push_notif") setPushNotifs(!value);
-      else setEmailNotifs(!value);
-      return toast.error("This preference could not be saved");
-    }
-    if (key === "pref_push_notif") window.dispatchEvent(new CustomEvent("wehouse:in-app-alerts", {
-      detail: { userId: profile.user_id, enabled: value },
-    }));
-    toast.success("Preference saved");
+    if(preferenceLock.current)return;
+    preferenceLock.current=true;setSaving(true);
+    try {
+      const {error}=await withTimeout(persistNotificationPreference(profile.user_id,profile.auth_id,'pref_push_notif',value),10000,'The save outcome is unknown. Reload Account before retrying.');
+      if(!preferenceAlive.current)return;
+      if(error)throw error;
+      setPushNotifs(value);
+      if(value)setNotificationSoundEnabled(profile.user_id,true);
+      window.dispatchEvent(new CustomEvent('wehouse:in-app-alerts',{detail:{userId:profile.user_id,enabled:value}}));
+      toast.success('Preference saved');
+    } catch(error) {
+      if(preferenceAlive.current)toast.error(error instanceof Error?error.message:(error as {message?:string})?.message||'This preference could not be saved');
+    } finally {preferenceLock.current=false;if(preferenceAlive.current)setSaving(false);}
   }
 
   async function signOut() {
@@ -312,25 +319,27 @@ export default function AccountCenter({
   async function startProfessionalOnboarding(
     workspace: "worker" | "property_partner",
   ) {
-    if (activatingWorkspace) return;
+    if (activationLock.current) return;
+    activationLock.current=true;
     setActivatingWorkspace(workspace);
     const rpc =
       workspace === "worker"
         ? "activate_my_worker_workspace"
         : "activate_my_property_partner_workspace";
-    const { error } = await supabase.rpc(rpc);
-    setActivatingWorkspace(null);
-    if (error)
-      return toast.error(
-        error.message || "This onboarding flow could not be started",
-      );
-    window.dispatchEvent(new Event("wehouse:workspace-access-changed"));
-    toast.success(
-      workspace === "worker"
-        ? "Service Worker onboarding started"
-        : "Property Partner onboarding started",
-    );
-    onWorkspaceActivated?.(workspace);
+    try {
+      const { error } = await withTimeout(supabase.rpc(rpc),15000,
+        'Setup could not be confirmed. Refresh your workspaces before retrying.');
+      if(error)throw error;
+      if(!preferenceAlive.current)return;
+      window.dispatchEvent(new Event("wehouse:workspace-access-changed"));
+      toast.success(workspace === "worker" ? "Services setup started" : "Property Partner setup started");
+      onWorkspaceActivated?.(workspace);
+    } catch(cause) {
+      if(preferenceAlive.current)toast.error((cause as {message?:string})?.message||'Setup could not be confirmed. Refresh your workspaces before retrying.');
+    } finally {
+      activationLock.current=false;
+      if(preferenceAlive.current)setActivatingWorkspace(null);
+    }
   }
 
   function continueProfessionalOnboarding(
@@ -348,6 +357,7 @@ export default function AccountCenter({
         profile={profile}
         onUpdate={() => window.location.reload()}
         onBack={() => setPanel(null)}
+        onLogout={onLogout ? async () => onLogout() : undefined}
       />
     );
 
@@ -362,8 +372,8 @@ export default function AccountCenter({
       >
 
         {ownAccess && onSwitchWorkspace ? (
-          <AccountSection title="Personal">
-            <AccountRow title="Personal" detail="Find places, book services and meet roommates" icon={<PersonIcon />}
+          <AccountSection>
+            <AccountRow title="Personal" detail="Find places, book services and meet roommates" icon={<WorkspaceIcon workspace="personal" />}
               onClick={activeWorkspace === 'personal' ? undefined : () => onSwitchWorkspace('personal')}
               trailing={activeWorkspace === 'personal' ? <span className="text-xs text-violet-300">Current</span> : workspaceUnread.personal ? <span className="rounded-full bg-violet-500/15 px-2 py-1 text-xs text-violet-200">{workspaceUnread.personal} new</span> : undefined} />
           </AccountSection>
@@ -381,7 +391,7 @@ export default function AccountCenter({
                   detail={workspace.detail}
                   onClick={activeWorkspace === workspace.role ? undefined : () => workspace.role === 'worker' && !serviceProviderLive && onWorkspaceActivated ? continueProfessionalOnboarding('worker') : onSwitchWorkspace(workspace.role)}
                   trailing={activeWorkspace === workspace.role ? <span className="text-xs text-violet-300">Current</span> : workspaceUnread[workspace.role] ? <span className="rounded-full bg-violet-500/15 px-2 py-1 text-xs text-violet-200">{workspaceUnread[workspace.role]} new</span> : undefined}
-                  icon={<ToolsIcon />}
+                  icon={<WorkspaceIcon workspace={workspace.role} />}
                 />
               ))}
             </AccountSection>
@@ -392,11 +402,11 @@ export default function AccountCenter({
           <AccountSection title="Get started">
             {!hasServiceProviderWorkspace ? (
               <AccountRow
-                title="Offer services"
-                detail="Create your Service Worker profile"
+                title="Offer services or Experiences"
+                detail="Set up your Services workspace"
                 onClick={() => void startProfessionalOnboarding("worker")}
                 disabled={activatingWorkspace !== null}
-                icon={<PersonIcon />}
+                icon={<AccountIcon name="offerServices" />}
               />
             ) : null}
 
@@ -406,7 +416,7 @@ export default function AccountCenter({
                 detail="Create your Property Partner profile"
                 onClick={() => void startProfessionalOnboarding("property_partner")}
                 disabled={activatingWorkspace !== null}
-                icon={<HomeIcon />}
+                icon={<AccountIcon name="listProperty" />}
               />
             ) : null}
           </AccountSection>
@@ -425,29 +435,22 @@ export default function AccountCenter({
       >
 
         <AccountSection>
-          <Toggle
-            label="Email notifications"
-            detail="Account, booking and service updates by email."
-            value={emailNotifs}
-            disabled={saving}
-            onChange={(value) => {
-              setEmailNotifs(value);
-              void saveNotificationPreference("pref_email_notif", value);
-            }}
-          />
+          <div className="border-b border-[var(--wh-border-subtle)] px-4 py-4 sm:px-5">
+            <p className="text-sm font-semibold">Email updates</p>
+            <p className="mt-1 text-[13px] leading-5 text-[var(--wh-text-secondary)]">Delivery is not active yet. Account verification and recovery emails are separate from optional updates.</p>
+          </div>
           <Toggle
             label="In-app alerts"
             detail="Messages and activity from all your workspaces while WeHouse is open."
             value={pushNotifs}
             disabled={saving}
             onChange={(value) => {
-              setPushNotifs(value);
-              if (value) setNotificationSoundEnabled(profile.user_id, true);
-              void saveNotificationPreference("pref_push_notif", value);
+              void saveNotificationPreference(value);
             }}
           />
+          <PhoneNotificationSettings key={profile.user_id} userId={profile.user_id}/>
         </AccountSection>
-        <p className="px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">A soft chime plays when sound is allowed by your device. Background phone notifications are not available yet. Unread badges remain when you switch workspaces.</p>
+        <p className="px-1 text-xs leading-5 text-[var(--wh-text-secondary)]">In-app alerts control ordinary pop-ups and sounds while WeHouse is open. Turning them off keeps messages, Activity and unread badges available. Security notices stay available. This does not enable phone notifications when the app is closed.</p>
         <p className="px-1 text-xs text-[var(--wh-text-secondary)]">
           Changes save automatically.
         </p>
@@ -456,26 +459,29 @@ export default function AccountCenter({
   }
 
   if (panel === "appearance") {
+    const systemResolvedAppearance = resolvedAppearance("system");
     const choices = [
+      { value: "system" as const, label: "System", detail: "Follows this device", icon: Monitor },
       { value: "light" as const, label: "Light", detail: "Bright and clean", icon: Sun },
       { value: "dark" as const, label: "Dark", detail: "Low-light friendly", icon: Moon },
     ];
     return <AccountShell profile={profile} title="Appearance" workspace={activeWorkspace}
       description="Choose how WeHouse looks on this device." onBack={() => setPanel(null)}>
       <section className="mx-auto max-w-2xl">
-        <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Appearance">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Appearance">
           {choices.map(({ value, label, detail, icon: Icon }) => {
             const selected = appearance === value;
+            const sampleDark = value === "dark" || (value === "system" && systemResolvedAppearance === "dark");
             return (
               <button key={value} type="button" role="radio" aria-checked={selected}
                 onClick={() => setAppearance(value)}
                 className={`relative overflow-hidden rounded-2xl border p-3 text-left transition-all active:scale-[.99] ${selected ? "border-violet-400/60 ring-1 ring-violet-400/25" : "border-[var(--wh-border-subtle)]"} bg-[var(--wh-surface)]`}>
-                <div className={`h-20 rounded-xl border p-2 ${value === "dark" ? "border-white/10 bg-[#090B10]" : "border-black/10 bg-[#F7F8FB]"}`}>
-                  <div className={`h-2.5 w-1/2 rounded-full ${value === "dark" ? "bg-white/15" : "bg-black/10"}`} />
+                <div className={`h-20 rounded-xl border p-2 ${sampleDark ? "border-white/10 bg-[#090B10]" : "border-black/10 bg-[#F7F8FB]"}`}>
+                  <div className={`h-2.5 w-1/2 rounded-full ${sampleDark ? "bg-white/15" : "bg-black/10"}`} />
                   <div className="mt-2 grid grid-cols-3 gap-1.5">
-                    <span className={`h-10 rounded-lg ${value === "dark" ? "bg-white/10" : "bg-black/5"}`} />
-                    <span className={`h-10 rounded-lg ${value === "dark" ? "bg-violet-500/30" : "bg-violet-500/15"}`} />
-                    <span className={`h-10 rounded-lg ${value === "dark" ? "bg-white/10" : "bg-black/5"}`} />
+                    <span className={`h-10 rounded-lg ${sampleDark ? "bg-white/10" : "bg-black/5"}`} />
+                    <span className={`h-10 rounded-lg ${sampleDark ? "bg-violet-500/30" : "bg-violet-500/15"}`} />
+                    <span className={`h-10 rounded-lg ${sampleDark ? "bg-white/10" : "bg-black/5"}`} />
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
@@ -497,6 +503,8 @@ export default function AccountCenter({
     </AccountShell>;
   }
 
+  if(panel==='billing')return <Suspense fallback={<AccountShell profile={profile} workspace={activeWorkspace} title="Billing & subscriptions" onBack={()=>setPanel(null)}><p role="status">Loading billing…</p></AccountShell>}><PaidPlanBilling profile={profile} workspace={activeWorkspace} onBack={()=>setPanel(null)}/></Suspense>;
+  if(panel==='licences')return <Suspense fallback={<AccountShell profile={profile} title="Open-source licences" onBack={()=>setPanel('legal')}><p role="status">Loading library notices…</p></AccountShell>}><OpenSourceLicences profile={profile} onBack={()=>setPanel('legal')}/></Suspense>;
   if (panel === "legal") {
     return (
       <AccountShell profile={profile} title="Legal documents" onBack={() => setPanel(null)}>
@@ -505,6 +513,7 @@ export default function AccountCenter({
             onClick={() => openLegal("privacy_policy")} />
           <LegalCard title="Terms of Service" published={published.terms} accepted={legal.terms_accepted}
             onClick={() => openLegal("terms_of_service")} />
+          <AccountRow title="Open-source licences" detail="Library versions, original notices and source" onClick={()=>setPanel('licences')} icon={<AccountIcon name="legal"/>}/>
         </div>
       </AccountShell>
     );
@@ -582,7 +591,7 @@ export default function AccountCenter({
             title="Switch workspace"
             detail={`${switchableWorkspaces.length} available · Current: ${workspaceLabel(activeWorkspace)}${otherWorkspaceUnread ? ` · ${otherWorkspaceUnread} unread elsewhere` : ''}`}
             onClick={() => setPanel("workspaces")}
-            icon={<ToolsIcon />}
+            icon={<AccountIcon name="switch" />}
           />
         </AccountSection>
       ) : null}
@@ -593,7 +602,7 @@ export default function AccountCenter({
             title="Service Worker profile"
             detail="Services, coverage, pricing and the public details customers see"
             onClick={onGoToProfileEdit}
-            icon={<PersonIcon />}
+            icon={<WorkspaceIcon workspace="worker" />}
           />
         ) : null}
         {onGoToWorkerPaidTools ? (
@@ -601,7 +610,7 @@ export default function AccountCenter({
             title="WeHouse Pro · Work tools"
             detail="Subscription, work insights, quotes and invoices"
             onClick={onGoToWorkerPaidTools}
-            icon={<ToolsIcon />}
+            icon={<AccountIcon name="pro" />}
           />
         ) : null}
         {onGoToSponsored ? (
@@ -609,7 +618,7 @@ export default function AccountCenter({
             title="Sponsored"
             detail="Manage paid placements separately from Pro tools"
             onClick={onGoToSponsored}
-            icon={<ToolsIcon />}
+            icon={<AccountIcon name="sponsored" />}
           />
         ) : null}
         {canEditGenericProfile ? (
@@ -617,7 +626,7 @@ export default function AccountCenter({
             title="Personal details"
             detail="Photo, name, username and contact details"
             onClick={onGoToProfileEdit}
-            icon={<PersonIcon />}
+            icon={<AccountIcon name="details" />}
           />
         ) : null}
         {isUser ? (
@@ -625,7 +634,7 @@ export default function AccountCenter({
             title="Saved"
             detail="Homes and hotels you marked with a heart"
             onClick={onGoToSaved}
-            icon={<HeartIcon />}
+            icon={<AccountIcon name="saved" />}
           />
         ) : null}
         {isUser && onGoToFollowedSearches ? (
@@ -633,19 +642,19 @@ export default function AccountCenter({
             title="Followed searches"
             detail="Search alerts you can pause or remove"
             onClick={onGoToFollowedSearches}
-            icon={<BellIcon />}
+            icon={<AccountIcon name="followed" />}
           />
         ) : null}
       </AccountSection>
 
       <AccountSection title="Preferences & protection">
         <AccountRow title="Appearance" detail={`${appearance === 'light' ? 'Light' : 'Dark'} · Applies across WeHouse`}
-          onClick={() => setPanel("appearance")} icon={<AppearanceIcon />} />
+          onClick={() => setPanel("appearance")} icon={<AccountIcon name="appearance" />} />
         <AccountRow
           title="Notifications"
           detail="Email and in-app alert preferences"
           onClick={() => setPanel("notifications")}
-          icon={<BellIcon />}
+          icon={<AccountIcon name="notifications" />}
         />
         <AccountRow
           title="Privacy & Security"
@@ -655,17 +664,18 @@ export default function AccountCenter({
               : "Password, trusted devices and account ownership"
           }
           onClick={() => setPanel("privacy_security")}
-          icon={<ShieldIcon />}
+          icon={<AccountIcon name="security" />}
         />
       </AccountSection>
 
       {canOpenCustomerHelp ? (
         <AccountSection>
+          <AccountRow title="Billing & subscriptions" detail="Existing paid plans and renewal controls" onClick={()=>setPanel('billing')} icon={<AccountIcon name="billing"/>}/>
           <AccountRow
             title="Help"
             detail={helpDetail}
             onClick={() => setPanel("help")}
-            icon={<ToolsIcon />}
+            icon={<AccountIcon name="help" />}
           />
         </AccountSection>
       ) : null}
@@ -681,7 +691,7 @@ export default function AccountCenter({
                 : "Review current published documents"
           }
           onClick={() => setPanel("legal")}
-          icon={<DocumentIcon />}
+          icon={<AccountIcon name="legal" />}
         />
       </AccountSection>
 
@@ -691,19 +701,11 @@ export default function AccountCenter({
           detail="End this session on this device"
           onClick={() => void signOut()}
           disabled={signingOut}
-          icon={<ExitIcon />}
+          icon={<AccountIcon name="signout" />}
         />
       </AccountSection>
     </AccountShell>
   );
-}
-
-function serviceProviderStatusText(status?: string | null) {
-  if (status === "profile_under_review")
-    return "Your Service Worker profile is under WeHouse review.";
-  if (status === "pending")
-    return "Finish your services, coverage and required onboarding steps.";
-  return "Continue your Service Worker onboarding.";
 }
 
 function Toggle({
@@ -727,19 +729,7 @@ function Toggle({
           {detail}
         </p>
       </div>
-      <button
-        type="button"
-        disabled={disabled}
-        role="switch"
-        aria-label={label}
-        aria-checked={value}
-        onClick={() => onChange(!value)}
-        className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400 disabled:opacity-50"
-      >
-        <span className={`relative h-6 w-11 rounded-full transition-colors duration-150 ${value ? "bg-violet-500" : "bg-[#343A48]"}`}>
-          <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-150 ${value ? "translate-x-5" : ""}`} />
-        </span>
-      </button>
+      <SettingSwitch label={label} checked={value} disabled={disabled} onChange={onChange}/>
     </div>
   );
 }
@@ -771,88 +761,5 @@ function LegalCard({
         {!published ? "Not published" : accepted ? "Accepted" : "Review document"}
       </p>
     </button>
-  );
-}
-
-const iconProps = {
-  width: 17,
-  height: 17,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.8,
-};
-function HeartIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-    >
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-    </svg>
-  );
-}
-function AppearanceIcon() {
-  return <svg {...iconProps}><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18Z" /></svg>;
-}
-function PersonIcon() {
-  return (
-    <svg {...iconProps}>
-      <circle cx="12" cy="8" r="3.5" />
-      <path d="M5 20c.7-4 3.1-6 7-6s6.3 2 7 6" />
-    </svg>
-  );
-}
-function HomeIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="m3 11 9-7 9 7" />
-      <path d="M5 10v10h14V10M9 20v-6h6v6" />
-    </svg>
-  );
-}
-function BellIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7" />
-      <path d="M10 19h4" />
-    </svg>
-  );
-}
-function ShieldIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M12 3 5 6v5c0 4.8 2.8 8.1 7 10 4.2-1.9 7-5.2 7-10V6l-7-3Z" />
-      <path d="M9 12.5 11 14l4-4" />
-    </svg>
-  );
-}
-function DocumentIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M6 3h8l4 4v14H6z" />
-      <path d="M14 3v5h5M9 12h6M9 16h6" />
-    </svg>
-  );
-}
-function ToolsIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M4 7h16M7 12h10M9 17h6" />
-      <circle cx="8" cy="7" r="1.5" />
-      <circle cx="15" cy="12" r="1.5" />
-      <circle cx="12" cy="17" r="1.5" />
-    </svg>
-  );
-}
-function ExitIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10" />
-    </svg>
   );
 }

@@ -1,3 +1,4 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -95,7 +96,7 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
       p_document: kind,
       p_title: editor.title.trim(),
       p_body: editor.body.trim(),
-      p_locale: "en-NG",
+      p_locale: undefined,
       p_reason: "Prepared for Nigerian legal review",
     });
     setBusy(null);
@@ -145,9 +146,7 @@ export default function CreatorLegalDocuments({ embedded = false }: { embedded?:
 
   if (loading)
     return (
-      <div className="grid min-h-40 place-items-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   return (

@@ -1,3 +1,7 @@
+import WorkspaceRestrictionControls from '@/components/WorkspaceRestrictionControls';
+import WorkerCredentials from '@/components/WorkerCredentials';
+import ExperienceActivityReviewQueue from '@/components/ExperienceActivityReviewQueue';
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import WorkerPublicationControls from "@/components/WorkerPublicationControls";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import type { Profile } from "@/types";
@@ -41,9 +45,15 @@ type Checks = {
   review_status?: string | null;
 };
 
-export default function CreatorWorkerOversight({ userId }: { userId: string }) {
+export default function CreatorWorkerOversight({ userId,initialExperienceId }: { userId: string;initialExperienceId?:string }) {
   const { requestElevation } = useCreatorAuth();
   const selection = useRef(0);
+  const reviewBusy = useRef(false);
+  const accessBusy = useRef(false);
+  const [credentialWorker,setCredentialWorker]=useState<string|null>(null);
+  const [credentialsReady,setCredentialsReady]=useState(false);
+  const [accessError,setAccessError]=useState('');
+  const [accessReason,setAccessReason]=useState('');
   useEffect(() => () => { selection.current += 1; }, [userId]);
   const [selected, setSelected] = useState<Worker | null>(null),
     [checks, setChecks] = useState<Checks | null>(null),
@@ -71,6 +81,8 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
   const { data, loading, error: listError, refresh: load } = useRpcRead<Worker[]>("creator_get_people", userId, { p_workspace: "worker" });
   const rows = useMemo(() => data || [], [data]);
   async function open(worker: Worker) {
+    setAccessError('');setAccessReason('');
+    setCredentialWorker(null);setCredentialsReady(false);
     const current = ++selection.current;
     setSelected(worker); setReason(""); setChecks(null); setLoadingChecks(true);
     try {
@@ -83,32 +95,49 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
   }
 
   async function applyAccessChange(elevationId: string) {
-    if (!selected) return;
+    if (!selected || accessBusy.current || accessError || !accessReason.trim()) return;
+    const target=selected,current=selection.current;
+    accessBusy.current=true;
     setActing(true);
-    const { error } = await supabase.rpc("creator_set_account_suspension", {
-      p_target_user_id: selected.user_id,
-      p_suspended: !selected.suspended,
-      p_reason: selected.suspended
-        ? null
-        : reason.trim() || "Service Worker access paused by Creator oversight",
+    try {
+    const { error } = await withTimeout(supabase.rpc("creator_set_account_suspension", {
+      p_target_user_id: target.user_id,
+      p_suspended: !target.suspended,
+      p_reason: accessReason.trim(),
       p_creator_elevation_id: elevationId,
-    });
-    setActing(false);
-    if (error) return toast.error(error.message);
+    }),20000,"Account access result is unknown. Reopen this account before retrying.");
+    if(error)throw error;
+    const saved=await withTimeout(supabase.from('profiles').select('user_id,suspended').eq('user_id',target.user_id).maybeSingle(),15000,'Account access confirmation took too long.');
+    if(saved.error||saved.data?.user_id!==target.user_id||saved.data.suspended!==!target.suspended)throw Error('Saved account access could not be confirmed.');
+    if(current!==selection.current)return;
     toast.success(
-      selected.suspended
-        ? "Service Worker access restored"
-        : "Service Worker access suspended",
+      target.suspended
+        ? "Account access restored"
+        : "Account access suspended across WeHouse",
     );
     setSelected(null);
     setReason("");
+    setAccessReason('');
     await load();
+    }catch{if(current===selection.current)setAccessError('Account access could not be confirmed. Refresh the saved status before retrying.');}
+    finally{accessBusy.current=false;setActing(false);}
+  }
+
+  async function refreshAccountAccess(){
+    if(!selected||accessBusy.current)return;const target=selected,current=selection.current;accessBusy.current=true;setActing(true);
+    try{const r=await withTimeout(supabase.from('profiles').select('user_id,suspended').eq('user_id',target.user_id).maybeSingle(),15000,'Account access took too long.');
+      if(r.error||r.data?.user_id!==target.user_id||typeof r.data.suspended!=='boolean')throw Error('Saved access unavailable');
+      const suspended=r.data.suspended;
+      if(current===selection.current){setSelected(previous=>previous?.user_id===target.user_id?{...previous,suspended}:previous);setAccessError('');setAccessReason('');}
+    }catch{if(current===selection.current)setAccessError('Saved account access could not be loaded. Try refreshing again before making a change.');}
+    finally{accessBusy.current=false;setActing(false);}
   }
 
   function changeAccess() {
-    if (!selected) return;
+    if (!selected || acting || accessError || !accessReason.trim()) return;
+    const current=selection.current;
     requestElevation("all_sensitive", (elevationId) =>
-      void applyAccessChange(elevationId),
+      {if(current===selection.current)void applyAccessChange(elevationId);},
     );
   }
 
@@ -116,16 +145,19 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     decision: "approve" | "reject",
     elevationId: string,
   ) {
-    if (!selected) return;
+    if (!selected || reviewBusy.current) return;
+    reviewBusy.current = true;
+    const request = selection.current;
     setActing(true);
-    const { error } = await supabase.rpc("creator_review_worker", {
+    try {
+    const { error } = await withTimeout(supabase.rpc("creator_review_worker", {
       p_worker_id: selected.user_id,
       p_decision: decision,
       p_reason: decision === "reject" ? reason.trim() : null,
       p_creator_elevation_id: elevationId,
-    });
-    setActing(false);
-    if (error) return toast.error(error.message);
+    }), 15000, 'Review confirmation timed out. Reload the review before retrying.');
+    if (error) throw error;
+    if (request !== selection.current) return;
     toast.success(
       decision === "approve"
         ? "Service Worker approved"
@@ -134,6 +166,12 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     setSelected(null);
     setReason("");
     await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : (error as {message?:string})?.message || 'The review could not be confirmed. Reload before retrying.');
+    } finally {
+      reviewBusy.current = false;
+      setActing(false);
+    }
   }
 
   function review(decision: "approve" | "reject") {
@@ -188,13 +226,15 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
     });
   }, [rows, search, filter]);
 
-  if (listError) return <section role="alert" className="rounded-xl border border-amber-500/20 p-4"><p className="text-sm text-amber-100">Service Workers could not be loaded.</p><button type="button" onClick={() => void load()} className="min-h-11 text-violet-300">Try again</button></section>;
+  if (listError) return <section role="alert" className="rounded-xl border border-amber-500/20 p-4"><p className="text-sm text-amber-800 dark:text-amber-100">Service Workers could not be loaded.</p><button type="button" onClick={() => void load()} className="min-h-11 text-violet-700 dark:text-violet-300">Try again</button></section>;
   if (selected)
     return (
       <div className="space-y-4">
+        <button type="button" className="min-h-11 rounded-xl border border-[var(--wh-border)] px-4 text-sm font-semibold text-[var(--wh-accent-text)]" onClick={()=>requestElevation("private_evidence",()=>setCredentialWorker(selected.user_id))}>Review service credentials</button>
+        {credentialWorker===selected.user_id&&<WorkerCredentials workerId={selected.user_id} operator onReadyChange={setCredentialsReady}/>}
         <button
           onClick={() => { selection.current += 1; setSelected(null); }}
-          className="text-sm font-semibold text-violet-400"
+          className="text-sm font-semibold text-violet-700 dark:text-violet-400"
         >
           ← Service Worker oversight
         </button>
@@ -202,7 +242,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
           <div className="flex items-start gap-3">
             <Avatar worker={selected} />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold uppercase tracking-[.16em] text-violet-300">
+              <p className="text-sm font-bold uppercase tracking-[.16em] text-violet-700 dark:text-violet-300">
                 WEHOUSE SERVICE WORKER
               </p>
               <h2 className="mt-1 truncate text-lg font-bold">
@@ -295,13 +335,14 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
           </section>
         </section>
         <WorkerPublicationControls userId={userId} workerId={selected.user_id} />
+        <WorkspaceRestrictionControls key={selected.user_id} userId={selected.user_id}/>
         {selected.worker_status === "profile_under_review" && (
           <section className="border-y border-[var(--wh-border-subtle)] py-4">
-            <h3 className="text-sm font-semibold">Account decision</h3>
+            <h3 className="text-sm font-semibold">Service Worker profile review</h3>
             <p className="mt-1 text-sm leading-5 text-[var(--wh-text-muted)]">
               Creator approval requires fresh security confirmation. The server
               still blocks approval when required identity or professional
-              evidence is incomplete.
+              evidence is incomplete. This reviews the work profile; it does not suspend the person’s Personal or Property Partner access.
             </p>
             <textarea
               value={reason}
@@ -320,7 +361,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
               </button>
               <button
                 onClick={() => review("approve")}
-                disabled={acting}
+                disabled={acting||!credentialsReady}
                 className="h-11 rounded-xl bg-emerald-500 text-xs font-semibold text-[#04120A] disabled:opacity-35"
               >
                 Approve Service Worker
@@ -329,30 +370,36 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
           </section>
         )}
         <section className="border-y border-[var(--wh-border-subtle)] py-4">
-          <h3 className="text-sm font-semibold">Platform access</h3>
+          <h3 className="text-sm font-semibold">Account access</h3>
           <p className="mt-1 text-sm leading-5 text-[var(--wh-text-muted)]">
-            Suspend or restore an existing Service Worker account. This action
-            requires fresh Creator confirmation and is audit logged.
+            This suspends the person’s access across all WeHouse workspaces,
+            including Personal, Property Partner and Services. Existing bookings
+            and financial records remain. Valid professional approval and uploaded evidence are preserved. Changing access requires a reason,
+            fresh Creator confirmation and an audit record.
           </p>
-          {!selected.suspended && (
+          {accessError&&<div role="alert" className="mt-3 space-y-2 text-sm text-red-700 dark:text-red-300"><p>{accessError}</p><button type="button" disabled={acting} onClick={()=>void refreshAccountAccess()} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 font-semibold">Refresh account access</button></div>}
+          {(
             <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              value={accessReason}
+              onChange={(e) => setAccessReason(e.target.value)}
               rows={2}
-              placeholder="Reason for suspending access"
-              className="mt-3 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-black/20 p-3 text-xs outline-none"
+              placeholder="Reason for changing account access"
+              aria-label="Reason for changing account access"
+              disabled={acting}
+              maxLength={2000}
+              className="mt-3 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-xs outline-none"
             />
           )}
           <button
             onClick={changeAccess}
-            disabled={acting || (!selected.suspended && !reason.trim())}
-            className={`mt-3 h-11 w-full rounded-xl text-xs font-semibold disabled:opacity-35 ${selected.suspended ? "bg-emerald-500 text-[#04120A]" : "bg-red-500/15 text-red-300"}`}
+            disabled={acting || Boolean(accessError) || !accessReason.trim()}
+            className={`mt-3 h-11 w-full rounded-xl text-xs font-semibold disabled:opacity-35 ${selected.suspended ? "bg-emerald-500 text-[#04120A]" : "bg-red-500/15 text-red-700 dark:text-red-300"}`}
           >
             {acting
               ? "Updating access…"
               : selected.suspended
-                ? "Restore Service Worker access"
-                : "Suspend Service Worker access"}
+                ? "Restore account access"
+                : "Suspend account across WeHouse"}
           </button>
         </section>
       </div>
@@ -367,6 +414,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
           exceptions for WeHouse Services.
         </p>
       </div>
+      <ExperienceActivityReviewQueue initialApplicationId={initialExperienceId} />
       <WorkerPublicationControls userId={userId} />
       <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:p-5" aria-label="Customer Worker discovery preview">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -439,7 +487,7 @@ export default function CreatorWorkerOversight({ userId }: { userId: string }) {
 
 function Avatar({ worker }: { worker: Worker }) {
   return (
-    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/12 text-sm font-bold text-violet-300">
+    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-500/12 text-sm font-bold text-violet-700 dark:text-violet-300">
       {String(worker.full_name || worker.username || "S")[0].toUpperCase()}
     </div>
   );
@@ -486,11 +534,7 @@ function Status({ value }: { value: string }) {
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-32 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function Empty() {
   return (
@@ -540,7 +584,7 @@ function EvidenceLink({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="mt-2 inline-flex min-h-10 items-center rounded-lg bg-violet-500/10 px-3 text-sm font-semibold text-violet-300"
+          className="mt-2 inline-flex min-h-10 items-center rounded-lg bg-violet-500/10 px-3 text-sm font-semibold text-violet-700 dark:text-violet-300"
         >
           View evidence
         </button>

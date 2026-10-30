@@ -6,6 +6,7 @@ export type MoneyPolicyEntry = {
   effective_from?: string;
 };
 export type MoneyPolicyResponse = {
+  etag?: string;
   source_of_truth: 'creator_policy_versions';
   active: Record<string, MoneyPolicyEntry>;
   scheduled?: Record<string, MoneyPolicyEntry>;

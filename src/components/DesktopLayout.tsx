@@ -54,7 +54,6 @@ const OWN_MOBILE_BACK = new Set<NavPage>([
   'worker_verification',
   'worker_setup',
   'payment_return',
-  'new_listing',
 ]);
 
 const OPERATIONAL_ROLES = new Set(['creator', 'admin', 'staff', 'worker', 'property_partner']);

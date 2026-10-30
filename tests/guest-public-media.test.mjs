@@ -25,3 +25,22 @@ test('all signed-out property and room projections filter media before shared ga
  const hotel=fs.readFileSync('src/pages/HotelDetailExperience.tsx','utf8');assert.match(hotel,/images: publicPropertyImages\(room.images\)/);
  const listing=fs.readFileSync('src/pages/ListingDetailCore.tsx','utf8');assert.match(listing,/videos=\{publicPropertyImages\(listing.videos\)\}/);
 });
+
+test('guest public sign-in screens use the canonical shell copy and one action',()=>{
+ const guest=fs.readFileSync('src/components/GuestBrowseEntry.tsx','utf8');
+ assert.match(guest,/Sign in to continue/);
+ assert.doesNotMatch(guest,/Privacy Policy|Terms of Service/);
+ const login=fs.readFileSync('src/pages/Login.tsx','utf8');
+ assert.match(login,/onOpenLegal\("terms_of_service"\)/);
+ assert.match(login,/onOpenLegal\("privacy_policy"\)/);
+ assert.doesNotMatch(guest,/GuestProductPreview|guestProductCopy|content\.steps\.map/);
+ assert.doesNotMatch(guest,/The summary returned no data\.|Your matching preferences stay private\./);
+});
+
+test('signed-out roommate and home-service prompts stay concise',()=>{
+ const guest=fs.readFileSync('src/components/GuestBrowseEntry.tsx','utf8');
+ assert.match(guest,/Sign in to find a roommate/);
+ assert.match(guest,/Sign in to find a professional/);
+ assert.doesNotMatch(guest,/Payment stays paused|plan a Long Let together/);
+ assert.doesNotMatch(guest,/content\.points\.map/);
+});

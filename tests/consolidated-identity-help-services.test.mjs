@@ -51,7 +51,7 @@ test("Worker setup manages several canonical services and booking prefers that l
   assert.match(migration, /service_subcategories/);
   assert.match(migration, /Choose an active WeHouse service from the approved catalog/);
   assert.match(setup, /Services you offer/);
-  assert.match(setup, /set_my_worker_services/);
+  assert.match(setup, /saveMyWorkerProfile/);
   assert.match(setup, /Add service/);
   assert.match(setup, /services\.length >= 10/);
   assert.match(booking, /canonical\.length[\s\S]*canonical[\s\S]*skills/);
@@ -67,7 +67,7 @@ test("apartment Help is contextual and switching away is deliberate", async () =
 
   assert.doesNotMatch(listing, /MutationObserver/);
   assert.doesNotMatch(listing, /pruneRoutineSupport/);
-  assert.match(core, /Questions about this apartment\?/);
+  assert.match(core, /Questions about this property\?/);
   assert.match(core, /Message WeHouse/);
   assert.match(support, /General Help/);
   assert.doesNotMatch(support, /aria-label="Remove linked topic"/);

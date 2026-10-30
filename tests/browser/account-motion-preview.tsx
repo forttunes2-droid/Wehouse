@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import AccountCenter from '@/pages/AccountCenter';
 import WorkspaceFrameV2 from '@/components/WorkspaceFrameV2';
+import WorkspaceSwitchSheet from '@/components/WorkspaceSwitchSheet';
+import {Toaster} from 'sonner';
 import { startAppearanceSync } from '@/lib/appearance';
 import '@/index.css';
 
@@ -31,3 +33,13 @@ function MotionWorkspace({ bounded = true }: { bounded?: boolean }) {
 }
 (window as any).__showWorkspaceFixture = () => root.render(<MotionWorkspace />);
 (window as any).__showDocumentWorkspaceFixture = () => root.render(<MotionWorkspace key="document" bounded={false} />);
+
+function ProviderEntryFixture(){
+ const [open,setOpen]=useState(false),[selected,setSelected]=useState('personal');
+ return <><button onClick={()=>setOpen(true)}>Open workspace switcher</button><output aria-label="Selected workspace">{selected}</output><WorkspaceSwitchSheet open={open} access={access} active={selected as never} identityName={profile.full_name} onClose={()=>setOpen(false)} onSwitch={setSelected}/></>;
+}
+function ProviderOnboardingFixture(){
+ return <><AccountCenter profile={profile} workspaceAccess={{...access,privileged_workspaces:[]}} activeWorkspace="personal" onSwitchWorkspace={()=>{}} onGoToPrivacy={()=>{}} onGoToSaved={()=>{}} onGoToSecurity={()=>{}} onGoToProfileEdit={()=>{}} onWorkspaceActivated={workspace=>{(window as any).__activatedWorkspace=workspace;}}/><Toaster/></>;
+}
+(window as any).__showProviderEntry = () => root.render(<ProviderEntryFixture/>);
+(window as any).__showProviderOnboarding = () => root.render(<ProviderOnboardingFixture/>);

@@ -6,8 +6,11 @@ insert into public.profiles(auth_id,email,user_id,username,role,profile_complete
 values ('f7110000-0000-4000-8000-000000000001','managed-owner@example.invalid','managed-owner','managed-owner','user',true,'Managed Owner','consumer');
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status)
 values ('managed-owner','property_partner','global','active');
-insert into public.inspection_requests(id,request_code,owner_id,owner_email,property_type,property_address,property_city,property_state,status)
-values ('f7110000-1000-4000-8000-000000000001','WHIR-MANAGEMENT','managed-owner','managed-owner@example.invalid','apartment','1 Test Street','Ikeja','Lagos','pending');
+insert into auth.sessions(id,user_id,created_at,updated_at) values('f7110000-0000-4000-8000-000000000002','f7110000-0000-4000-8000-000000000001',now(),now());
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+values('managed-owner','f7110000-0000-4000-8000-000000000001','f7110000-0000-4000-8000-000000000002','management-contract','Contract browser',true,'trusted');
+insert into public.inspection_requests(id,request_code,owner_id,owner_email,property_type,sub_type,property_address,property_city,property_state,status)
+values ('f7110000-1000-4000-8000-000000000001','WHIR-MANAGEMENT','managed-owner','managed-owner@example.invalid','apartment','short_let','1 Test Street','Ikeja','Lagos','pending');
 insert into public.listings(id,listing_id,title,sub_type,state,city,status,availability_status,owner_id,partner_id,inspection_request_id,management_updated_at)
 values ('f7110000-2000-4000-8000-000000000001','managed-draft-home','Managed draft home','short_let','Lagos','Ikeja','available','available','managed-owner','managed-owner','f7110000-1000-4000-8000-000000000001',now());
 update public.inspection_requests set draft_listing_id='f7110000-2000-4000-8000-000000000001'
@@ -26,6 +29,7 @@ do $$ begin
 end $$;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','f7110000-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claims','{"sub":"f7110000-0000-4000-8000-000000000001","session_id":"f7110000-0000-4000-8000-000000000002","role":"authenticated"}',true);
 set local role authenticated;
 do $$ begin
   perform public.set_my_property_request_management_mode('f7110000-1000-4000-8000-000000000001','host');
@@ -34,6 +38,7 @@ do $$ begin
     raise exception 'Prepublication choice was not applied to the linked draft';
   end if;
 end $$;
+select public.accept_my_property_fees(public.get_provider_fee_disclosure('short_let','host')->>'digest','f7110000-1000-4000-8000-000000000001',null);
 reset role;
 update public.listings set approved_at=now() where id='f7110000-2000-4000-8000-000000000001';
 set local role authenticated;

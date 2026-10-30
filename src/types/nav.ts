@@ -15,6 +15,7 @@ export type NavPage =
   | 'profile_edit'
   | 'account'
   | 'privacy'
+  | 'account_reviews'
   | 'security'
   | 'devices'
   | 'my_bookings'
@@ -30,7 +31,6 @@ export type NavPage =
   | 'hosting'
   | 'hotel_operations'
   // ── Role workflow subpages ──
-  | 'new_listing'
   | 'worker_setup'
   | 'worker_discovery'
   | 'worker_categories'

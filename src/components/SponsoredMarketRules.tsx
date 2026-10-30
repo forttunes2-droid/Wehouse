@@ -1,11 +1,15 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 import WeHouseChoice from "@/components/WeHouseChoice";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
+import { regionDataset } from "@/data/locations";
+import { getRegionalDefaults } from "@/lib/regional";
 import { supabase } from "@/lib/supabase";
 import { useCreatorAuth } from "@/hooks/useCreatorAuth";
+import { formatMoney } from "@/lib/regional";
 
-type ResourceType="worker"|"property"|"hotel";
+type ResourceType="worker"|"property"|"hotel"|"experience";
 type ScopeType="global"|"lga";
 type Rule={
   rule_id:string;
@@ -24,7 +28,7 @@ type Campaign={ campaign_id:string; resource_type:ResourceType; status:string;
 type StoreProduct={rule_id:string;duration_days:number;platform:"apple"|"google";
   product_id:string;price_ngn:number;enabled:boolean};
 
-const resourceLabels:Record<ResourceType,string>={worker:"Service Workers",property:"Homes",hotel:"Hotels"};
+const resourceLabels:Record<ResourceType,string>={worker:"Service profiles",property:"Homes",hotel:"Hotels",experience:"Experiences"};
 
 export default function SponsoredMarketRules(){
   const{requestElevation}=useCreatorAuth();
@@ -49,7 +53,8 @@ export default function SponsoredMarketRules(){
   const[price,setPrice]=useState("");
   const[durations,setDurations]=useState("7,14,30");
 
-  const lgas=useMemo(()=>state?getCitiesForState(state):[],[state]);
+  const dataset=regionDataset(getRegionalDefaults().countryCode);
+  const lgas=useMemo(()=>dataset?.find(row=>row.state===state)?.cities??[],[dataset,state]);
 
   async function load(){
     setLoading(true);
@@ -100,7 +105,7 @@ export default function SponsoredMarketRules(){
   }
 
   function save(){
-    if(scopeType==="lga"&&(!state||!lga))return toast.error("Choose State and LGA");
+    if(scopeType==="lga"&&(!state||!lga))return toast.error("Choose state/region and city/area");
     const slotCount=Number(slots);
     const dailyPrice=Number(price);
     const durationValues=[...new Set(durations.split(",").map(value=>Number(value.trim())).filter(value=>Number.isInteger(value)&&value>=1&&value<=90))].sort((a,b)=>a-b);
@@ -139,17 +144,22 @@ export default function SponsoredMarketRules(){
   }
 
   return <section>
-    <div><h3 className="text-sm font-semibold text-foreground">Sponsored marketplace</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Paid visibility rules shared by Workers, Homes and Hotels. Sponsored never changes verification, reviews, trust or organic ranking.</p></div>
+    <div><h3 className="text-sm font-semibold text-foreground">Sponsored marketplace</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Paid visibility rules for service profiles, activities, homes and hotels. Sponsored never changes verification, reviews, trust or organic ranking.</p></div>
 
     <div className="mt-4 grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
       <Field label="What can be promoted"><WeHouseChoice aria-label="What can be promoted" value={resourceType} onChange={e=>setResourceType(e.target.value as ResourceType)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground">{(Object.keys(resourceLabels) as ResourceType[]).map(value=><option key={value} value={value}>{resourceLabels[value]}</option>)}</WeHouseChoice></Field>
       <Field label="Market scope"><WeHouseChoice aria-label="Market scope" value={scopeType} onChange={e=>{setScopeType(e.target.value as ScopeType);setState("");setLga("");}} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="global">Global default</option><option value="lga">Specific LGA</option></WeHouseChoice></Field>
       {scopeType==="lga"?<>
-        <Field label="State"><WeHouseChoice aria-label="State" value={state} onChange={e=>{setState(e.target.value);setLga("");}} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="">Choose State</option>{NIGERIA_STATES.map(row=><option key={row.state} value={row.state}>{row.state}</option>)}</WeHouseChoice></Field>
-        <Field label="LGA"><WeHouseChoice aria-label="LGA" value={lga} disabled={!state} onChange={e=>setLga(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"><option value="">Choose LGA</option>{lgas.map(value=><option key={value} value={value}>{value}</option>)}</WeHouseChoice></Field>
+        {dataset?<>
+        <Field label="State / region"><WeHouseChoice aria-label="State or region" value={state} onChange={e=>{setState(e.target.value);setLga("");}} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"><option value="">Choose state or region</option>{dataset.map(row=><option key={row.state} value={row.state}>{row.state}</option>)}</WeHouseChoice></Field>
+        <Field label="City / area"><WeHouseChoice aria-label="City or area" value={lga} disabled={!state} onChange={e=>setLga(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"><option value="">Choose city or area</option>{lgas.map(value=><option key={value} value={value}>{value}</option>)}</WeHouseChoice></Field>
+        </>:<>
+        <Field label="State / region"><input aria-label="State or region" value={state} onChange={e=>setState(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
+        <Field label="City / area"><input aria-label="City or area" value={lga} onChange={e=>setLga(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
+        </>}
       </>:null}
       <Field label="Sponsored slots"><input inputMode="numeric" value={slots} onChange={e=>setSlots(e.target.value.replace(/\D/g,""))} className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
-      <Field label="Daily price (₦)"><input inputMode="decimal" value={price} onChange={e=>setPrice(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
+      <Field label={`Daily price (${currencySymbol()})`}><input inputMode="decimal" value={price} onChange={e=>setPrice(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
       <Field label="Durations (days)"><input value={durations} onChange={e=>setDurations(e.target.value)} placeholder="7,14,30" className="h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground"/></Field>
       <label className="flex min-h-11 items-center justify-between rounded-xl border border-border px-3"><span><span className="block text-xs font-semibold text-foreground">Open Sponsored campaigns</span><span className="mt-0.5 block text-[10px] text-muted-foreground">This rule only opens eligibility; campaigns still require verified payment activation.</span></span><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)} className="h-4 w-4 accent-primary"/></label>
       <button type="button" disabled={busy||(scopeType==="lga"&&(!state||!lga))} onClick={save} className="min-h-11 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-40 sm:col-span-2">{busy?"Saving…":"Save Sponsored rule"}</button>
@@ -176,15 +186,15 @@ export default function SponsoredMarketRules(){
           setStorePlatform(product.platform);setStoreDuration(product.duration_days);
           setStoreProductId(product.product_id);setStoreEnabled(product.enabled);
         }} className="w-full rounded-lg border border-border p-2 text-left">
-          {product.platform} · {product.duration_days} days · {product.product_id} · ₦{Number(product.price_ngn).toLocaleString("en-NG")} · {product.enabled?"Open":"Off"}
+          {product.platform} · {product.duration_days} days · {product.product_id} · {formatMoney(Number(product.price_ngn))} · {product.enabled?"Open":"Off"}
         </button>
       </li>)}</ul>}
     </div>
 
     <div className="mt-4">
-      {loading?<p role="status" className="py-6 text-xs text-muted-foreground">Loading Sponsored controls…</p>:!rules.length?<p className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">No Sponsored markets configured. Sponsored stays off.</p>:<div className="divide-y divide-border border-y border-border">
+      {loading?<WeHouseLoadingState compact label="Loading Sponsored controls" />:!rules.length?<p className="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">No Sponsored markets configured. Sponsored stays off.</p>:<div className="divide-y divide-border border-y border-border">
         {rules.map(rule=><button key={rule.rule_id} type="button" onClick={()=>edit(rule)} className="flex w-full items-center gap-3 py-3 text-left">
-          <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-foreground">{resourceLabels[rule.resource_type]} · {rule.scope_type==="global"?"Global":rule.lga_name}</span><span className="mt-1 block text-[10px] text-muted-foreground">{rule.slot_count} slots · ₦{Number(rule.daily_price_ngn||0).toLocaleString("en-NG")}/day · {(rule.allowed_durations||[]).join(", ")} days</span></span>
+          <span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold text-foreground">{resourceLabels[rule.resource_type]} · {rule.scope_type==="global"?"Global":rule.lga_name}</span><span className="mt-1 block text-[10px] text-muted-foreground">{rule.slot_count} slots · {formatMoney(Number(rule.daily_price_ngn||0))}/day · {(rule.allowed_durations||[]).join(", ")} days</span></span>
           <span className={`rounded-full border px-2 py-1 text-[9px] font-semibold ${rule.enabled?"border-emerald-500/20 text-emerald-600 dark:text-emerald-300":"border-border text-muted-foreground"}`}>{rule.enabled?"Open":"Off"}</span>
         </button>)}
       </div>}
@@ -195,7 +205,7 @@ export default function SponsoredMarketRules(){
       <p className="mt-1 text-[10px] text-muted-foreground">Recent campaigns, payment references and unique daily viewer counts. Paused paid campaigns need Finance follow up.</p>
       {campaigns.length===0?<p className="mt-3 text-xs text-muted-foreground">No campaigns yet.</p>:<div className="mt-3 max-h-96 space-y-2 overflow-y-auto">
         {campaigns.map(campaign=><div key={campaign.campaign_id} className="rounded-xl border border-border bg-card p-3 text-[10px]">
-          <div className="flex flex-wrap items-center gap-2"><strong>{resourceLabels[campaign.resource_type]}</strong><span>{campaign.status==="active"&&campaign.ends_at&&new Date(campaign.ends_at)<=new Date()?"expired":campaign.status}</span><span>₦{Number(campaign.amount_ngn).toLocaleString("en-NG")}</span></div>
+          <div className="flex flex-wrap items-center gap-2"><strong>{resourceLabels[campaign.resource_type]}</strong><span>{campaign.status==="active"&&campaign.ends_at&&new Date(campaign.ends_at)<=new Date()?"expired":campaign.status}</span><span>{formatMoney(Number(campaign.amount_ngn))}</span></div>
           <div className="mt-1 text-muted-foreground">{campaign.impressions} daily viewer records · {campaign.opens} opens{campaign.ends_at?` · Ends ${new Date(campaign.ends_at).toLocaleDateString()}`:""}</div>
           {campaign.payment_reference&&<div className="mt-1 break-all font-mono text-muted-foreground">{campaign.payment_reference}</div>}
           {campaign.status==="active"&&(!campaign.ends_at||new Date(campaign.ends_at)>new Date())&&(pauseTarget===campaign.campaign_id?<div className="mt-2 flex flex-wrap gap-2"><input aria-label="Reason to pause Sponsored campaign" value={pauseReason} onChange={e=>setPauseReason(e.target.value)} placeholder="Reason for pause (10+ characters)" className="h-10 min-w-48 flex-1 rounded-lg border border-border bg-background px-3 text-foreground"/><button disabled={busy||pauseReason.trim().length<10} onClick={()=>pause(campaign.campaign_id)} className="rounded-lg border border-border px-3 font-semibold disabled:opacity-40">Confirm pause</button><button onClick={()=>{setPauseTarget("");setPauseReason("");}} className="px-2">Cancel</button></div>:<button onClick={()=>setPauseTarget(campaign.campaign_id)} className="mt-2 rounded-lg border border-border px-3 py-2 font-semibold">Pause placement</button>)}

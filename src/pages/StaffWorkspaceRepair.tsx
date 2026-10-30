@@ -16,6 +16,7 @@ import InboxActivityEntry from "@/components/InboxActivityEntry";
 import ActivityHeader from "@/components/ActivityHeader";
 import { useStaffPermissions } from "@/hooks/useStaffPermissions";
 import { useOperationsInboxSummary } from "@/hooks/useOperationsInboxSummary";
+import type { SupportQueue } from "@/lib/supabase/support";
 import type { Profile } from "@/types";
 
 type Module =
@@ -75,10 +76,10 @@ const MODULE_COPY: Record<
     workLabel: "Security Signals",
   },
   worker_operations: {
-    title: "Worker Operations",
+    title: "Service Worker Operations",
     description:
-      "Review Worker onboarding, private identity checks and professional evidence from one canonical Worker record.",
-    workLabel: "Workers",
+      "Review Service Worker onboarding, private identity checks and professional evidence from one canonical Service Worker record.",
+    workLabel: "Service Workers",
   },
   field_officer: {
     title: "Field Operations",
@@ -153,8 +154,10 @@ function Workspace({
 }) {
   const copy = MODULE_COPY[module],
     directConversation = module === "support";
-  const communicationQueue =
-    module === "operations" ? "operations" : module === "support" ? "support" : module === "field_officer" ? "field_operations" : null;
+  const communicationQueue: SupportQueue = {
+    operations: "operations", support: "support", field_officer: "field_operations",
+    finance: "finance_operations", security: "security_operations", worker_operations: "worker_operations",
+  }[module] as SupportQueue;
   const inboxSummary = useOperationsInboxSummary(
     profile.user_id,
     "staff",
@@ -224,22 +227,9 @@ function Workspace({
         onNavigate={openStaffDestination}
       />
     );
-  else if (tab === "conversations" && directConversation)
-    content = (
-      <SupportInbox profile={profile} scope={scope} summary={inboxSummary} initialConversationId={conversationTargetId} onNavigate={openStaffDestination} />
-    );
-  else if (tab === "conversations" && module === "field_officer")
-    content = (
-      <SupportInbox profile={profile} scope={scope} summary={inboxSummary} queue="field_operations" initialConversationId={conversationTargetId} onNavigate={openStaffDestination} />
-    );
   else if (tab === "conversations")
     content = (
-      <ActivityOnlyInbox
-        profile={profile}
-        unread={inboxSummary.activityUnread}
-        onUnreadChange={inboxSummary.refresh}
-        onNavigate={openStaffDestination}
-      />
+      <SupportInbox profile={profile} scope={scope} summary={inboxSummary} queue={communicationQueue} initialConversationId={conversationTargetId} onNavigate={openStaffDestination} />
     );
   else
     content = (
@@ -417,7 +407,7 @@ function SupportInbox({
   profile: Profile;
   scope: { state: string; lga: string };
   summary: ReturnType<typeof useOperationsInboxSummary>;
-  queue?: "support" | "field_operations";
+  queue?: SupportQueue;
   initialConversationId?: string;
   onNavigate?: (page: string, id?: string) => void;
 }) {
@@ -448,7 +438,7 @@ function SupportInbox({
         <div>
           <h2 className="text-xs font-semibold">Messages</h2>
           <p className="mt-0.5 text-[9px] text-[var(--wh-text-muted)]">
-            Assigned conversations in this Operation.
+            Conversations for this work area. Claim a case before replying.
           </p>
         </div>
         <InboxActivityEntry
@@ -470,33 +460,6 @@ function SupportInbox({
     </div>
   );
 }
-function ActivityOnlyInbox({
-  profile,
-  unread,
-  onUnreadChange,
-  onNavigate,
-}: {
-  profile: Profile;
-  unread: number;
-  onUnreadChange: () => void;
-  onNavigate: (page: string, id?: string) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between border-b border-[var(--wh-border-subtle)] pb-3">
-        <div><h2 className="text-xs font-semibold">Activity</h2><p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">Updates for this authorized work area.</p></div>
-        {unread > 0 ? <span className="rounded-full bg-violet-500/12 px-2 py-1 text-[8px] font-semibold text-violet-300">{unread} new</span> : null}
-      </div>
-        <Notifications
-          profile={profile}
-          scope="staff"
-          embedded
-          onUnreadChange={onUnreadChange}
-          onNavigate={onNavigate}
-        />
-    </div>
-  );
-}
 function LocalTabs<T extends string>({
   items,
   active,
@@ -512,7 +475,7 @@ function LocalTabs<T extends string>({
         <button
           key={id}
           onClick={() => set(id)}
-          className={`relative shrink-0 pb-3 text-[10px] font-semibold ${active === id ? "text-white" : "text-[var(--wh-text-muted)]"}`}
+          className={`relative shrink-0 pb-3 text-[10px] font-semibold ${active === id ? "text-[var(--wh-text-primary)]" : "text-[var(--wh-text-muted)]"}`}
         >
           {label}
           {active === id && (

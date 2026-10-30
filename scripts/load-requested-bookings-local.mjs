@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes,randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { Agent, request as httpRequest } from 'node:http';
 import { performance } from 'node:perf_hooks';
@@ -91,6 +91,7 @@ async function book(actor,t) {
   });
   if (quote?.available !== true) throw new Error('inventory-unavailable-quote');
   const booking=await rpc(actor,'create_my_hotel_booking_with_rate',{
+    p_request_key:randomUUID(),
     p_hotel_id:t.hotel_id,p_room_id:t.room_id,p_rate_plan_id:t.rate_plan_id,
     p_check_in:t.check_in,p_check_out:t.check_out,p_guest_count:1,
     p_guest_name:'Synthetic Guest',p_guest_phone:'08000000000',p_special_requests:null,

@@ -1,13 +1,18 @@
 /** Isolated API boundary. Production components and their query/permission paths are not mocked. */
 const w = window as any;
 export const state = w.__profileFixture = {
+  accountSuspended:false,loseAccessResponse:true,staffSecurityFail:true,
+  recoveryLost:false,recoveryFail:false,recoveryCanDecide:true,recoveryWorkspace:'worker',recoveryDecision:null as string|null,recoveryAssigned:false,recoveryCase:false,recoveryStatus:'open',recoveryRestrictions:{worker:true,property_partner:true},
   calls: [] as any[], failPosts: false, failTrust: false, failReviews: false, failMedia: false, failComments: false, failHelp: false,
   wrongAccount: false, delayWorker: '', delaySigning: false, pending: [] as Array<() => void>, pendingSigning: [] as Array<() => void>, hidden: [] as string[], deleted: [] as string[], comments: [] as any[],
 };
+const revision='b8220000-0000-4000-8000-000000000001',caseId='b8220000-0000-4000-8000-000000000002';
+const recoveryRow=()=>({case_id:caseId,case_number:52,user_id:'worker-a',username:'sani-carpentry',workspace:state.recoveryWorkspace,can_decide:state.recoveryCanDecide,explanation:'Please review the event and existing approved evidence.',status:state.recoveryStatus,updated_at:'2026-10-28T12:00:00.123456Z',decision:state.recoveryDecision,public_decision:null,assigned_user_id:state.recoveryAssigned?'creator-example':null,restriction_version:revision,current_version:revision,restricted:state.recoveryRestrictions.worker,updates:[]});
+const recoveryPortal=()=>({restrictions:Object.entries(state.recoveryRestrictions).filter(([,active])=>active).map(([workspace])=>({workspace,version:revision,reason:'Conduct review for this workspace.',changed_at:'2026-10-28T12:00:00Z'})),appeals:state.recoveryCase?[recoveryRow()]:[]});
 const ok = (data: any) => ({ data, error: null });
 const bad = () => ({ data: null, error: { message: 'Fixture unavailable' } });
 function dataPosts(worker: string) {
- return Array.from({length:28}, (_, index) => ({id:`${worker}-p${index}`,worker_id:worker,kind:'work_post',media_type:index===1?'video':'image',storage_path:index===1?'demo-video':`work-${index}.jpg`,caption:index===0?'Kitchen fitting':index===1?'A closer look at the finish':`Work sample ${index+1}`,booking_id:null,verified_job:index===0,job_confirmation_status:index===0?'confirmed':'not_linked',hidden_at:index===2||state.hidden.includes(`${worker}-p${index}`)?'2026-09-23T12:00:00Z':null,deleted_at:state.deleted.includes(`${worker}-p${index}`)?'2026-09-23T12:00:00Z':null,expires_at:null,created_at:new Date(Date.UTC(2026,8,23,12,0,0)-index*3600000).toISOString()}));
+ return Array.from({length:w.__refinementMode==='owner-new'?3:28}, (_, index) => ({id:`${worker}-p${index}`,worker_id:worker,kind:'work_post',media_type:index===1?'video':'image',storage_path:index===1?'demo-video':`work-${index}.jpg`,caption:index===0?'Kitchen fitting':index===1?'A closer look at the finish':`Work sample ${index+1}`,booking_id:null,verified_job:index===0,job_confirmation_status:index===0?'confirmed':'not_linked',hidden_at:index===2||state.hidden.includes(`${worker}-p${index}`)?'2026-09-23T12:00:00Z':null,deleted_at:state.deleted.includes(`${worker}-p${index}`)?'2026-09-23T12:00:00Z':null,expires_at:null,created_at:new Date(Date.UTC(2026,8,23,12,0,0)-index*3600000).toISOString()}));
 }
 function query(table: string) {
  const conditions:any[]=[];let start=0,end=49,single=false;
@@ -15,7 +20,9 @@ function query(table: string) {
   const worker=conditions.find(row=>row[1]==='worker_id')?.[2]||'worker-a';
   state.calls.push({name:table,conditions:[...conditions],start,end,worker});
   const result=()=>{
+   if(table==='profiles'){const id=conditions.find(row=>row[1]==='user_id')?.[2]||'worker-a';return ok({user_id:id,suspended:state.accountSuspended});}
    if(table==='worker_bookings')return ok([{id:'job-complete',booking_code:'WH-JOB-123',service_type:'Carpentry'}]);
+   if(table==='worker_services')return ok([{service_name:'Carpentry',price:15000,price_type:'fixed'}]);
    if(state.failPosts)return bad();
    let rows=dataPosts(worker);
    for(const [op,key,value] of conditions)if(op==='eq'||op==='is')rows=rows.filter((row:any)=>row[key]===value);
@@ -32,9 +39,35 @@ function help() {
 }
 export const supabase:any={
  from:query,
+ functions:{invoke:async(name:string,{body}:any)=>{state.calls.push({name,args:body});if(state.recoveryFail)return bad();if(body.action==='close')return ok({success:true});if(body.action==='send_code')return ok({success:true});if(body.action==='verify_code')return ok({success:true,recovery_token:'a'.repeat(64)});return ok({success:true,portal:recoveryPortal()});}},
+
   rpc:async(name:string,args:any={})=>{
   state.calls.push({name,args});
-  if(name==='creator_get_people')return ok([{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true}]);
+  if(name==='get_my_staff_security_monitor')return state.staffSecurityFail?bad():ok({stats:{active_sessions:2},alerts:[]});
+  if(name==='get_my_staff_security_cases')return state.staffSecurityFail?bad():ok({actor_user_id:'creator-example',cases:[]});
+  if(name==='get_my_workspace_access')return ok({identity:{user_id:'worker-a'},personal_workspace:true,privileged_workspaces:[{role:'worker'}]});
+  if(name==='my_account_reviews'){
+   if(state.recoveryFail)return bad();
+   if(args.p_workspace){state.recoveryCase=true;if(state.recoveryLost)return bad();}
+   return ok(recoveryPortal());
+  }
+  if(name==='review_workspace_access'){
+   if(args.p_workspace){(state.recoveryRestrictions as any)[args.p_workspace]=args.p_restricted;if(state.recoveryLost)return bad();}
+   return ok({protected:false,workspaces:['personal','worker','property_partner'],restrictions:Object.entries(state.recoveryRestrictions).map(([workspace,restricted])=>({workspace,restricted,version:revision,public_reason:'Conduct review'}))});
+  }
+  if(name==='list_account_review_queue')return state.recoveryFail?bad():ok(state.recoveryCase?[recoveryRow()]:[]);
+  if(name==='decide_account_review'){
+   if(args.p_action==='claim'){state.recoveryAssigned=true;state.recoveryStatus='investigating';}
+   else if(args.p_action==='escalate')state.recoveryStatus='decision_ready';
+   else if(args.p_action==='request_information')state.recoveryStatus='waiting_customer';
+   else{state.recoveryStatus='resolved';state.recoveryDecision=args.p_action;if(args.p_action==='restored')state.recoveryRestrictions.worker=false;}
+   if(state.recoveryLost)return bad();return ok({success:true,case_id:caseId,action:args.p_action});
+  }
+
+  if(name==='get_my_worker_showcase_capacity'){const posts=dataPosts('worker-a').filter(row=>!row.deleted_at);return ok({posts:posts.length,videos:posts.filter(row=>row.media_type==='video').length,post_limit:12,video_limit:3,photo_bytes:2000000,video_bytes:13000000});}
+  if(name==='creator_get_people')return ok([{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true,suspended:state.accountSuspended}]);
+  if(name==='admin_get_worker_review_trust_status')return ok({profile_ready:true,identity_captured:true,identity_passed:true,readiness_passed:true,evidence_saved:true,submitted:true,review_status:'approved'});
+  if(name==='creator_set_account_suspension'){state.accountSuspended=args.p_suspended;return state.loseAccessResponse?bad():ok(null);}
   if(name==='creator_get_worker_publication')return ok({enabled:false,launch_approved:false,worker:null});
   if(name==='get_my_workspace_help_targets')return state.failHelp?bad():ok(help());
   if(name==='get_worker_marketplace_trust')return state.failTrust?bad():ok({reviewed:true,trusted:false,completed_jobs:7,rating:4.8,review_count:1});
@@ -59,6 +92,9 @@ export const supabase:any={
  },
  storage:{from:(bucket:string)=>({createSignedUrls:async(paths:string[])=>{state.calls.push({name:'sign-many',bucket,paths});const result=()=>state.failMedia?bad():ok(paths.map(path=>({path,signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'})));return state.delaySigning?new Promise(resolve=>state.pendingSigning.push(()=>resolve(result()))):result();},createSignedUrl:async(path:string)=>{state.calls.push({name:'sign-one',bucket,path});const result=()=>state.failMedia?bad():ok({signedUrl:path==='demo-video'?w.__demoVideo:'https://assets.wehouse.test/work.jpg'});return state.delaySigning?new Promise(resolve=>state.pendingSigning.push(()=>resolve(result()))):result();},remove:async(paths:string[])=>{state.calls.push({name:'remove-media',paths});return ok(null);}})},
 };
+// The isolated browser fixture never exercises passkeys. Keep the optional
+// production feature explicitly disabled while bundling account help screens.
+export const isWebPasskeyEnabled = false;
 export const getWorkers=async()=>{state.calls.push({name:'get_public_workers'});return {workers:[{user_id:'worker-a',full_name:'Sani Example',username:'sani-carpentry',worker_occupation:'Carpenter',worker_bio:'Furniture fitting and repairs.',worker_skills:['Carpentry'],worker_price:15000,city:'Lafia',state:'Nasarawa',worker_status:'verified',worker_verified:true,available:true,role:'worker'}],error:null};};
 export const compressImageFile=async(file:File)=>file;
 export const uploadStorageObjectWithProgress=async(...args:any[])=>{state.calls.push({name:'upload-media',path:args[1]});args.at(-1)?.(100);};

@@ -3,7 +3,7 @@
 Status: merge blocker register
 
 Review date: 2026-09-13
-Scope: Nigeria-only v1
+Scope: Nigeria-first launch legal review. This register does not approve launch in any other country; each additional market requires its own legal and operational review.
 
 This is an engineering and operational issue register, not a legal opinion. A
 qualified Nigerian lawyer and the relevant regulator/provider must confirm the
@@ -62,6 +62,12 @@ approval.
 | Corporate, tax and insurance | **Open blocker** | CAC objects/classifications; federal and applicable state tax registration and invoice/receipt design; VAT/withholding/commission treatment; platform, professional, cyber and public-liability insurance review | Financial records are retained; tax values must come from approved configuration, not UI assumptions |
 
 ## Research baseline
+
+### 19 October clarification: merchant compliance and recipient identity
+
+Paystack merchant onboarding does not automatically provide government-ID verification for every WeHouse Partner/Service Worker. Current account-name resolution is a banking check, not NIN verification or a complete recipient KYC approval. Confirm WeHouse's actual recipient/settlement model with Paystack; a dedicated approved identity provider/integration remains necessary for NIN checks. Ordinary Personal signup and customer payments do not require NIN under the proposed product policy.
+
+The owner accepted the asset-specific product checklist in `PRODUCT_RULES.md`: common person/entity/authority/address evidence, Short Let permitted use and guest terms, Long Let tenancy/term/payment/maintenance/exit terms, and Hotel operator/operating evidence plus room/rate/guest facts. Private request-linked collection, independent decisions/corrections, expiry and new-publication enforcement are implemented and contract-verified on Test. This does not establish local legal eligibility. Counsel/operations must approve accepted forms, applicable permits and retention. Live person KYC, structured booking/tenancy terms, ongoing recertification, expiry outreach, appeals and retention/deletion processing remain internal/integration tasks. Neither utility bills nor access footage alone establish ownership.
 
 Primary sources checked for this register:
 

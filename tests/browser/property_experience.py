@@ -6,7 +6,7 @@ import asyncio, json, os, re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from playwright.async_api import async_playwright, expect
-BASE='http://127.0.0.1:4173'; OUT=Path('test-results/experience')
+BASE=os.environ.get('QA_BASE_URL','http://127.0.0.1:4173'); OUT=Path('test-results/experience')
 IMAGE=BASE+'/qa-public-property.svg'
 IMAGE_BODY='<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500"><rect width="800" height="500" fill="#2d2244"/><path d="M220 340V220l180-130 180 130v120H220" fill="#644991"/></svg>'
 SHORT={'id':'short-home','listing_id':'short-home','title':'Garden Short Let','sub_type':'short_let','type':'apartment','price':120000,'security_deposit_amount':50000,'max_guests':2,'bedrooms':1,'bathrooms':1,'address':'Test road','city':'Lafia','state':'Nasarawa','images':[IMAGE],'videos':[],'status':'available','is_verified':True,'amenities':['WiFi']}
@@ -16,7 +16,7 @@ CONNECTIONS=[{'id':'chat-ada','participant_a':'qa-personal','participant_b':'qa-
 PEERS=[{'conversation_id':'chat-ada','user_id':'qa-ada','full_name':'Ada Example','username':'ada-example','avatar_url':None,'is_blocked':False}, {'conversation_id':'chat-blocked','user_id':'qa-blocked','full_name':'Blocked Example','username':'blocked','is_blocked':True}]
 NOW=datetime.now(timezone.utc); TOMORROW=(NOW+timedelta(days=2)).date().isoformat(); CHECKOUT=(NOW+timedelta(days=4)).date().isoformat()
 class Scenario:
- def __init__(self): self.calls=[]; self.errors=[]; self.fail_saved=False; self.delay_listing=0; self.delay_account=0; self.hotel_sent=False; self.hotel_reads=0; self.guest_mode=False
+ def __init__(self): self.calls=[]; self.errors=[]; self.fail_saved=False; self.delay_listing=0; self.delay_account=0; self.hotel_sent=False; self.hotel_reads=0; self.guest_mode=False; self.offer_test=False; self.fail_offer=False; self.delay_offer=0
  async def route(self, handler):
   request=handler.request
   if request.url==IMAGE: return await handler.fulfill(status=200,content_type='image/svg+xml',body=IMAGE_BODY)
@@ -32,6 +32,13 @@ class Scenario:
   elif name=='get_public_listing_detail':
    if self.delay_listing: await asyncio.sleep(self.delay_listing)
    data={'short-home':SHORT,'long-home':LONG}.get(args.get('p_listing_id'))
+   if self.offer_test and data and data['id']=='short-home': data={**data,'price':120000.99}
+  elif name=='listing_discount_breakdown':
+   if self.delay_offer: await asyncio.sleep(self.delay_offer)
+   if self.fail_offer: data={'message':'Offers unavailable'}; status=500
+   else:
+    percent=10 if self.offer_test and args.get('p_listing_id')=='short-home' else 0
+    data={'host_percent':percent,'wehouse_percent':0,'total_percent':percent,'ends_on':None}
   elif name=='get_public_hotel_detail': data=HOTEL
   elif name=='get_my_reservation_for_listing':
    if self.delay_account: await asyncio.sleep(self.delay_account)
@@ -49,13 +56,14 @@ class Scenario:
    await asyncio.sleep(.6); self.hotel_sent=True; data='hotel-ack'
   elif name=='mark_hotel_booking_messages_read':
    await asyncio.sleep(1); data=True
-  elif name=='create_short_stay_reservation': data={'id':'short-reservation-1','status':'payment_pending','payment_reference':'WHDATE-QA-1','reservation_fee_status':'payment_pending','stay_check_in':TOMORROW,'stay_check_out':CHECKOUT,'guest_count':1,'stay_rent_total':240000,'security_deposit_snapshot':50000}
+  elif name=='create_short_stay_reservation_idem': data={'id':'short-reservation-1','stay_type':'short_let','status':'payment_pending','payment_reference':'WHDATE-QA-1','reservation_fee_status':'payment_pending','reservation_fee_snapshot':5000,'stay_check_in':TOMORROW,'stay_check_out':CHECKOUT,'guest_count':1,'stay_rent_total':240000,'security_deposit_snapshot':50000,'short_stay_cancellation_policy_snapshot':{'standard_full_refund_hours_before_check_in':24,'late_cancellation_requires_review':True,'provider_failure_full_refund':True,'payment_protection_required':True}}
   elif name=='payment-init': data={'success':True,'already_paid':True,'reference':'WHDATE-QA-1','purpose':'apartment_reservation'}
   elif name=='get_my_roommate_peer_details': data=PEERS
   elif name=='get_user_conversations': data=CONNECTIONS
   elif name in ['get_my_e2ee_identity','e2ee_identity','e2ee_identities','user_encryption_identities']: data=None
-  elif name=='get_my_canonical_activity_v2': data=[{'id':f'event-{scope}','workspace':scope,'type':'hotel.confirmed' if scope=='property_partner' else 'search_match','title':'Partner guest update' if scope=='property_partner' else 'Personal saved search must stay Personal','message':'Synthetic update','source_type':'hotel_booking','source_id':'42','destination_route':'hotel_booking','destination_params':{'hotel_id':7,'booking_id':42},'read':False,'created_at':NOW.isoformat(),'action_required':False} for scope in ['personal','property_partner']]
-  elif name=='get_my_canonical_activity_summary': data={'unread':1,'needs_action':0}
+  elif name=='get_my_canonical_activity_v2': data=[{'id':f'event-{scope}','workspace':scope,'type':'hotel.confirmed' if scope=='property_partner' else 'search_match','title':'Partner guest update' if scope=='property_partner' else 'Personal saved search must stay Personal','message':'Synthetic update','source_type':'hotel_booking','source_id':'42','destination_route':'hotel_booking','destination_params':{'hotel_id':7,'booking_id':42},'read':False,'created_at':NOW.isoformat(),'action_required':False,'resolved_at':None} for scope in ['personal','property_partner']]
+  elif name=='get_my_canonical_activity_summary': data={'unread':1,'needs_action':0,'latest_at':NOW.isoformat()}
+  elif name=='mark_my_canonical_activity_read': data=True
   elif name=='get_my_legal_status': data={}
   if self.guest_mode and name in ['search_discoverable_homes','search_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail'] and data:
    def mixed_media(record): return {**record,'images':[*record.get('images',[]),'partner/private-unpublished.jpg','https://test.supabase.co/storage/v1/object/sign/listing-candidates/private.jpg?token=not-a-real-token']}
@@ -87,6 +95,30 @@ async def main():
  async with async_playwright() as p:
   browser=await p.chromium.launch(args=['--no-sandbox'])
   try:
+   for theme in ['light','dark']:
+    scenario=Scenario(); scenario.offer_test=True; context,page=await scenario.open(browser,'short',390)
+    try:
+     await page.evaluate("theme => document.documentElement.dataset.whTheme = theme",theme)
+     await expect(page.get_by_text('₦108,000.89',exact=True)).to_have_count(1)
+     await fits(page)
+     scenario.delay_offer=2
+     await page.evaluate("window.__openListing('long-home')")
+     await expect(page.get_by_role('heading',name='Courtyard Long Let',exact=True)).to_be_visible()
+     await expect(page.get_by_text('₦90,000.00',exact=True)).to_have_count(0)
+     await expect(page.locator('main')).to_contain_text('₦100,000.00')
+     await page.screenshot(path=str(OUT/f'property-offer-switch-{theme}.png'),full_page=True)
+     scenario.delay_offer=0; scenario.fail_offer=True
+     await page.evaluate("window.__openListing('short-home')")
+     await expect(page.get_by_role('button',name='Retry offers',exact=True)).to_be_visible(timeout=20000)
+     scenario.fail_offer=False
+     await page.get_by_role('button',name='Retry offers',exact=True).click()
+     await expect(page.get_by_text('₦108,000.89',exact=True)).to_have_count(1)
+     await expect(page.get_by_role('button',name='Retry offers',exact=True)).to_have_count(0)
+     assert not scenario.errors,scenario.errors
+     results.append({'case':'Property discount precision, navigation and offer recovery '+theme,'passed':True})
+    finally:
+     (OUT/'public-property-results.json').write_text(json.dumps(results,indent=2)); await context.close()
+   if os.environ.get('QA_OFFERS_ONLY')=='1': return
    for width in [320,390,768,1440]:
     scenario=Scenario(); context,page=await scenario.open(browser,'saved',width)
     try:
@@ -118,24 +150,38 @@ async def main():
      await page.get_by_role('button',name='Close calendar').click()
      await expect(page.get_by_role('dialog',name='Choose Check-in')).to_have_count(0)
      assert await page.evaluate("document.body.style.overflow !== 'hidden'"), 'Calendar must restore page scrolling'
-     await page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
-     reserve=page.get_by_role('button',name=re.compile(r'^Reserve date(?: · ₦[0-9,]+)?$'))
+     # Keep the short-let checkout journey isolated from the earlier hotel
+     # calendar and navigation state from the hotel journey.
+     short_page=await context.new_page();short_page.on('pageerror',lambda error:scenario.errors.append(str(error)));await short_page.route('**/*',scenario.route)
+     await short_page.goto(BASE+'/tests/browser/property-experience.html?mode=short')
+     await expect(short_page.get_by_role('heading',name='Garden Short Let',exact=True)).to_be_visible(timeout=15000)
+     reserve=short_page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+\.[0-9]{2}$'))
      await expect(reserve).to_be_visible(); await expect(reserve).to_be_disabled()
-     await expect(page.get_by_role('button',name=re.compile('Pay for stay'))).to_have_count(0)
-     await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
-     await choose_booking_date(page,'Check-in',TOMORROW)
-     await choose_booking_date(page,'Check-out',CHECKOUT)
+     await expect(short_page.get_by_role('button',name=re.compile('Pay for stay'))).to_have_count(0)
+     await expect(short_page.get_by_text('Estimated total',exact=True)).to_have_count(0)
+     await choose_booking_date(short_page,'Check-in',TOMORROW)
+     await choose_booking_date(short_page,'Check-out',CHECKOUT)
      await expect(reserve).to_be_enabled()
-     await expect(page.get_by_text('₦290,000',exact=True)).to_have_count(0)
-     await expect(page.get_by_text('Estimated total',exact=True)).to_have_count(0)
-     await expect(page.get_by_text('Stay rent',exact=True)).to_have_count(0)
-     await fits(page); await reserve.scroll_into_view_if_needed(); await page.screenshot(path=str(OUT/f'short-let-reserve-date-{width}.png'))
+     await expect(short_page.get_by_text('₦290,000',exact=True)).to_have_count(0)
+     await expect(short_page.get_by_text('Estimated total',exact=True)).to_have_count(0)
+     await expect(short_page.get_by_text('Stay rent',exact=True)).to_have_count(0)
+     await fits(short_page); await reserve.scroll_into_view_if_needed(); await short_page.screenshot(path=str(OUT/f'short-let-reserve-date-{width}.png'))
      await reserve.click()
-     await expect(page.get_by_role('heading',name='Existing booking destination',exact=True)).to_be_visible()
-     assert await page.evaluate('window.__booking')=='short-reservation-1'
-     assert sum(name=='create_short_stay_reservation' for name,_ in scenario.calls)==1
+     review=short_page.get_by_role('dialog',name='Review reservation and payment')
+     await expect(review).to_be_visible()
+     await expect(short_page.get_by_role('heading',name='Review your dates and payment',exact=True)).to_be_visible()
+     await expect(review.get_by_text(re.compile('Cancel at least 24 hours before check-in'))).to_be_visible()
+     await expect(review.get_by_text(re.compile('Only the reserve-date fee is paid now'))).to_be_visible()
+     await expect(review.get_by_role('button',name='Edit dates and guests',exact=True)).to_be_visible()
+     await expect(review.get_by_role('button',name='Accept terms and continue',exact=True)).to_be_enabled()
+     assert sum(name=='create_short_stay_reservation_idem' for name,_ in scenario.calls)==1
+     assert sum(name=='payment-init' for name,_ in scenario.calls)==0, 'Payment must wait for reviewed terms to be accepted'
+     await review.get_by_role('button',name='Accept terms and continue',exact=True).click()
+     await expect(short_page.get_by_role('heading',name='Existing booking destination',exact=True)).to_be_visible()
+     assert await short_page.evaluate('window.__booking')=='short-reservation-1'
      assert sum(name=='payment-init' for name,_ in scenario.calls)==1
      assert not any(name in ['initialize_short_stay_payment','create_short_stay_payment','create_shared_housing_group'] for name,_ in scenario.calls)
+     await short_page.close()
      # Public guest reads must not invoke personal, reservation or messaging APIs.
      before_guest=len(scenario.calls)
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=guest')
@@ -149,7 +195,7 @@ async def main():
      await page.wait_for_function('document.querySelector("img")?.naturalWidth > 0')
      assert await page.get_by_role('region',name='Garden Lodge media',exact=True).locator('img').count()==1,'Private or signed media leaked into public gallery'
      await page.screenshot(path=str(OUT/f'guest-hotel-{width}.png'))
-     allowed={'search_discoverable_homes','search_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary','get_sponsored_discovery'}
+     allowed={'get_public_discovery_settings','search_discoverable_homes','search_discoverable_hotels','get_public_hotel_detail','get_public_listing_detail','get_all_settings_v2','get_hotel_review_summary','get_sponsored_discovery'}
      assert all(name in allowed for name,_ in scenario.calls[before_guest:]),scenario.calls[before_guest:]
      await page.get_by_role('button',name='Save hotel',exact=True).click()
      assert await page.evaluate('window.__guestSignIn') is True
@@ -180,7 +226,7 @@ async def main():
      await page.wait_for_function('window.__activityDestination?.page === "hotel_booking"')
      assert await page.evaluate('window.__activityDestination.page')=='hotel_booking'
      assert not scenario.errors,scenario.errors
-     results.append({'width':width,'passed':True,'checks':['Unified Saved and unavailable item','Hotel identity and calendar scroll lock','Short Let no price without dates','Reserve date initializes only its reservation-fee payment','Received property typed public card','Named accepted connections only','Encrypted thread gate and no automatic sending','Workspace-scoped Activity'],'page_errors':scenario.errors})
+     results.append({'width':width,'passed':True,'checks':['Unified Saved and unavailable item','Hotel identity and calendar scroll lock','Short Let no price without dates','Short Let review shows saved cancellation terms and waits for acceptance before fee payment','Received property typed public card','Named accepted connections only','Encrypted thread gate and no automatic sending','Workspace-scoped Activity'],'page_errors':scenario.errors})
      print('PASS public property experience',width,flush=True)
     except Exception as error:
      results.append({'width':width,'passed':False,'error':str(error),'calls':scenario.calls,'page_errors':scenario.errors}); await page.screenshot(path=str(OUT/f'public-property-failure-{width}.png'),full_page=True); raise
@@ -203,6 +249,13 @@ async def main():
      await cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x,'y':y-shift}]})
     await cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
     await expect(page.get_by_role('dialog',name='Choose Check-in')).to_have_count(0)
+    # Wait for the real touch-scroll momentum to stop before testing a fresh
+    # deliberate tap; a tap during momentum may only stop native scrolling.
+    await page.evaluate('''() => new Promise(resolve => {
+      let previous = scrollY, stable = 0;
+      const frame = () => { const current = scrollY; stable = Math.abs(current - previous) < .1 ? stable + 1 : 0; previous = current; if (stable >= 8) resolve(); else requestAnimationFrame(frame); };
+      requestAnimationFrame(frame);
+    })''')
     before_open=await page.evaluate('scrollY')
     await field.tap()
     await expect(page.get_by_role('dialog',name='Choose Check-in')).to_be_visible()
@@ -284,9 +337,9 @@ async def main():
    try:
     await expect(page.get_by_role('heading',name='Garden Short Let',exact=True)).to_be_visible(timeout=1500)
     await expect(page.get_by_role('status',name='Checking your booking status',exact=True)).to_be_visible()
-    await expect(page.get_by_role('button',name='Reserve date',exact=True)).to_have_count(0)
+    await expect(page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+\.[0-9]{2}$'),exact=True)).to_have_count(0)
     await page.screenshot(path=str(OUT/'property-visible-during-account-check.png'),full_page=True)
-    await expect(page.get_by_role('button',name=re.compile(r'^Reserve date(?: · ₦[0-9,]+)?$'))).to_be_visible(timeout=5000)
+    await expect(page.get_by_role('button',name=re.compile(r'^Review dates · ₦[0-9,]+\.[0-9]{2}$'))).to_be_visible(timeout=5000)
     assert not any(name=='create_short_stay_reservation' for name,_ in scenario.calls)
     assert not scenario.errors,scenario.errors
     results.append({'case':'Public property before account check','passed':True})

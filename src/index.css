@@ -2,8 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  /* Dense labels and metadata must remain readable on phones and at zoom. */
+  :root .text-\[8px\],
+  :root .text-\[9px\],
+  :root .text-\[10px\] {
+    font-size: 0.75rem;
+  }
+
+  :root [class~="!text-[7px]"],
+  :root [class~="!text-[8px]"],
+  :root [class~="!text-[9px]"],
+  :root [class~="!text-[10px]"] {
+    font-size: 0.75rem !important;
+  }
+}
+
 @layer base {
   :root {
+    --wh-motion-fast: 120ms;
+    --wh-motion-feedback: 160ms;
+    --wh-motion-panel: 190ms;
+    --wh-motion-ease: cubic-bezier(.2,.8,.2,1);
     /* The dark palette is shared by the public and workspace shells. */
     --background: 225 28% 5%;
     --foreground: 225 20% 96%;
@@ -46,8 +66,10 @@
     --wh-border: rgba(255,255,255,0.12);
     --wh-border-subtle: rgba(255,255,255,0.08);
     --wh-interactive: rgba(255,255,255,0.045);
+    --wh-switch-off: #525D73;
     --wh-skeleton: rgba(255,255,255,0.07);
     --wh-accent-text: #B9A8FF;
+    --wh-danger-text: #FDA4AF;
     --wh-accent-surface: rgba(124,92,255,0.10);
     --wh-overlay: rgba(0,0,0,0.55);
     --wh-shadow-sm: 0 4px 14px rgba(0,0,0,0.22);
@@ -55,6 +77,7 @@
   }
 
   :root[data-wh-theme="light"] {
+    --wh-danger-text: #B91C1C;
     --background: 220 27% 98%;
     --foreground: 222 25% 13%;
     --card: 0 0% 100%;
@@ -91,6 +114,7 @@
     --wh-border: rgba(38,48,71,0.15);
     --wh-border-subtle: rgba(38,48,71,0.12);
     --wh-interactive: rgba(38,48,71,0.045);
+    --wh-switch-off: #737F94;
     --wh-skeleton: rgba(38,48,71,0.09);
     --wh-accent-text: #6035CE;
     --wh-accent-surface: rgba(96,53,206,0.08);
@@ -113,10 +137,10 @@
   body {
     @apply text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
-    transition: background-color 160ms ease, color 160ms ease;
+    transition: background-color var(--wh-motion-feedback) ease, color var(--wh-motion-feedback) ease;
   }
   #root {
-    transition: background-color 160ms ease, color 160ms ease;
+    transition: background-color var(--wh-motion-feedback) ease, color var(--wh-motion-feedback) ease;
   }
   @media (prefers-reduced-motion: reduce) {
     body, #root { transition: none; }
@@ -134,9 +158,44 @@
 
 /* Never transform a route ancestor: it changes the containing block of fixed
    conversations, sheets and bottom navigation, even for a zero translation. */
-.page-transition { animation: whPageFade 100ms ease-out; }
-.wh-panel-enter { animation: whPageEnter 120ms ease-out; }
-.wh-comments-sheet { animation: whCommentsEnter 190ms cubic-bezier(.22,1,.36,1) both; }
+
+/* Shared primitives use the same timing in every workspace and theme. Limit
+   transitions to visual feedback; changing width/height must remain immediate. */
+:is([data-slot="button"], [data-slot="toggle"], [data-slot="switch"],
+  [data-slot="checkbox"], [data-slot="radio-group-item"], [data-slot="tabs-trigger"],
+  [data-slot="accordion-trigger"], .wh-motion-control) {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-duration: var(--wh-motion-feedback);
+  transition-timing-function: var(--wh-motion-ease);
+}
+:is([data-slot="switch-thumb"], [data-slot="accordion-trigger"] > svg,
+  .wh-motion-thumb) {
+  transition-property: transform;
+  transition-duration: var(--wh-motion-feedback);
+  transition-timing-function: var(--wh-motion-ease);
+}
+:is([data-slot="dialog-overlay"], [data-slot="sheet-overlay"],
+  [data-slot="alert-dialog-overlay"])[data-state] {
+  animation-duration: var(--wh-motion-fast);
+  animation-timing-function: ease-out;
+}
+:is([data-slot="dialog-content"], [data-slot="sheet-content"],
+  [data-slot="alert-dialog-content"], [data-slot="accordion-content"])[data-state] {
+  animation-duration: var(--wh-motion-panel);
+  animation-timing-function: var(--wh-motion-ease);
+}
+:is([data-slot="popover-content"], [data-slot="tooltip-content"],
+  [data-slot="hover-card-content"], [data-slot="dropdown-menu-content"],
+  [data-slot="dropdown-menu-sub-content"], [data-slot="context-menu-content"],
+  [data-slot="context-menu-sub-content"], [data-slot="select-content"],
+  [data-slot="menubar-content"], [data-slot="menubar-sub-content"])[data-state] {
+  animation-duration: var(--wh-motion-fast);
+  animation-timing-function: var(--wh-motion-ease);
+}
+
+.page-transition { animation: whPageFade var(--wh-motion-fast) ease-out; }
+.wh-panel-enter { animation: whPageEnter var(--wh-motion-fast) ease-out; }
+.wh-comments-sheet { animation: whCommentsEnter var(--wh-motion-panel) var(--wh-motion-ease) both; }
 @keyframes whCommentsEnter { from { transform: translateY(20px); opacity: .7; } to { transform: translateY(0); opacity: 1; } }
 @keyframes whPageFade { from { opacity: 0; } to { opacity: 1; } }
 
@@ -149,14 +208,14 @@
    Never transform an ancestor of a fixed-position sheet or bottom bar. */
 .page-transition.wh-workspace-enter { animation: none; }
 .wh-workspace-enter [data-workspace-frame="v2"] > header {
-  animation: whWorkspaceHeaderIn 100ms ease-out;
+  animation: whWorkspaceHeaderIn var(--wh-motion-fast) ease-out;
 }
 .wh-workspace-enter [data-workspace-frame="v2"] > header h1 {
-  animation: whWorkspaceTitleIn 100ms ease-out;
+  animation: whWorkspaceTitleIn var(--wh-motion-fast) ease-out;
 }
 .wh-workspace-enter [data-workspace-frame="v2"] > main,
 .wh-workspace-enter > div > main {
-  animation: whWorkspaceContentIn 120ms ease-out;
+  animation: whWorkspaceContentIn var(--wh-motion-fast) ease-out;
 }
 @keyframes whWorkspaceHeaderIn { from { opacity: .85; } to { opacity: 1; } }
 @keyframes whWorkspaceTitleIn { from { opacity: .85; } to { opacity: 1; } }
@@ -165,7 +224,7 @@
 /* Keep tab changes stationary. Scaling the entire workspace makes cards,
    text and scroll position appear to jump on every tap. */
 .wh-workspace-stage {
-  animation: whWorkspaceStageIn 100ms ease-out;
+  animation: whWorkspaceStageIn var(--wh-motion-fast) ease-out;
 }
 @keyframes whWorkspaceStageIn {
   from { opacity: .88; }
@@ -173,8 +232,8 @@
 }
 
 /* Mobile overflow behaves like a bottom sheet instead of appearing abruptly. */
-.wh-more-backdrop { animation: whMoreBackdropIn 120ms ease-out; }
-.wh-more-sheet { animation: whMoreSheetIn 190ms cubic-bezier(.2,.82,.22,1); transform-origin: 50% 100%; }
+.wh-more-backdrop { animation: whMoreBackdropIn var(--wh-motion-fast) ease-out; }
+.wh-more-sheet { animation: whMoreSheetIn var(--wh-motion-panel) var(--wh-motion-ease); transform-origin: 50% 100%; }
 @keyframes whMoreBackdropIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes whMoreSheetIn {
   from { opacity: .25; transform: translateY(14px) scale(.985); }
@@ -182,9 +241,9 @@
 }
 
 /* Navigation confirms the selection; it does not bounce the whole screen. */
-.wh-bottom-tab-icon { transition: transform 160ms cubic-bezier(.2,.8,.2,1), opacity 140ms ease; }
+.wh-bottom-tab-icon { transition: transform var(--wh-motion-feedback) var(--wh-motion-ease), opacity var(--wh-motion-fast) ease; }
 .wh-bottom-tab[data-active="true"] .wh-bottom-tab-icon { transform: translateY(-1px) scale(1.06); }
-.wh-bottom-tab-indicator { animation: whTabIndicatorIn 160ms cubic-bezier(.2,.8,.2,1); transform-origin: 50% 50%; }
+.wh-bottom-tab-indicator { animation: whTabIndicatorIn var(--wh-motion-feedback) var(--wh-motion-ease); transform-origin: 50% 50%; }
 @keyframes whTabIndicatorIn {
   from { opacity: 0; transform: scaleX(.25); }
   to { opacity: 1; transform: scaleX(1); }
@@ -194,19 +253,31 @@
    Keep the shell still. Each placeholder fades once with at most a 60ms stagger;
    resolving auth can replace it immediately, including before animation ends. */
 .wh-auth-to-app-brand {
-  animation: whAuthToAppBrand 180ms ease-out;
+  animation: whAuthToAppBrand var(--wh-motion-panel) ease-out;
 }
 .wh-auth-to-app-shell { animation: none; }
 .wh-auth-to-app-shell > * {
-  animation: whAuthToAppPiece 180ms ease-out backwards;
+  animation: whAuthToAppPiece var(--wh-motion-panel) ease-out backwards;
 }
 .wh-auth-to-app-shell > *:nth-child(2) { animation-delay: 20ms; }
 .wh-auth-to-app-shell > *:nth-child(3) { animation-delay: 40ms; }
 .wh-auth-to-app-shell > *:nth-child(n+4) { animation-delay: 60ms; }
+@keyframes whLoadingProgress { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+.wh-loading-progress { animation: whLoadingProgress 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .wh-loading-progress { animation: none; transform: translateX(50%); }
+  .animate-spin, .animate-pulse { animation: none; }
+}
 @keyframes whAuthToAppBrand { from { opacity: .65; } to { opacity: 1; } }
 @keyframes whAuthToAppPiece { from { opacity: .4; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Do not reset transforms: centred dialogs and switch positions need them. */
+  :where([data-slot], .wh-motion-control, .wh-motion-thumb) {
+    animation: none !important;
+    transition: none !important;
+  }
+  :where([data-slot="accordion-trigger"] > svg) { transition: none !important; }
   .wh-comments-sheet { animation: none; }
   .page-transition, .wh-panel-enter, .wh-workspace-stage,
   .wh-more-backdrop, .wh-more-sheet, .wh-bottom-tab-indicator,
@@ -222,6 +293,12 @@
 }
 
 /* ═══ FLOATING GRADIENT ORBS — background depth ═══ */
+/* Toasts retained during their exit must not block the control beneath them. */
+[data-sonner-toast][data-removed='true'],
+[data-sonner-toast][data-visible='false'] {
+  pointer-events: none !important;
+}
+
 .orb {
   position: absolute;
   border-radius: 50%;
@@ -289,6 +366,12 @@
 
 /* Existing accent utilities keep contrast when a workspace changes to light.
    Solid primary buttons retain white labels; tinted labels become dark violet. */
+/* Solid violet buttons always carry a white label that meets 4.5:1 (also when
+   a call site omits text-white and would inherit the page text colour). */
+:root .bg-violet-500,
+:root .bg-violet-600 { color: #fff; }
+:root:not([data-wh-theme="light"]) .bg-violet-500:not(:hover),
+:root:not([data-wh-theme="light"]) .bg-violet-600:not(:hover) { background-color: #7A4FF0; }
 :root[data-wh-theme="light"] .text-violet-200,
 :root[data-wh-theme="light"] .text-violet-300,
 :root[data-wh-theme="light"] .text-violet-400 { color: var(--wh-accent-text); }
@@ -298,9 +381,52 @@
 :root[data-wh-theme="light"] .bg-violet-600.text-white,
 :root[data-wh-theme="light"] .bg-violet-500 .text-white,
 :root[data-wh-theme="light"] .bg-violet-600 .text-white { color: #fff; }
+/* Dark-theme literal text greys have no light counterpart; map them to the
+   theme text token so they stay readable (media viewers keep their dark chrome). */
+:root[data-wh-theme="light"] .text-\[\#C4BCD8\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#C7CDD9\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#C8C1B3\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#CBD0DB\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#CDD0D8\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#CFD2DA\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D0D2DB\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D0D5DF\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D1D4DC\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D2D5DC\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D3D4DC\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D3D6DF\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D4D7DE\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D4D7E0\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D5D7DF\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D5D7E1\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D5D8E0\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D6D9E1\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D6DBE5\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D7D8E2\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D7DAE1\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D8DAE1\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D8DAE2\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D8DAE3\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#D9DCE4\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#DDE0E7\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#DDE0E8\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#E2E4EA\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#E3E5EB\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#E4E6EC\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#E6E8ED\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#EAEBF0\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#ECEEF2\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#F2F3F6\]:not(.wh-media-immersive *),
+:root[data-wh-theme="light"] .text-\[\#F6F2FC\]:not(.wh-media-immersive *) { color: var(--wh-text); }
+:root[data-wh-theme="light"] .text-violet-100:not(.bg-violet-500):not(.bg-violet-600):not(.bg-violet-500 *):not(.bg-violet-600 *):not(.wh-media-immersive *) { color: var(--wh-accent-text); }
 :root[data-wh-theme="light"] .text-emerald-300 { color: #087443; }
 :root[data-wh-theme="light"] .text-amber-200,
 :root[data-wh-theme="light"] .text-amber-300 { color: #875300; }
+:root[data-wh-theme="light"] .text-red-100,
+:root[data-wh-theme="light"] .text-red-200,
+:root[data-wh-theme="light"] .text-rose-200 { color: #9f1f36; }
+:root[data-wh-theme="light"] .text-amber-100 { color: #875300; }
+:root[data-wh-theme="light"] .text-emerald-200 { color: #046c4e; }
 :root[data-wh-theme="light"] .text-red-300 { color: #af2d43; }
 .wh-media-immersive {
   --wh-bg: #090B10;
@@ -517,7 +643,7 @@ label:has(> div > select[aria-label="Local Government"]) select {
   border-radius: 9px 0 0 0;
   background: rgba(8,10,15,.78) !important;
   color: #777e8e !important;
-  font-size: 8px !important;
+  font-size: 12px !important;
 }
 .leaflet-control-attribution a { color: #b7a5ff !important; }
 .leaflet-tooltip {
@@ -526,7 +652,7 @@ label:has(> div > select[aria-label="Local Government"]) select {
   background: rgba(11,13,20,.94) !important;
   color: #fff !important;
   box-shadow: 0 12px 28px rgba(0,0,0,.3) !important;
-  font-size: 10px !important;
+  font-size: 12px !important;
 }
 .leaflet-tooltip::before { display: none; }
 input[type="date"], input[type="datetime-local"] { color-scheme: inherit; }
@@ -537,11 +663,26 @@ input[type="date"], input[type="datetime-local"] { color-scheme: inherit; }
 
 
 /* Immersive media should feel like a continuation of the surface, not a hard modal cut. */
-.wh-media-viewer { animation: whMediaViewerIn 180ms cubic-bezier(.2,.8,.2,1); }
-.wh-media-stage > * { animation: whMediaContentIn 240ms cubic-bezier(.2,.8,.2,1); }
+/* A receipt is a paper document in both themes, with its own readable ink. */
+.wehouse-receipt {
+  --wh-text-muted: #625D6B;
+  --wh-text-secondary: #625D6B;
+  color-scheme: light;
+}
+.wh-media-viewer { animation: whMediaViewerIn var(--wh-motion-panel) var(--wh-motion-ease); }
+.wh-media-stage > * { animation: whMediaContentIn var(--wh-motion-panel) var(--wh-motion-ease); }
 .wh-media-viewer button { -webkit-tap-highlight-color: transparent; }
 @keyframes whMediaViewerIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes whMediaContentIn { from { opacity: .75; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) {
   .wh-media-viewer, .wh-media-stage > * { animation: none !important; }
+  .wh-media-viewer * { transition: none !important; }
 }
+
+/* One readable floor for small text: nothing in the app renders below 12px. */
+.text-\[7px\], .text-\[8px\], .text-\[9px\], .text-\[10px\] { font-size: 12px; }
+/* The supplied brand pack provides separate artwork for each surface. */
+.wh-brand-on-light { display: none; }
+.wh-brand-on-dark { display: block; }
+:root[data-wh-theme="light"] .wh-brand-on-light { display: block; }
+:root[data-wh-theme="light"] .wh-brand-on-dark { display: none; }

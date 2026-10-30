@@ -2,17 +2,52 @@
 begin;
 create function pg_temp.expect(value boolean, description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAIL: %',description; end if;end$$;
 grant execute on function pg_temp.expect(boolean,text) to authenticated,anon,service_role;
+create function pg_temp.rejects(statement text) returns boolean language plpgsql as $$
+begin execute statement; return false; exception when others then return true; end $$;
+grant execute on function pg_temp.rejects(text) to authenticated,anon,service_role;
 set local session_replication_role=replica;
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_kind,full_name,state,city,local_government) values
 ('94000000-0000-4000-8000-000000000001','short-split-a@example.invalid','short-split-a','user',true,'consumer','Ada','Nasarawa','Lafia','Lafia'),
 ('94000000-0000-4000-8000-000000000002','short-split-b@example.invalid','short-split-b','creator',true,'consumer','Bola','Nasarawa','Lafia','Lafia'),
 ('94000000-0000-4000-8000-000000000003','short-split-c@example.invalid','short-split-c','user',true,'consumer','Chika','Nasarawa','Lafia','Lafia'),
 ('94000000-0000-4000-8000-000000000004','short-split-d@example.invalid','short-split-d','user',true,'consumer','Different guest','Nasarawa','Lafia','Lafia');
+insert into public.profiles(auth_id,email,user_id,role,profile_complete) values
+('94000000-0000-4000-8000-000000000005','short-split-owner@example.invalid','short-split-owner','property_partner',true),
+('94000000-0000-4000-8000-000000000006','short-split-reviewer@example.invalid','short-split-reviewer','creator',true);
+insert into public.workspace_role_assignments(user_id,workspace_role,scope_type)
+values('short-split-owner','property_partner','global'),('short-split-reviewer','creator','global');
+insert into auth.sessions(id,user_id,created_at,updated_at)
+select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles
+where user_id in('short-split-a','short-split-b','short-split-c','short-split-d','short-split-owner');
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select user_id,auth_id,auth_id,'short-split-contract-'||user_id,'Synthetic contract browser',true,'trusted'
+from public.profiles where user_id in('short-split-a','short-split-b','short-split-c','short-split-d','short-split-owner');
+-- Short Let splits use friends. A Roommate conversation alone must not qualify (short-split-d).
+insert into public.friends(user_low,user_high,requested_by,status) values
+('short-split-a','short-split-b','short-split-a','accepted'),
+('short-split-a','short-split-c','short-split-a','accepted');
 insert into public.conversations(id,participant_a,participant_b,conversation_type,status) values
-('94000000-0000-4000-8000-000000000012','short-split-a','short-split-b','roommate','active'),
-('94000000-0000-4000-8000-000000000013','short-split-a','short-split-c','roommate','active');
+('94000000-0000-4000-8000-000000000014','short-split-a','short-split-d','roommate','active');
 insert into public.listings(id,listing_id,title,price,property_type,sub_type,status,availability_status,max_guests,max_occupants,security_deposit_amount,state,city,address)
 values('94000000-0000-4000-8000-000000000020','short-split-listing','Short Let contract',1000,'apartment','short_let','available','available',3,3,500,'Nasarawa','Lafia','Published test address');
+insert into public.inspection_requests(id,request_code,owner_id,owner_email,
+ property_address,property_city,property_state,property_type,sub_type,status,
+ document_requirements,document_requirements_revision,document_requirements_set_by,document_requirements_set_at)
+values('94000000-0000-4000-8000-000000000021','SHORT-SPLIT-REVIEW','short-split-owner',
+ 'short-split-owner@example.invalid','Published test address','Lafia','Nasarawa','apartment','short_let',
+ 'completed',public._default_property_document_requirements('apartment','short_let'),1,'short-split-reviewer',now());
+update public.listings set owner_id='short-split-owner',partner_id='short-split-owner',
+ approved_at=now(),approved_by='short-split-reviewer',
+ inspection_request_id='94000000-0000-4000-8000-000000000021'
+where id='94000000-0000-4000-8000-000000000020';
+insert into public.property_submission_documents(request_id,requirement_code,requirements_revision,
+ version,request_key,submitted_by,original_name,mime_type,byte_size,object_path,status,
+ submitted_at,reviewed_at,reviewed_by,review_note)
+select '94000000-0000-4000-8000-000000000021',rule->>'code',1,1,gen_random_uuid(),
+ 'short-split-owner','synthetic-shared-stay.pdf','application/pdf',12,
+ 'short-split-fixture/'||(rule->>'code')||'.pdf','approved',now(),now(),
+ 'short-split-reviewer','Synthetic reviewed Short Let evidence'
+from jsonb_array_elements(public._default_property_document_requirements('apartment','short_let')) rule;
 -- A real reservation requires an active policy snapshot, including in an empty test database.
 insert into public.creator_policy_versions(policy_key,version,value,status,effective_from,legal_review_state,reason,checksum)
 values('accommodation_arrival_issue_window',99001,'{"default_hours":2,"minimum_hours":1,"maximum_hours":6}',
@@ -43,10 +78,21 @@ select 'commission_short_let_wehouse_managed',99004,'{"percent":10}',
  'active',now()-interval '1 minute','reviewed','Rollback-only Short Let commission fixture','short-split-commission'
 where not exists(select 1 from public.creator_policy_versions where policy_key='commission_short_let_wehouse_managed' and scope_type='global' and scope_key='*' and status='active');
 set local session_replication_role=origin;
-select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000005","session_id":"94000000-0000-4000-8000-000000000005","role":"authenticated"}',true);
+set local role authenticated;
+select public.accept_my_property_fees(public.get_provider_fee_disclosure('short_let','wehouse')->>'digest',null,'94000000-0000-4000-8000-000000000020');
+reset role;
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","session_id":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select id as reservation from public.create_short_stay_reservation('94000000-0000-4000-8000-000000000020',current_date+10,current_date+11,3) \gset
+-- A repeated request with the same key returns the stored result and creates nothing new.
+select public.create_short_stay_reservation_idem('94000000-0000-4000-8000-0000000000f1','94000000-0000-4000-8000-000000000020',current_date+10,current_date+11,3)->>'id' as idem_first \gset
+select pg_temp.expect(public.create_short_stay_reservation_idem('94000000-0000-4000-8000-0000000000f1','94000000-0000-4000-8000-000000000020',current_date+10,current_date+11,3)->>'id'=:'idem_first','same key returns the same booking');
+select pg_temp.expect(pg_temp.rejects($$select public.create_short_stay_reservation_idem('94000000-0000-4000-8000-0000000000f1','94000000-0000-4000-8000-000000000020',current_date+20,current_date+21,3)$$),'same key with different details is refused');
+select pg_temp.expect(pg_temp.rejects($$select public.create_short_stay_reservation_idem(null,'94000000-0000-4000-8000-000000000020',current_date+10,current_date+11,3)$$),'a missing key is refused');
+select pg_temp.expect(pg_temp.rejects($$select count(*) from public.idempotency_keys$$),'keys table is not readable by users');
 reset role;
+select pg_temp.expect((select count(*)=1 from public.idempotency_keys),'one stored key');
 select payment_expires_at as original_deadline from public.reservations where id=:'reservation' \gset
 select pg_temp.expect((select payment_reference is not null and reservation_fee_status='payment_pending' and shared_payment_group_id is null and stay_rent_total=1000 and security_deposit_snapshot=500 from public.reservations where id=:'reservation'),'Reserve date creates only the reservation-fee checkout');
 select set_config('test.shared_reservation',:'reservation',true);
@@ -58,10 +104,12 @@ where paystack_reference=(select payment_reference from public.reservations wher
 reset role;
 select pg_temp.expect((select status='reserved' and reservation_fee_status='paid' and rent_payment_status='not_started' from public.reservations where id=:'reservation'),'Reserve date fee reserves the dates without paying the stay');
 select short_stay_balance_due_at as original_deadline from public.reservations where id=:'reservation' \gset
-select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","session_id":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
-select (public.create_my_shared_short_let(:'reservation',array['94000000-0000-4000-8000-000000000012','94000000-0000-4000-8000-000000000013']::uuid[])->>'id') as shared_group \gset
-select pg_temp.expect((public.create_my_shared_short_let(:'reservation',array['94000000-0000-4000-8000-000000000012','94000000-0000-4000-8000-000000000013']::uuid[])->>'id')=:'shared_group','Retry reuses the same group and reservation');
+select pg_temp.expect(pg_temp.rejects(format('select public.create_my_shared_short_let(%L,array[%L])',:'reservation','short-split-d')),'A roommate who is not a friend cannot be invited to a Short Let split');
+select pg_temp.expect(pg_temp.rejects(format('select public.create_my_shared_short_let(%L,array[%L,%L,%L])',:'reservation','short-split-b','short-split-c','short-split-d')),'More than 3 paying people is rejected');
+select (public.create_my_shared_short_let(:'reservation',array['short-split-b','short-split-c'])->>'id') as shared_group \gset
+select pg_temp.expect((public.create_my_shared_short_let(:'reservation',array['short-split-b','short-split-c'])->>'id')=:'shared_group','Retry reuses the same group and reservation');
 select set_config('test.shared_group',:'shared_group',true);
 do $$begin
  begin perform public.create_short_stay_payment(current_setting('test.shared_reservation'));raise exception 'FAIL: Shared owner could pay full bill';exception when others then if sqlerrm like 'FAIL:%' then raise;end if;end;
@@ -70,10 +118,10 @@ end$$;
 reset role;
 select pg_temp.expect((select reservation_id=:'reservation' and expires_at<=:'original_deadline'::timestamptz and total_amount=1500 from public.shared_housing_groups where id=:'shared_group'),'Same snapshot and no extended hold');
 select pg_temp.expect((select count(*)=3 and sum(share_amount)=1500 and sum(eligible_partner_share)=1000 and sum(refundable_share)=500 and bool_and(share_amount=eligible_partner_share+refundable_share) from public.shared_housing_members where group_id=:'shared_group'),'All three exact shares reconcile');
-select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000002","session_id":"94000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
 set local role authenticated;
 select public.respond_to_shared_housing_invite(:'shared_group',true);
-select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000003","session_id":"94000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
 select public.respond_to_shared_housing_invite(:'shared_group',true);
 select (public.create_my_shared_housing_payment(:'shared_group')->>'reference') as chika_payment \gset
 select pg_temp.expect(public.create_my_shared_housing_payment(:'shared_group')->>'reference'=:'chika_payment','Same participant checkout is idempotent');
@@ -81,7 +129,7 @@ reset role;
 select pg_temp.expect((select count(*)=2 from public.notifications where recipient_id='short-split-a' and related_id=:'shared_group' and type='shared_home_response'),'Each accepted member produces a distinct response');
 select pg_temp.expect((select expires_at<=:'original_deadline'::timestamptz from public.shared_housing_groups where id=:'shared_group'),'Last acceptance does not renew Short Let date hold');
 select pg_temp.expect((select payer_user_id='short-split-c' and amount_total=500 from public.booking_payments where paystack_reference=:'chika_payment'),'Only own share can be initialized');
-select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000004","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000004","session_id":"94000000-0000-4000-8000-000000000004","role":"authenticated"}',true);
 set local role authenticated;
 do $$begin
  begin perform public.get_my_shared_housing_group(current_setting('test.shared_group')::uuid);raise exception 'FAIL: Stranger can read group';exception when others then if sqlerrm like 'FAIL:%' then raise;end if;end;
@@ -91,15 +139,31 @@ reset role;
 -- These are server-confirmation fixtures, not real Paystack transactions.
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
+select pg_temp.expect((public.validate_shared_housing_checkout((select id from public.booking_payments where paystack_reference=:'chika_payment'),'short-split-c')->>'valid')::boolean,'Real three-payer constructor reaches validated checkout before provider confirmation');
 select public.confirm_shared_housing_payment(:'chika_payment','synthetic-chika',500);
 reset role;
 select pg_temp.expect((select status='reserved' and reservation_fee_status='paid' and rent_payment_status='not_started' from public.reservations where id=:'reservation'),'One paid share never confirms the whole stay or changes Reserve date');
-select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","session_id":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
 select (public.create_my_shared_housing_payment(:'shared_group')->>'reference') as ada_payment \gset
-select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000002","session_id":"94000000-0000-4000-8000-000000000002","role":"authenticated"}',true);
 select (public.create_my_shared_housing_payment(:'shared_group')->>'reference') as bola_payment \gset
 reset role;
+-- A verified final receipt after the common deadline records the money but
+-- must not revive the reservation. Exercise this separately from success.
+savepoint late_shared_receipt;
+update public.shared_housing_groups set expires_at=now()-interval '1 second' where id=:'shared_group';
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+select public.confirm_shared_housing_payment(:'ada_payment','synthetic-late-ada',500);
+select public.confirm_shared_housing_payment(:'bola_payment','synthetic-late-bola',500);
+select public.confirm_shared_housing_payment(:'bola_payment','synthetic-late-bola',500);
+reset role;
+select pg_temp.expect((select status='refunding' and expires_at<now() from public.shared_housing_groups where id=:'shared_group'),'Late final receipt requires refunds without extending the deadline');
+select pg_temp.expect((select rent_payment_status='not_started' and status='reserved' from public.reservations where id=:'reservation'),'Late money never confirms arrival or rent');
+select pg_temp.expect((select count(*)=3 and bool_and(payment_status='paid') from public.shared_housing_members where group_id=:'shared_group'),'Late verified payments remain recorded for reconciliation');
+rollback to savepoint late_shared_receipt;
+release savepoint late_shared_receipt;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
 select public.confirm_shared_housing_payment(:'ada_payment','synthetic-ada',500);

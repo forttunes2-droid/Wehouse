@@ -85,7 +85,7 @@ worker   (0)  -- future: service provider
 | `/` (home) | any authenticated | Yes (auth gate) |
 | `/creator` | creator / admin / staff | Yes (`hasAdminAccess`) |
 | `/profile` | any authenticated | Yes (auth gate) |
-| `/new_listing` | admin only | Yes (`isAdmin` flag) |
+| Property supply | Partner submission, scoped review and publication | Direct internal creation route retired; no Creator publication bypass |
 | `/privacy` | any authenticated | Yes (auth gate) |
 | `/security` | any authenticated | Yes (auth gate) |
 | `/account` | any authenticated | Yes (auth gate) |

@@ -20,6 +20,24 @@ export interface VerifyPaymentResult {
   expected?: number;
 }
 
+export function paymentVerificationReceipt(value: unknown, purpose?: string): VerifyPaymentResult {
+  const invalid = (): VerifyPaymentResult => ({ success: false,
+    error: 'Payment confirmation could not be read. Check payment status before retrying.' });
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return invalid();
+  const row = value as Record<string, unknown>;
+  if (typeof row.success !== 'boolean') return invalid();
+  for (const key of ['verified', 'recorded', 'already_processed', 'charged', 'requires_review']) {
+    if (row[key] !== undefined && typeof row[key] !== 'boolean') return invalid();
+  }
+  if (row.amount !== undefined && (typeof row.amount !== 'number' || !Number.isFinite(row.amount) || row.amount <= 0)) return invalid();
+  if (row.error !== undefined && typeof row.error !== 'string') return invalid();
+  if (row.purpose !== undefined && typeof row.purpose !== 'string') return invalid();
+  if (row.success && (row.verified !== true || row.requires_review === true ||
+    (row.recorded !== true && row.already_processed !== true) ||
+    (purpose !== undefined && row.purpose !== purpose))) return invalid();
+  return row as unknown as VerifyPaymentResult;
+}
+
 export async function verifyPaymentServerSide(
   reference: string,
   options?: {
@@ -46,7 +64,7 @@ export async function verifyPaymentServerSide(
   if (error) {
     return { success: false, error: error.message || 'Payment verification request failed' };
   }
-  return (data || { success: false, error: 'Empty payment verification response' }) as VerifyPaymentResult;
+  return paymentVerificationReceipt(data, options?.purpose);
 }
 
 // ─── Verify + retry with backoff ───
@@ -57,9 +75,11 @@ export async function verifyPaymentWithRetry(
   options?: { purpose?: string; expected_amount?: number },
   maxRetries = 3,
 ): Promise<VerifyPaymentResult> {
+  let lastResult: VerifyPaymentResult = { success: false, error: 'Payment status could not be confirmed. Check status before retrying.' };
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const result = await verifyPaymentServerSide(reference, options);
-    if (result.success || result.requires_review) return result;
+    lastResult = result;
+    if (result.success || result.requires_review || result.charged) return result;
 
     const isClientError = result.error && (
       result.error.includes('Not authenticated') ||
@@ -80,5 +100,5 @@ export async function verifyPaymentWithRetry(
       await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
     }
   }
-  return { success: false, error: 'Max retries exceeded' };
+  return lastResult;
 }

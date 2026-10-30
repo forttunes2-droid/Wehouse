@@ -1,6 +1,11 @@
-import { internalActivityDestination } from "@/lib/internalActivityDestination";
+import AccountReviewQueue from '@/components/AccountReviewQueue';
+import WorkspaceRestrictionControls from '@/components/WorkspaceRestrictionControls';
+import WorkerCredentials from '@/components/WorkerCredentials';
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { internalActivityDestination, type BookingActivityKind } from "@/lib/internalActivityDestination";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { withTimeout } from '@/lib/withTimeout';
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import UserProfileModal from "@/components/UserProfileModal";
@@ -23,10 +28,12 @@ import AccountIdentityReviewQueue from "@/components/AccountIdentityReviewQueue"
 import InboxActivityEntry from "@/components/InboxActivityEntry";
 import AdminSecurityCases from "@/components/AdminSecurityCases";
 import BackButton from "@/components/BackButton";
+import AdminReports from "@/components/AdminReports";
+import { formatMoney } from "@/lib/regional";
 
 type AdminTab = "overview" | "operations" | "inbox";
-type Operation = "people" | "staff" | "properties" | "workers" | "bookings" | "security";
-type OperationTarget = { operation: Operation; id?: string } | null;
+type Operation = "people" | "staff" | "properties" | "workers" | "bookings" | "security" | "reports";
+type OperationTarget = { operation: Operation; id?: string; bookingKind?: BookingActivityKind } | null;
 type PersonFilter = "user" | "property_partner";
 type Props = {
   profile: Profile;
@@ -58,6 +65,7 @@ const OPS: [Operation, string, string][] = [
     "Security Operations",
     "Security Operations escalations and account decisions in your coverage",
   ],
+  ["reports", "Reports", "User reports from chats and profiles in your coverage"],
 ];
 export default function AdminDashboard({
   profile,
@@ -98,9 +106,9 @@ export default function AdminDashboard({
     if (returnToInbox) setTab("inbox");
     setReturnToInbox(false);
   }, tab === "operations" && Boolean(operation));
-  function openOperation(next: Operation, id?: string) {
+  function openOperation(next: Operation, id?: string, bookingKind?: BookingActivityKind) {
     setReturnToInbox(tab === "inbox");
-    setOperationTarget({ operation: next, id });
+    setOperationTarget({ operation: next, id, bookingKind });
     setOperation(next);
     setTab("operations");
   }
@@ -111,7 +119,7 @@ export default function AdminDashboard({
     }
     const target = internalActivityDestination(route, id);
     if (target?.operation === "finance") { toast.error("Open Finance Operations from an authorised workspace for this record."); return; }
-    if (target) { openOperation(target.operation, target.id); return; }
+    if (target) { openOperation(target.operation, target.id, target.bookingKind); return; }
     if (["profile", "privacy", "security", "devices", "privacy_policy", "terms_of_service"].includes(route)) { onNavigate?.(route, id); return; }
     toast.error("This update cannot be opened in the current workspace. Your workspace has not changed.");
   }
@@ -187,6 +195,7 @@ export default function AdminDashboard({
       {viewing && (
         <UserProfileModal
           user={viewing}
+          reviewControls={<WorkspaceRestrictionControls userId={viewing.user_id} actorRole="admin"/>}
           adminProfile={profile}
           onClose={() => setViewing(null)}
           onPromote={() => {
@@ -283,7 +292,7 @@ function Overview({
   inboxUnread: number;
   openCommunications: () => void;
 }) {
-  const fmt = (value: unknown) => Number(value || 0).toLocaleString("en-NG");
+  const fmt = (value: unknown) => Number(value || 0).toLocaleString(undefined);
   const cards: { label: string; value: number; target: Operation; note: string; tone: string; mark: string }[] = [
     { label: "Users", value: Number(stats.users || 0), target: "people", note: "Personal accounts in your coverage", tone: "violet", mark: "↗" },
     { label: "Property Partners", value: Number(stats.partners || 0), target: "people", note: "Accommodation providers", tone: "blue", mark: "⌂" },
@@ -388,7 +397,7 @@ function Operations({
         <header className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[radial-gradient(ellipse_at_100%_0%,rgba(124,92,255,.12),transparent_48%),var(--wh-surface)] p-5 sm:p-6">
           <p className="text-[10px] font-bold uppercase tracking-[.15em] text-violet-300">LOCAL CONTROL</p>
           <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">Operations directory</h2>
-          <p className="mt-2 max-w-2xl text-xs leading-5 text-[var(--wh-text-secondary)]">Choose a focused workspace for your assigned coverage. Each record has one canonical home, so the same task is not repeated across sections.</p>
+          <p className="mt-2 max-w-2xl text-xs leading-5 text-[var(--wh-text-secondary)]">Choose a focused workspace for your assigned coverage. Each task lives in one place, so nothing is repeated across sections.</p>
         </header>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {OPS.map(([id, label, note], index) => (
@@ -416,15 +425,20 @@ function Operations({
       {active === "workers" && <Workers onChanged={onRefreshStats} />}{" "}
       {active === "bookings" && (
         <BookingsWorkspace
+          initialKind={target?.operation === "bookings" ? target.bookingKind : undefined}
           initialRecordId={target?.operation === "bookings" ? target.id : undefined}
         />
       )}{" "}
-      {active === "security" && (
+      {active === "reports" && (
+        <AdminReports />
+      )}{" "}
+      {active === "security" && (<>
+        <AccountReviewQueue actorId={profile.user_id} actorRole="admin"/>
         <AdminSecurityCases
           onViewAccount={onView}
           initialCaseId={target?.operation === "security" ? target.id : undefined}
         />
-      )}{" "}
+      </>)}{" "}
     </div>
   );
 }
@@ -521,6 +535,9 @@ function People({ onView }: { onView: (p: Profile) => void }) {
   );
 }
 function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
+  const reviewBusy = useRef(false);
+  const [reviewing,setReviewing] = useState(false);
+  const [credentialReadyFor,setCredentialReadyFor]=useState<string|null>(null);
   const [rows, setRows] = useState<any[]>([]),
     [loading, setLoading] = useState(true),
     [filter, setFilter] = useState("all"),
@@ -561,14 +578,17 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
               : worker.worker_status || "pending") === filter,
         );
   async function review(id: string, decision: "approve" | "reject") {
+    if (reviewBusy.current || decision === 'approve' && credentialReadyFor !== id) return;
     if (decision === "reject" && !reason.trim())
       return toast.error("Enter a rejection reason");
-    const { error } = await supabase.rpc("admin_review_my_branch_worker", {
+    reviewBusy.current = true; setReviewing(true);
+    try {
+    const { error } = await withTimeout(supabase.rpc("admin_review_my_branch_worker", {
       p_worker_id: id,
       p_decision: decision,
       p_reason: decision === "reject" ? reason.trim() : null,
-    });
-    if (error) return toast.error(error.message);
+    }), 15000, 'Review confirmation timed out. Reload the review before retrying.');
+    if (error) throw error;
     toast.success(
       decision === "approve" ? "Worker verified" : "Worker rejected",
     );
@@ -576,6 +596,11 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
     setReason("");
     await load();
     await onChanged();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : (error as {message?:string})?.message || 'The review could not be confirmed. Reload before retrying.');
+    } finally {
+      reviewBusy.current = false; setReviewing(false);
+    }
   }
   if (selected)
     return (
@@ -600,6 +625,7 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
           />
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <WorkerReviewIdentityStatus workerId={selected.user_id} />
+            <WorkerCredentials workerId={selected.user_id} operator onReadyChange={ready=>setCredentialReadyFor(ready?selected.user_id:null)}/>
             {selected.worker_video_url ? (
               <Video title="Skill video" url={selected.worker_video_url} />
             ) : (
@@ -619,11 +645,12 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
                 className="h-10 w-full rounded-xl border border-white/[0.08] bg-[var(--wh-elevated)] px-3 text-xs"
               />
               <div className="flex gap-2">
-                <Button onClick={() => review(selected.user_id, "approve")}>
+                <Button disabled={reviewing || credentialReadyFor!==selected.user_id} onClick={() => review(selected.user_id, "approve")}>
                   Verify worker
                 </Button>
                 <Button
                   danger
+                  disabled={reviewing}
                   onClick={() => review(selected.user_id, "reject")}
                 >
                   Reject
@@ -675,13 +702,13 @@ function Workers({ onChanged }: { onChanged: () => Promise<void> | void }) {
     </Section>
   );
 }
-function BookingsWorkspace({ initialRecordId }: { initialRecordId?: string }) {
+function BookingsWorkspace({ initialRecordId, initialKind }: { initialRecordId?: string; initialKind?: BookingActivityKind }) {
   const [domain, setDomain] = useState<"services" | "apartments" | "hotels">(
-    initialRecordId ? "apartments" : "services",
+    initialKind ?? (initialRecordId ? "apartments" : "services"),
   );
   useEffect(() => {
-    if (initialRecordId) setDomain("apartments");
-  }, [initialRecordId]);
+    setDomain(initialKind ?? (initialRecordId ? "apartments" : "services"));
+  }, [initialRecordId, initialKind]);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4 border-y border-[var(--wh-border-subtle)] py-3">
@@ -689,28 +716,39 @@ function BookingsWorkspace({ initialRecordId }: { initialRecordId?: string }) {
         <WeHouseSelect value={domain} options={[{ value: "services", label: "Worker services" }, { value: "apartments", label: "Apartments" }, { value: "hotels", label: "Hotels" }]} onChange={setDomain} eyebrow="Bookings" title="Record type" ariaLabel="Filter booking records by type" />
       </div>
       {domain === "services" ? (
-        <ServiceBookings />
+        <ServiceBookings initialRecordId={initialKind === "services" ? initialRecordId : undefined} />
       ) : domain === "apartments" ? (
-        <HousingOperationsWorkspace initialRecordId={initialRecordId} />
+        <HousingOperationsWorkspace initialRecordId={!initialKind || initialKind === "apartments" ? initialRecordId : undefined} />
       ) : (
-        <HotelBookings />
+        <HotelBookings initialRecordId={initialKind === "hotels" ? initialRecordId : undefined} />
       )}
     </div>
   );
 }
-function ServiceBookings() {
+function ServiceBookings({ initialRecordId }: { initialRecordId?: string }) {
   const [rows, setRows] = useState<any[]>([]),
     [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setLoadError(null); setRows([]);
     void (async () => {
-      const { data, error } = await supabase.rpc(
+      try {
+      const { data, error } = await withTimeout(supabase.rpc(
         "admin_get_my_branch_worker_bookings",
-      );
-      if (error) toast.error(error.message);
-      setRows(Array.isArray(data) ? data : []);
-      setLoading(false);
+      ), 15000, "Service bookings took too long");
+      if (cancelled) return;
+      if (error || !Array.isArray(data)) throw new Error("Service bookings could not be loaded.");
+      const available = Array.isArray(data) ? data : [];
+      const matched = initialRecordId ? available.filter((row) => [row.id, row.booking_id, row.booking_code].some((value) => String(value) === initialRecordId)) : available;
+      if (initialRecordId && !matched.length) throw new Error("The linked service booking is unavailable in your current coverage.");
+      setRows(matched);
+      } catch (error) {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : "Service bookings could not be loaded.");
+      } finally { if (!cancelled) setLoading(false); }
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [initialRecordId]);
   return (
     <Section
       title="Worker service bookings"
@@ -718,7 +756,7 @@ function ServiceBookings() {
     >
       {loading ? (
         <Loading />
-      ) : rows.length === 0 ? (
+      ) : loadError ? <p role="alert" className="py-6 text-sm text-[var(--wh-text-secondary)]">{loadError} Reopen Bookings to retry.</p> : rows.length === 0 ? (
         <Empty
           title="No service bookings"
           text="There are no Worker service bookings in this coverage."
@@ -742,23 +780,36 @@ function ServiceBookings() {
     </Section>
   );
 }
-function HotelBookings() {
+function HotelBookings({ initialRecordId }: { initialRecordId?: string }) {
   const [rows, setRows] = useState<any[]>([]),
     [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setLoadError(null); setRows([]);
     void (async () => {
-      const { data, error } = await supabase
+      try {
+      let query = supabase
         .from("hotel_bookings")
         .select(
           "booking_id,booking_code,status,payment_status,total_price,check_in,check_out,guest_name,created_at,hotels(name,city,state),hotel_rooms(room_type)",
         )
         .order("created_at", { ascending: false })
         .limit(200);
-      if (error) toast.error(error.message);
-      setRows(data || []);
-      setLoading(false);
+      if (initialRecordId) query = query.eq("booking_id", initialRecordId);
+      const { data, error } = await withTimeout(query, 15000, "Hotel bookings took too long");
+      if (cancelled) return;
+      if (error || !Array.isArray(data)) throw new Error("Hotel bookings could not be loaded.");
+      const available = data || [];
+      const matched = initialRecordId ? available.filter((row) => String(row.booking_id) === initialRecordId) : available;
+      if (initialRecordId && !matched.length) throw new Error("The linked hotel booking is unavailable in your current coverage.");
+      setRows(matched);
+      } catch (error) {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : "Hotel bookings could not be loaded.");
+      } finally { if (!cancelled) setLoading(false); }
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [initialRecordId]);
   return (
     <Section
       title="Hotel stays"
@@ -766,7 +817,7 @@ function HotelBookings() {
     >
       {loading ? (
         <Loading />
-      ) : rows.length === 0 ? (
+      ) : loadError ? <p role="alert" className="py-6 text-sm text-[var(--wh-text-secondary)]">{loadError} Reopen Bookings to retry.</p> : rows.length === 0 ? (
         <Empty
           title="No hotel stays"
           text="There are no hotel reservations in this coverage."
@@ -913,15 +964,18 @@ function Button({
   onClick,
   danger,
   secondary,
+  disabled=false,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   danger?: boolean;
   secondary?: boolean;
+  disabled?:boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`min-h-10 flex-1 rounded-xl px-3 text-[10px] font-semibold ${danger ? "border border-red-500/20 bg-red-500/10 text-red-300" : secondary ? "border border-white/[0.08] bg-white/[0.04] text-[var(--wh-text-secondary)]" : "bg-violet-500 text-white"}`}
     >
       {children}
@@ -959,14 +1013,10 @@ function Empty({ title, text }: { title: string; text: string }) {
   );
 }
 function Loading() {
-  return (
-    <div className="grid min-h-40 place-items-center">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-    </div>
-  );
+  return <WeHouseLoadingState compact label="Loading" />;
 }
 function money(v: any) {
-  return `₦${Number(v || 0).toLocaleString("en-NG")}`;
+  return `${formatMoney(Number(v || 0))}`;
 }
 function dateText(v: any) {
   if (!v) return "Date unavailable";

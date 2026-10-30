@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/types';
+import {confirmIdentityReviewSubmission} from '@/lib/identitySubmission';
 
 type Props = {
   profile: Profile;
@@ -35,7 +36,7 @@ const STEP_LABELS: Record<ChallengeStep, string> = {
 };
 
 export default function WorkerIdentityCheck({ profile, workspace, status, rejectionReason, onSaved }: Props) {
-  const identityLabel = workspace === 'property_partner' ? 'Property Partner' : 'Worker';
+  const identityLabel = workspace === 'property_partner' ? 'Property Partner' : 'Service Provider';
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const humanRef = useRef<any>(null);
@@ -374,17 +375,20 @@ export default function WorkerIdentityCheck({ profile, workspace, status, reject
       notice_version: IDENTITY_NOTICE_VERSION,
     };
 
-    const { error } = await supabase.rpc('complete_my_account_identity_check', {
-      p_photo_path: path,
-      p_face_match_score: faceMatchScore,
-      p_liveness_score: livenessScore,
-      p_anti_spoof_score: antiSpoofScore,
-      p_challenge_result: challengeResult,
-      p_consent: true,
-    });
-
-    if (error) {
-      await supabase.storage.from('worker-identity-private').remove([path]);
+    try {
+      await confirmIdentityReviewSubmission(supabase.rpc('complete_my_account_identity_check', {
+        p_photo_path: path,
+        p_face_match_score: faceMatchScore,
+        p_liveness_score: livenessScore,
+        p_anti_spoof_score: antiSpoofScore,
+        p_challenge_result: challengeResult,
+        p_consent: true,
+      }),workspace);
+    } catch(error) {
+      // The server may have committed before its response was lost. Deleting
+      // the uploaded reference here would corrupt a pending identity review.
+      stopCamera();
+      await Promise.resolve().then(()=>onSaved()).catch(()=>undefined);
       throw error;
     }
 
@@ -396,7 +400,7 @@ export default function WorkerIdentityCheck({ profile, workspace, status, reject
   if (awaitingReview) {
     return (
       <section className="rounded-2xl border border-violet-500/20 bg-violet-500/[.05] p-4">
-        <p className="text-xs font-semibold text-violet-200">Live check awaiting WeHouse review</p>
+        <p className="text-sm font-semibold text-violet-800 dark:text-violet-200">Live check awaiting WeHouse review</p>
         <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-secondary)]">Your private reference is saved. A different authorised WeHouse Team member must review it before this {identityLabel} workspace can go live. You do not need to submit it again.</p>
       </section>
     );
@@ -405,7 +409,7 @@ export default function WorkerIdentityCheck({ profile, workspace, status, reject
   if (passed) {
     return (
       <section className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[.04] p-4">
-        <p className="text-xs font-semibold text-emerald-300">Private face check complete</p>
+        <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Private face check complete</p>
         <p className="mt-1 text-[9px] leading-relaxed text-[var(--wh-text-muted)]">Your reference selfie is stored privately with your {identityLabel} identity. The live camera check was not recorded or saved as a video.</p>
       </section>
     );
@@ -416,7 +420,7 @@ export default function WorkerIdentityCheck({ profile, workspace, status, reject
       <div className="border-b border-[var(--wh-border-subtle)] p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[8px] font-bold uppercase tracking-[.16em] text-violet-300">PRIVATE FACE CHECK</p>
+            <p className="text-xs font-bold uppercase tracking-[.16em] text-violet-800 dark:text-violet-300">PRIVATE FACE CHECK</p>
             <h3 className="mt-1 text-lg font-bold">Confirm your {identityLabel} identity</h3>
           </div>
           <span className="shrink-0 rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] px-2 py-1 text-[8px] font-semibold text-[var(--wh-text-secondary)]">PRIVATE</span>
@@ -427,7 +431,7 @@ export default function WorkerIdentityCheck({ profile, workspace, status, reject
       {(stage === 'intro' || stage === 'loading') && (
         <div className="space-y-4 p-4 sm:p-5">
           <div className="border-b border-[var(--wh-border-subtle)] pb-4">
-            <p className="text-xs font-semibold text-white">Private identity check</p>
+            <p className="text-sm font-semibold text-[var(--wh-text)]">Private identity check</p>
             <p className="mt-1 text-[10px] leading-relaxed text-[var(--wh-text-secondary)]">
               WeHouse uses a live camera check to confirm that a real person is operating this account. We save a private identity reference for account security and future identity checks when needed. It is never shown on your public profile and can only be accessed by authorised WeHouse reviewers.
             </p>

@@ -5,14 +5,15 @@ import test from "node:test";
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("Bookings use one compact presentation language", async () => {
-  const [bookings, journey, css] = await Promise.all([
+  const [bookings, journey, css, priceSummary] = await Promise.all([
     read("src/pages/MyReservations.tsx"),
     read("src/components/PropertyBookingJourney.tsx"),
     read("src/index.css"),
+    read("src/components/ShortLetPaymentSummary.tsx"),
   ]);
 
-  assert.match(bookings, /divide-y divide-\[var\(--wh-border-subtle\)\]/);
-  assert.match(bookings, /overflow-x-auto/);
+  assert.match(priceSummary, /divide-y divide-\[var\(--wh-border-subtle\)\]/);
+  assert.match(bookings, /flex flex-wrap items-center gap-x-1/);
   assert.match(bookings, /Booking filters/);
   assert.match(bookings, /text-\[13px\]/);
   assert.match(bookings, /font-mono text-xs font-bold/);
@@ -44,7 +45,7 @@ test("Login motion is subtle and respects reduced motion", async () => {
 
   assert.match(login, /<div key=\{mode\} className="wh-auth-form">/);
   assert.doesNotMatch(login, /text-\[28px\]/);
-  assert.match(css, /whAuthStateIn 200ms/);
+  assert.match(css, /whAuthStateIn var\(--wh-motion-panel\)/);
   // Only the changed form rises; the retired whole-form scale is not required.
   // Browser tests separately inspect real computed styles and reduced motion.
   const entrance = css.slice(css.indexOf("@keyframes whAuthStateIn"), css.indexOf("@media (prefers-reduced-motion"));

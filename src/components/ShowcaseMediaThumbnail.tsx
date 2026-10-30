@@ -7,7 +7,13 @@ export default function ShowcaseMediaThumbnail(props: Props) {
   return <Thumbnail key={`${props.mediaType}:${props.src || ''}`} {...props} />;
 }
 function Thumbnail({ src, mediaType, alt, className = 'h-full w-full object-cover' }: Props) {
-  const [ready, setReady] = useState(false), [failed, setFailed] = useState(false), [poster, setPoster] = useState('');
+  // Opening the post owns the video request. Extracting frames while scrolling
+  // can download megabytes per tile, even with preload="metadata".
+  if (mediaType === 'video') return <span data-media-thumbnail data-media-state="ready" className="relative flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden bg-[var(--wh-elevated)] px-4 text-[var(--wh-text-secondary)]"><span aria-hidden="true" className="grid h-14 w-14 place-items-center rounded-full border border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)]"><Play size={24} /></span><span className="text-center text-xs font-medium">Open video</span></span>;
+  return <PhotoThumbnail src={src} alt={alt} className={className} />;
+}
+function PhotoThumbnail({ src, alt, className }: Omit<Props, 'mediaType'>) {
+  const [ready, setReady] = useState(false), [failed, setFailed] = useState(false);
   const [nearViewport, setNearViewport] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -27,16 +33,7 @@ function Thumbnail({ src, mediaType, alt, className = 'h-full w-full object-cove
   const loaded = () => { setReady(true); setFailed(false); };
   return <span ref={root} data-media-thumbnail data-media-state={failed && !ready ? 'unavailable' : ready ? 'ready' : 'loading'} className="relative block h-full w-full overflow-hidden bg-[var(--wh-elevated)]">
     {!ready && !failed && <span aria-hidden="true" className="absolute inset-0 bg-[var(--wh-interactive)] motion-safe:animate-pulse" />}
-    {src && mediaType === 'image' && <img src={src} alt={alt} loading="lazy" decoding="async" onLoad={loaded} onError={() => setFailed(true)} className={`${className} ${ready ? '' : 'opacity-0'}`} />}
-    {mediaType === 'video' && (poster ? <img src={poster} alt={alt} className={className} onError={() => { setPoster(''); setFailed(true); setReady(false); }} /> : src && nearViewport ? <video src={src} muted playsInline preload="metadata" crossOrigin="anonymous" aria-hidden="true" className={`${className} ${ready ? '' : 'opacity-0'}`}
-      onLoadedMetadata={event => { const video = event.currentTarget; if (video.duration > 0) video.currentTime = Math.min(.1, video.duration / 2); }}
-      onLoadedData={event => { if (event.currentTarget.videoWidth > 0) loaded(); }}
-      onSeeked={event => {
-        const video = event.currentTarget; if (!video.videoWidth || !video.videoHeight) return;
-        loaded(); video.pause();
-        try { const canvas = document.createElement('canvas'); canvas.width = Math.min(480, video.videoWidth); canvas.height = Math.max(1, Math.round(canvas.width * video.videoHeight / video.videoWidth)); const context = canvas.getContext('2d'); if (context) { context.drawImage(video, 0, 0, canvas.width, canvas.height); setPoster(canvas.toDataURL('image/jpeg', .75)); } } catch { /* Keep the decoded frame when canvas access is unavailable. */ }
-      }} onError={() => setFailed(true)} /> : null)}
-    {failed && !ready && <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-2 text-center text-xs leading-4 text-[var(--wh-text-secondary)]">{mediaType === 'image' ? <ImageOff size={20} aria-hidden="true" /> : <Play size={20} aria-hidden="true" />}<span>{mediaType === 'image' ? 'Photo unavailable' : 'Preview unavailable · open video'}</span></span>}
-    {mediaType === 'video' && ready && <span aria-hidden="true" className="pointer-events-none absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/65 text-white"><Play size={14} fill="currentColor" /></span>}
+    {src && <img src={src} alt={alt} loading="lazy" decoding="async" onLoad={loaded} onError={() => setFailed(true)} className={`${className} ${ready ? '' : 'opacity-0'}`} />}
+    {failed && !ready && <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-2 text-center text-xs leading-4 text-[var(--wh-text-secondary)]"><ImageOff size={20} aria-hidden="true" /><span>Photo unavailable</span></span>}
   </span>;
 }

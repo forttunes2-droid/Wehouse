@@ -1,10 +1,15 @@
+import AccountRecoveryCenter from '@/components/AccountRecoveryCenter';
+import {guestReturnDestination} from '@/lib/navigationRoute';
 import { readPropertyLinkIntent, savePropertyLinkIntent } from "@/lib/propertyLinkIntent";
+import EmailChangeFinisher from "@/components/EmailChangeFinisher";
+import AppErrorState from '@/components/AppErrorState';
 import { parsePropertyShareUrl, type SharedProperty } from "@/lib/propertyShare";
 import SharedPropertyWorkspaceView from "@/components/SharedPropertyWorkspaceView";
 import { publicPropertyDestination } from "@/lib/publicPropertyDestination";
 import { workspaceEntryPage, accountBackPage } from "@/lib/workspaceNavigation";
 import { createRefreshScheduler } from "@/lib/refreshScheduler";
 import { playNotificationSound, unlockNotificationAudio } from "@/lib/notificationSound";
+import { startNativePush } from '@/lib/nativePush';
 import {
   useState,
   useEffect,
@@ -16,7 +21,6 @@ import {
 } from "react";
 import {
   useAuth,
-  canCreateListings,
   isCreator as checkCreator,
 } from "@/hooks/useAuth";
 import { CreatorAuthProvider } from "@/hooks/useCreatorAuth";
@@ -29,6 +33,7 @@ import {
 import DesktopLayout from "@/components/DesktopLayout";
 import PersonalBottomNav from "@/components/PersonalBottomNav";
 import NewLoginAlert from "@/components/NewLoginAlert";
+import LegalGate from "@/components/LegalGate";
 import { getNavForRole } from "@/lib/desktop-nav";
 import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
@@ -37,6 +42,13 @@ import { toast } from "sonner";
 import type { WorkspaceChoice } from "@/pages/AccountCenter";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { workspaceNavigationKey } from "@/lib/workspaceSession";
+import {
+  buildNavigationHash,
+  isRestorableNavigationPage,
+  parseNavigationRoute,
+  parseNavigationRouteParams,
+  type NavigationRouteParams,
+} from "@/lib/navigationRoute";
 import { workspaceForActivity } from "@/lib/workspaceActivityAwareness";
 import { workspaceLabel } from "@/lib/workspacePresentation";
 import { clearInvitationIntent, parseInvitationToken, readInvitationIntent } from "@/lib/resourceInvitation";
@@ -69,11 +81,12 @@ type ConversationUnreadRow = {
   last_message_at: string | null;
 };
 type IncomingMessageRow = {
+  id?: string | number;
   sender_id?: string;
   conversation_id?: string;
 };
 type AnnouncementRecipientRow = { announcement_id?: string };
-type NavigationHistoryState = { page?: NavPage; workspace?: WorkspaceChoice; entry_id?: string };
+type NavigationHistoryState = { page?: NavPage; workspace?: WorkspaceChoice; entry_id?: string; route?: unknown };
 
 function navigationEntryId() {
   try { return crypto.randomUUID(); } catch { return `nav-${Date.now()}-${Math.random().toString(36).slice(2)}`; }
@@ -86,6 +99,7 @@ function pageScrollSurface(container: HTMLElement | null): HTMLElement | null {
     ? container : document.scrollingElement as HTMLElement | null;
 }
 
+const AccountAuthenticatorGate = lazy(() => import('@/components/AccountAuthenticatorGate'));
 const Search = lazy(() => import("@/pages/Search"));
 const Saved = lazy(() => import("@/pages/Saved"));
 const FollowedSearches = lazy(() => import("@/pages/FollowedSearches"));
@@ -99,7 +113,6 @@ const AccountCenter = lazy(() => import("@/pages/AccountCenter"));
 const PrivacySecuritySettings = lazy(
   () => import("@/pages/PrivacySecuritySettings"),
 );
-const CreateListing = lazy(() => import("@/pages/CreateListing"));
 const WorkerSetup = lazy(() => import("@/pages/WorkerSetup"));
 const WorkerVerification = lazy(() => import("@/pages/WorkerVerification"));
 const WorkerDashboard = lazy(() => import("@/pages/WorkerDashboard"));
@@ -148,66 +161,16 @@ function RouteTransitionFallback() {
     </div>
   );
 }
-function ErrorFallback({ reset }: { reset: () => void }) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--wh-bg)] px-5 text-[var(--wh-text)]">
-      <div className="max-w-sm text-center">
-        <h2 className="text-lg font-semibold">Something went wrong</h2>
-        <p className="mb-6 mt-2 text-sm text-[var(--wh-text-secondary)]">
-          The app encountered an error. Please try again.
-        </p>
-        <button
-          onClick={reset}
-          className="h-11 rounded-xl bg-violet-500 px-6 text-sm font-semibold"
-        >
-          Reload App
-        </button>
-      </div>
-    </div>
-  );
-}
+function ErrorFallback({ reset }: { reset: () => void }) {return <AppErrorState onRetry={reset}/>;}
 
 const NAV_STORAGE_KEY = "wh_navpage";
-const RESTORABLE_PAGES: NavPage[] = [
-  "search",
-  "saved",
-  "followed_searches",
-  "roommate",
-  "activity",
-  "profile",
-  "account",
-  "privacy",
-  "security",
-  "devices",
-  "creator",
-  "admin",
-  "staff_dashboard",
-  "worker_dashboard",
-  "worker_verification",
-  "worker_setup",
-  "worker_discovery",
-  "worker_categories",
-  "new_listing",
-  "hotels",
-  "property_partner",
-  "hosting",
-  "hotel_operations",
-  "my_bookings",
-  "my_reservations",
-  "conversation",
-  "messages",
-  "notifications",
-  "chat",
-  "profile_edit",
-  "privacy_policy",
-  "terms_of_service",
-];
 const ACCOUNT_PAGES = new Set<NavPage>([
   "profile",
   "account",
   "privacy",
   "security",
   "devices",
+  "account_reviews",
   "profile_edit",
 ]);
 const USER_PAGES = new Set<NavPage>([
@@ -229,7 +192,7 @@ const USER_PAGES = new Set<NavPage>([
   "my_reservations",
 ]);
 function isRestorable(p: string): p is NavPage {
-  return RESTORABLE_PAGES.includes(p as NavPage);
+  return isRestorableNavigationPage(p);
 }
 function roleRootFor(role: string): NavPage {
   return role === "creator"
@@ -271,9 +234,9 @@ function normalizePageForRole(
       ? page
       : "worker_dashboard";
   if (role === "creator")
-    return page === "creator" || page === "new_listing" ? page : "creator";
+    return "creator";
   if (role === "admin")
-    return page === "admin" || page === "new_listing" ? page : "admin";
+    return "admin";
   if (role === "staff") return "staff_dashboard";
   if (role === "worker")
     return ["worker_dashboard", "worker_setup", "worker_verification"].includes(
@@ -302,8 +265,14 @@ export default function App() {
     try {
       savePropertyLinkIntent(null, sessionStorage);
       if (parsePropertyShareUrl(window.location.href)) {
-        const page = window.history.state?.page;
-        window.history.replaceState(window.history.state, '', page && page !== 'login' ? `#${page}` : '#search');
+        const state = window.history.state as NavigationHistoryState | null;
+        const page: NavPage = state?.page && isRestorable(state.page) ? state.page : "search";
+        const route = state?.page === page ? parseNavigationRouteParams(state?.route) : {};
+        window.history.replaceState(
+          { ...state, page, route },
+          "",
+          buildNavigationHash(page, route),
+        );
       }
     } catch {}
   }, []);
@@ -326,19 +295,31 @@ export default function App() {
 }
 
 function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: ReturnType<typeof useAuth>; propertyIntent: SharedProperty | null; consumePropertyIntent: () => void }) {
-  const [navPage, setNavPage] = useState<NavPage>("search"),
+  const [initialRoute] = useState(() => parseNavigationRoute(window.location.hash));
+  const initialParams = initialRoute?.params || {};
+  const initialHotelId = Number(initialParams.hotelId || initialParams.id);
+  const [navPage, setNavPage] = useState<NavPage>(() => initialRoute && isRestorable(initialRoute.page) ? initialRoute.page : "search"),
     [conversationOpen, setConversationOpen] = useState(false),
-    [detailId, setDetailId] = useState<string | null>(null),
-    [hotelId, setHotelId] = useState<number | null>(null),
-    [hotelRoomId, setHotelRoomId] = useState<number | null>(null),
-    [hotelRatePlanId, setHotelRatePlanId] = useState<number | null>(null),
-    [hotelCheckIn, setHotelCheckIn] = useState(""),
-    [hotelCheckOut, setHotelCheckOut] = useState(""),
-    [chatConvId, setChatConvId] = useState<string | null>(null),
-    [chatPeerId, setChatPeerId] = useState<string | null>(null),
-    [bookingContextId, setBookingContextId] = useState<string | null>(null),
-    [roommateContextId, setRoommateContextId] = useState<string | null>(null),
-    [workerCategory, setWorkerCategory] = useState<string | null>(null),
+    [detailId, setDetailId] = useState<string | null>(() => initialRoute?.page === "detail" ? initialParams.id || null : null),
+    [hotelId, setHotelId] = useState<number | null>(() => Number.isSafeInteger(initialHotelId) && initialHotelId > 0 && ["hotel_detail", "hotel_booking"].includes(initialRoute?.page || "") ? initialHotelId : null),
+    [hotelRoomId, setHotelRoomId] = useState<number | null>(() => {
+      const value = Number(initialParams.roomId);
+      return Number.isSafeInteger(value) && value > 0 ? value : null;
+    }),
+    [hotelRatePlanId, setHotelRatePlanId] = useState<number | null>(() => {
+      const value = Number(initialParams.ratePlanId);
+      return Number.isSafeInteger(value) && value > 0 ? value : null;
+    }),
+    [hotelCheckIn, setHotelCheckIn] = useState(() => initialParams.checkIn || ""),
+    [hotelCheckOut, setHotelCheckOut] = useState(() => initialParams.checkOut || ""),
+    [chatConvId, setChatConvId] = useState<string | null>(() => ["conversation", "chat", "messages"].includes(initialRoute?.page || "") ? initialParams.conversationId || initialParams.id || null : null),
+    [chatPeerId, setChatPeerId] = useState<string | null>(() => ["conversation", "chat", "messages"].includes(initialRoute?.page || "") ? initialParams.peerId || null : null),
+    [bookingContextId, setBookingContextId] = useState<string | null>(() => ["my_reservations", "my_bookings"].includes(initialRoute?.page || "") ? initialParams.bookingId || initialParams.id || null : null),
+    [roommateContextId, setRoommateContextId] = useState<string | null>(() => initialRoute?.page === "roommate" ? initialParams.roommateId || initialParams.id || null : null),
+    [workerCategory, setWorkerCategory] = useState<string | null>(() => initialRoute?.page === "worker_discovery" ? initialParams.category || null : null),
+    [workerProfileId, setWorkerProfileId] = useState<string | null>(() => initialRoute?.page === "worker_discovery" ? initialParams.id || null : null),
+    [workerExperienceId, setWorkerExperienceId] = useState<string | null>(() => initialRoute?.page === "worker_discovery" ? initialParams.experienceId || null : null),
+    [friendConversationId, setFriendConversationId] = useState<string | null>(() => initialRoute?.page === "activity" ? initialParams.friendId || null : null),
     [savedIds, setSavedIds] = useState<Set<string>>(new Set()),
     [unreadCount, setUnreadCount] = useState(0),
     [supportUnreadCount, setSupportUnreadCount] = useState(0),
@@ -365,8 +346,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   }, [baseProfile?.user_id, baseProfile?.pref_push_notif]);
   const { access: workspaceAccess, active: activeWorkspace, setActive: setActiveWorkspace, error: workspaceError, reload: reloadWorkspaces } = useWorkspaceAccess(baseProfile?.user_id);
   const workspaceReady = Boolean(baseProfile && workspaceAccess?.identity?.user_id === baseProfile.user_id);
-  const otherWorkspaceRoles = workspaceReady && workspaceAccess?.personal_workspace
-    ? [...new Set((workspaceAccess.privileged_workspaces || []).map(item => item.role).filter(role => role !== 'hosting'))].sort().join(',')
+  const otherWorkspaceRoles = workspaceReady
+    ? [...new Set((workspaceAccess?.privileged_workspaces || []).map(item => item.role).filter(role => role !== 'hosting'))].sort().join(',')
     : '';
   useEffect(() => {
     if (!baseProfile?.user_id || !otherWorkspaceRoles) {
@@ -446,8 +427,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         : {}),
     };
   }, [baseProfile, effectiveRole, activeWorkspace, activeWorkspaceGrant]);
-  const canList = canCreateListings(effectiveRole),
-    isCreator = checkCreator(effectiveRole),
+  const isCreator = checkCreator(effectiveRole),
     userRole = effectiveRole,
     isStaffRole = userRole === "staff",
     isAdminRole = userRole === "admin",
@@ -466,6 +446,59 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [initialNavigationEntryId] = useState(() => navigationEntryId()),
     navigationEntryRef = useRef<string>(initialNavigationEntryId);
   const [navigationEntryKey, setNavigationEntryKey] = useState(initialNavigationEntryId);
+  const paramsForPage = useCallback((page: NavPage, supplied?: NavigationRouteParams): NavigationRouteParams => {
+    const params = parseNavigationRouteParams(supplied);
+    switch (page) {
+      case "detail":
+        return { id: params.id ?? detailId ?? undefined };
+      case "hotel_detail":
+        return { hotelId: params.hotelId ?? (hotelId ? String(hotelId) : undefined) };
+      case "hotel_booking":
+        return {
+          hotelId: params.hotelId ?? (hotelId ? String(hotelId) : undefined),
+          roomId: params.roomId ?? (hotelRoomId ? String(hotelRoomId) : undefined),
+          ratePlanId: params.ratePlanId ?? (hotelRatePlanId ? String(hotelRatePlanId) : undefined),
+          checkIn: params.checkIn ?? hotelCheckIn,
+          checkOut: params.checkOut ?? hotelCheckOut,
+        };
+      case "conversation":
+        return {
+          conversationId: params.conversationId ?? params.id ?? chatConvId ?? undefined,
+          peerId: params.peerId ?? chatPeerId ?? undefined,
+        };
+      case "my_reservations":
+        return { bookingId: params.bookingId ?? params.id ?? bookingContextId ?? undefined };
+      case "roommate":
+        return { roommateId: params.roommateId ?? params.id ?? roommateContextId ?? undefined };
+      case "worker_discovery":
+        return { id: params.id ?? workerProfileId ?? undefined, experienceId:params.experienceId??workerExperienceId??undefined, category: params.category ?? workerCategory ?? undefined };
+      case "activity":
+        return { friendId: params.friendId ?? friendConversationId ?? undefined };
+      default:
+        return {};
+    }
+  }, [detailId, hotelId, hotelRoomId, hotelRatePlanId, hotelCheckIn, hotelCheckOut, chatConvId, chatPeerId, bookingContextId, roommateContextId, workerCategory, workerProfileId, workerExperienceId, friendConversationId]);
+  const restoreRouteParams = useCallback((page: NavPage, value: unknown) => {
+    const params = parseNavigationRouteParams(value);
+    setDetailId(page === "detail" ? params.id || null : null);
+    const hotelPage = page === "hotel_detail" || page === "hotel_booking";
+    const parsedHotelId = Number(params.hotelId || params.id);
+    setHotelId(hotelPage && Number.isSafeInteger(parsedHotelId) && parsedHotelId > 0 ? parsedHotelId : null);
+    const parsedRoomId = Number(params.roomId);
+    setHotelRoomId(page === "hotel_booking" && Number.isSafeInteger(parsedRoomId) && parsedRoomId > 0 ? parsedRoomId : null);
+    const parsedRatePlanId = Number(params.ratePlanId);
+    setHotelRatePlanId(page === "hotel_booking" && Number.isSafeInteger(parsedRatePlanId) && parsedRatePlanId > 0 ? parsedRatePlanId : null);
+    setHotelCheckIn(page === "hotel_booking" ? params.checkIn || "" : "");
+    setHotelCheckOut(page === "hotel_booking" ? params.checkOut || "" : "");
+    setChatConvId(page === "conversation" ? params.conversationId || params.id || null : null);
+    setChatPeerId(page === "conversation" ? params.peerId || null : null);
+    setBookingContextId(page === "my_reservations" ? params.bookingId || params.id || null : null);
+    setRoommateContextId(page === "roommate" ? params.roommateId || params.id || null : null);
+    setWorkerProfileId(page === "worker_discovery" ? params.id || null : null);
+    setWorkerExperienceId(page === "worker_discovery" ? params.experienceId || null : null);
+    setFriendConversationId(page === "activity" ? params.friendId || null : null);
+    setWorkerCategory(page === "worker_discovery" ? params.category || null : null);
+  }, []);
   const roleRoot = useCallback(
     (): NavPage => roleRootFor(userRole),
     [userRole],
@@ -511,7 +544,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       );
       setNavPage(destination);
       navHistoryRef.current = [destination];
-      window.history.replaceState({ page: destination, workspace, entry_id: navigationEntryRef.current }, "", `#${destination}`);
+      window.history.replaceState({ page: destination, workspace, entry_id: navigationEntryRef.current }, "", buildNavigationHash(destination));
       try {
         localStorage.setItem(workspaceNavigationKey(baseProfile.user_id, workspace), destination);
       } catch {}
@@ -524,7 +557,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       if (!baseProfile) return;
       const destination: NavPage =
         workspace === "worker"
-          ? baseProfile.worker_status === "profile_under_review" ? "worker_dashboard" : "worker_setup"
+          ? "worker_dashboard"
           : "property_partner";
       setChatConvId(null);
       setChatPeerId(null);
@@ -545,7 +578,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         window.history.replaceState(
           { page: destination, workspace, entry_id: navigationEntryRef.current },
           "",
-          `#${destination}`,
+          buildNavigationHash(destination),
         );
       } catch {}
     },
@@ -557,10 +590,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     restoredRef.current = true;
     if (!auth.profile) return;
     const role = effectiveRole;
-    const hashRoute = (window.location.hash || "")
-      .replace(/^#/, "")
-      .split("?")[0];
-    if (hashRoute === "payment-return" || hashRoute === "payment_return") {
+    const route = initialRoute;
+    if (route?.page === "payment-return" || route?.page === "payment_return") {
       queueMicrotask(() => { setNavPage("payment_return"); setNavigationReady(true); });
       navHistoryRef.current = ["payment_return"];
       return;
@@ -570,20 +601,38 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       const raw = localStorage.getItem(navigationKey);
       if (raw && isRestorable(raw)) saved = raw;
     } catch {}
-    const safe = normalizePageForRole(
+    const requestedPage = route && isRestorable(route.page) ? route.page : null;
+    const normalized = normalizePageForRole(
       role,
-      saved || roleRootFor(role),
+      requestedPage || saved || roleRootFor(role),
       Boolean(auth.profile.profile_complete),
     );
+    const routeHotelId = Number(route?.params.hotelId || route?.params.id);
+    const routeContextComplete = normalized === "detail"
+      ? Boolean(route?.params.id)
+      : normalized === "hotel_detail"
+        ? Number.isSafeInteger(routeHotelId) && routeHotelId > 0
+        : normalized === "hotel_booking"
+          ? Number.isSafeInteger(routeHotelId) && routeHotelId > 0
+            && Number.isSafeInteger(Number(route?.params.roomId)) && Number(route?.params.roomId) > 0
+            && Number.isSafeInteger(Number(route?.params.ratePlanId)) && Number(route?.params.ratePlanId) > 0
+          : true;
+    const safe = routeContextComplete ? normalized : roleRootFor(role);
+    const routeParams = requestedPage ? paramsForPage(safe, route?.params) : paramsForPage(safe);
     queueMicrotask(() => { setNavPage(safe); setNavigationReady(true); });
     navHistoryRef.current = [safe];
     try {
       localStorage.setItem(navigationKey, safe);
       navigationEntryRef.current = navigationEntryId();
       setNavigationEntryKey(navigationEntryRef.current);
-      window.history.replaceState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
+      restoreRouteParams(safe, routeParams);
+      window.history.replaceState(
+        { page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current, route: routeParams },
+        "",
+        buildNavigationHash(safe, routeParams),
+      );
     } catch {}
-  }, [auth.isLoading, auth.profile, workspaceReady, effectiveRole, navigationKey]);
+  }, [auth.isLoading, auth.profile, workspaceReady, effectiveRole, navigationKey, initialRoute, paramsForPage, restoreRouteParams, activeWorkspace]);
   useEffect(() => {
     if (!userRole || auth.isLoading || !navigationReady) return;
     const safe = normalizePageForRole(
@@ -598,11 +647,16 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       localStorage.setItem(navigationKey, safe);
       navigationEntryRef.current = navigationEntryId();
       setNavigationEntryKey(navigationEntryRef.current);
-      window.history.replaceState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
+      const routeParams = paramsForPage(safe);
+      window.history.replaceState(
+        { page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current, route: routeParams },
+        "",
+        buildNavigationHash(safe, routeParams),
+      );
     } catch {}
-  }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole, navigationReady, navigationKey, activeWorkspace]);
+  }, [auth.isLoading, baseProfile?.profile_complete, navPage, userRole, navigationReady, navigationKey, activeWorkspace, paramsForPage]);
   const handleSetNavPage = useCallback(
-    (page: NavPage) => {
+    (page: NavPage, suppliedRoute?: NavigationRouteParams) => {
       window.dispatchEvent(new Event("wehouse:navigation"));
       pageScrollPositionsRef.current.set(
         navigationEntryRef.current,
@@ -613,24 +667,39 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         page,
         Boolean(baseProfile?.profile_complete),
       );
+      const route = paramsForPage(safe, suppliedRoute);
       const current = navHistoryRef.current.at(-1);
-      if (safe !== current) {
+      if (safe !== current || window.location.hash !== buildNavigationHash(safe, route)) {
         // The signed-out landing page has no router state until its first link.
         // Preserve it so Back from a public legal page returns to sign-in.
         if (!window.history.state?.page) {
           navigationEntryRef.current = navigationEntryId();
           setNavigationEntryKey(navigationEntryRef.current);
-          window.history.replaceState({ page: current || "search", workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "");
+          window.history.replaceState(
+            { page: current || "search", workspace: activeWorkspace, entry_id: navigationEntryRef.current },
+            "",
+            buildNavigationHash(current || "search"),
+          );
         }
         navigationEntryRef.current = navigationEntryId();
         setNavigationEntryKey(navigationEntryRef.current);
-        window.history.pushState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
+        window.history.pushState(
+          { page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current, route },
+          "",
+          buildNavigationHash(safe, route),
+        );
         navHistoryRef.current = [...navHistoryRef.current, safe];
+      } else {
+        window.history.replaceState(
+          { ...window.history.state, page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current, route },
+          "",
+          buildNavigationHash(safe, route),
+        );
       }
       setNavPage(safe);
       if (isRestorable(safe)) localStorage.setItem(navigationKey, safe);
     },
-    [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace],
+    [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace, paramsForPage],
   );
   useEffect(() => {
     const h = (e: PopStateEvent) => {
@@ -643,6 +712,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         s.page,
         Boolean(baseProfile?.profile_complete),
       );
+      const route = paramsForPage(safe, parseNavigationRouteParams(s.route));
+      restoreRouteParams(safe, route);
       pageScrollPositionsRef.current.set(
         navigationEntryRef.current,
         pageScrollSurface(pageScrollRef.current)?.scrollTop || 0,
@@ -650,7 +721,11 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       navigationEntryRef.current = s.entry_id || navigationEntryId();
       setNavigationEntryKey(navigationEntryRef.current);
       if (safe !== s.page || s.workspace !== activeWorkspace || !s.entry_id)
-        window.history.replaceState({ page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current }, "", `#${safe}`);
+        window.history.replaceState(
+          { page: safe, workspace: activeWorkspace, entry_id: navigationEntryRef.current, route },
+          "",
+          buildNavigationHash(safe, route),
+        );
       setNavPage(safe);
       navHistoryRef.current =
         navHistoryRef.current.length > 1
@@ -660,7 +735,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     };
     window.addEventListener("popstate", h);
     return () => window.removeEventListener("popstate", h);
-  }, [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace]);
+  }, [baseProfile?.profile_complete, userRole, navPage, navigationKey, activeWorkspace, paramsForPage, restoreRouteParams]);
   useEffect(() => {
     let frame = 0;
     let retry = 0;
@@ -807,7 +882,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (String(message.sender_id || "") === uid) return;
           void count();
           if (!alertsEnabled) return;
-          void playNotificationSound(uid);
+          void playNotificationSound(uid, { tone: "chat", key: `message:${String(message.id ?? message.conversation_id)}` });
           toast("New message", {
             description: "Open Inbox to read it.",
             action: {
@@ -833,7 +908,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (String(message.sender_id || "") === uid) return;
           void count();
           if (!alertsEnabled) return;
-          void playNotificationSound(uid);
+          void playNotificationSound(uid, { tone: "chat", key: `booking-message:${String(message.id ?? message.conversation_id)}` });
           toast("New service message", {
             description: "Open the conversation to read it.",
             action: {
@@ -851,7 +926,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           if (String(message.sender_id || "") === uid) return;
           void count();
           if (!alertsEnabled) return;
-          void playNotificationSound(uid);
+          void playNotificationSound(uid, { tone: "chat", key: `hotel-message:${String(message.id ?? message.conversation_id)}` });
           toast("New hotel message", {
             description: "Open Inbox to read it.",
             action: {
@@ -898,7 +973,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             if (!target) return;
             window.dispatchEvent(new Event('wehouse:workspace-activity'));
             if (alertsEnabled) {
-              void playNotificationSound(uid);
+              void playNotificationSound(uid, { key: `activity:${audience.activity_event_id}` });
               toast(`New update in ${workspaceLabel(target)}`, {
                 id: `workspace:${target}:${audience.activity_event_id}`,
                 description: 'Open that workspace to see its update.',
@@ -914,6 +989,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           );
           if (!event) return;
           const type = String(event.type || "");
+          if (['workspace_access_changed','account_review_update'].includes(type)) window.dispatchEvent(new Event('wehouse:workspace-access-changed'));
           if (["new_device_login", "device_confirmation_pending"].includes(type))
             return;
           const destination = resolveActivityDestination(event);
@@ -924,7 +1000,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
           )
             return;
           if (!alertsEnabled) return;
-          void playNotificationSound(uid);
+          void playNotificationSound(uid, { tone: /pay|refund|payout|security|password|device|verification/i.test(type) ? "important" : "update", key: `activity:${event.id}` });
           const viewActivity = () => {
             void markCanonicalActivityRead(event.id, "personal").then((result) => {
               if (!result.error)
@@ -970,7 +1046,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             .eq("id", announcementId)
             .maybeSingle();
           if (alertsEnabled)
-            void playNotificationSound(uid);
+            void playNotificationSound(uid, { key: `announcement:${announcementId}` });
           if (alertsEnabled)
             toast(data?.title || "Official WeHouse update", {
               description: data?.content
@@ -1032,7 +1108,12 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   useEffect(() => {
     const uid = profile?.user_id;
     if (!uid || isUserRole) return;
-    const alertsEnabled = profile?.pref_push_notif !== false;
+    let alertsEnabled = profile?.pref_push_notif !== false;
+    const onAlertPreference = (event:Event) => {
+      const detail=(event as CustomEvent<{userId:string;enabled:boolean}>).detail;
+      if(detail?.userId===uid)alertsEnabled=detail.enabled;
+    };
+    window.addEventListener('wehouse:in-app-alerts',onAlertPreference);
     const channel = subscribeToCanonicalActivity(
       uid,
       `workspace-activity-alerts:${uid}`,
@@ -1047,12 +1128,21 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         table: "activity_event_audiences",
         filter: `recipient_user_id=eq.${uid}`,
       },
-      (payload) => {
+      async (payload) => {
         const audience = payload.new as { activity_event_id?: string; workspace?: string };
         const scope = String(audience.workspace || "");
+        if (audience.activity_event_id && ['personal','account'].includes(scope)) {
+          const result = await getCanonicalActivity('personal',25);
+          const event = result.error ? null : result.rows.find(row => row.id === audience.activity_event_id);
+          if (event && ['workspace_access_changed','account_review_update'].includes(String(event.type || ''))) {
+            window.dispatchEvent(new Event('wehouse:workspace-access-changed'));
+            if (alertsEnabled) toast('Account review update',{id:`review:${audience.activity_event_id}`,description:'Open your account and workspace reviews to see the update.',action:{label:'View review',onClick:()=>handleSetNavPage('account_reviews')}});
+            return;
+          }
+        }
         const target = workspaceForActivity(scope, uid, workspaceAccess);
         if (!target || !audience.activity_event_id || !alertsEnabled) return;
-        void playNotificationSound(uid);
+        void playNotificationSound(uid, { key: `activity:${audience.activity_event_id}` });
         toast(`New ${workspaceLabel(target)} update`, {
           id: `workspace:${target}:${audience.activity_event_id}`,
           description: `There is a new update in your ${workspaceLabel(target)} workspace.`,
@@ -1069,8 +1159,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         });
       },
     ).subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [profile?.user_id, profile?.pref_push_notif, isUserRole, workspaceAccess, switchWorkspace]);
+    return () => { window.removeEventListener('wehouse:in-app-alerts',onAlertPreference);void supabase.removeChannel(channel); };
+  }, [profile?.user_id, profile?.pref_push_notif, isUserRole, workspaceAccess, switchWorkspace, handleSetNavPage]);
 
   const toggle = useCallback(
     async (id: string) => {
@@ -1096,7 +1186,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     [profile, savedIds],
   );
   const goTo = useCallback(
-    (p: NavPage, c?: string) => {
+    (p: NavPage, c?: string, route?: NavigationRouteParams) => {
       setInboxOpenRequest(0);
       if (c) setWorkerCategory(c);
       if (p === "conversation" || p === "messages" || p === "chat") {
@@ -1105,7 +1195,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       }
       if (p !== "my_reservations") setBookingContextId(null);
       if (p !== "roommate") setRoommateContextId(null);
-      handleSetNavPage(p);
+      handleSetNavPage(p, route || (c ? { category: c } : undefined));
     },
     [handleSetNavPage],
   );
@@ -1116,7 +1206,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   const goToDetail = useCallback(
     (id: string) => {
       setDetailId(id);
-      handleSetNavPage("detail");
+      handleSetNavPage("detail", { id });
       // Each history entry owns its own scroll state, so opening another
       // detail screen starts at the top without disturbing the browse entry.
     },
@@ -1135,7 +1225,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       }
       setChatConvId(id || null);
       setChatPeerId(peerId || null);
-      handleSetNavPage("conversation");
+      handleSetNavPage("conversation", { conversationId: id, peerId });
     },
     [isUserRole, handleSetNavPage, roleRoot],
   );
@@ -1146,7 +1236,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       if (property?.kind === "listing") return goToDetail(property.id);
       if (property?.kind === "hotel") {
         setHotelId(property.id);
-        return goTo("hotel_detail");
+        return goTo("hotel_detail", undefined, { hotelId: String(property.id) });
       }
       if (["detail", "listing_detail", "hotel_detail"].includes(route)) {
         toast.error("This property link is invalid. Open it again from Saved or Explore.");
@@ -1167,17 +1257,43 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         route === "operations_bookings"
       ) {
         setBookingContextId(id || null);
-        return goTo("my_reservations");
+        return goTo("my_reservations", undefined, { bookingId: id });
       }
+      if(route==='service_booking'&&id){const target=`service:${id}`;setBookingContextId(target);return goTo('my_reservations',undefined,{bookingId:target});}
+      if(route==='experience_booking'&&id){const target=`experience:${id}`;setBookingContextId(target);return goTo('my_reservations',undefined,{bookingId:target});}
       if (route === "roommate") {
         setRoommateContextId(id || null);
-        return goTo("roommate");
+        return goTo("roommate", undefined, { roommateId: id });
       }
+      if(route==='experience'&&id){setWorkerProfileId(null);setWorkerExperienceId(id);return goTo('worker_discovery',undefined,{id:'',experienceId:id});}
+      if(route==='experience_catalog'){setWorkerExperienceId(null);setWorkerProfileId(null);return goTo('worker_discovery',undefined,{id:'',experienceId:''});}
+      if (route === "worker_discovery" && id) { setWorkerExperienceId(null);setWorkerProfileId(id); return goTo("worker_discovery", undefined, { id,experienceId:'' }); }
+      if (route === "activity" && id) { setFriendConversationId(id); return goTo("activity", undefined, { friendId: id }); }
       if (route === "security" && id) return goTo("devices");
       goTo(route as NavPage);
     },
     [goTo, goToChat, goToDetail],
   );
+  const pushInboxHandler=useRef<(workspace:string)=>void>(()=>{});
+  const pendingPushWorkspace=useRef<WorkspaceChoice|null>(null);
+  useEffect(()=>{pushInboxHandler.current=(scope)=>{
+    if(!baseProfile||!workspaceReady)return;
+    const target=workspaceForActivity(scope,baseProfile.user_id,workspaceAccess);
+    if(!target)return void toast.error('This update is no longer available in your workspaces.');
+    if(target!==activeWorkspace){pendingPushWorkspace.current=target;switchWorkspace(target);return;}
+    goTo(isUserRole?'activity':roleRootFor(userRole));
+    setInboxOpenRequest(++inboxOpenSequence.current);
+  };},[baseProfile,workspaceReady,workspaceAccess,activeWorkspace,switchWorkspace,goTo,isUserRole,userRole]);
+  useEffect(()=>{
+    if(!baseProfile?.user_id||!workspaceReady||auth.pendingDevice)return;
+    return startNativePush(baseProfile.user_id,scope=>pushInboxHandler.current(scope));
+  },[baseProfile?.user_id,workspaceReady,auth.pendingDevice]);
+  useEffect(()=>{
+    if(!pendingPushWorkspace.current||activeWorkspace!==pendingPushWorkspace.current)return;
+    pendingPushWorkspace.current=null;
+    goTo(isUserRole?'activity':roleRootFor(userRole));
+    setInboxOpenRequest(++inboxOpenSequence.current);
+  },[activeWorkspace,isUserRole,userRole,goTo]);
   useEffect(() => {
     if (!propertyIntent || !isUserRole || !navigationReady || !workspaceReady || !baseProfile?.profile_complete || ["loading", "login", "setup", "worker_setup"].includes(auth.page)) return;
     openUserDestination(propertyIntent.kind === "hotel" ? "hotel_detail" : "detail", propertyIntent.id);
@@ -1193,10 +1309,10 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     }
     let destination = "";
     try { destination = sessionStorage.getItem("wh_guest_return_tab_v1") || ""; } catch {}
-    const route = destination === "bookings" ? "my_reservations" : destination === "inbox" ? "conversation" : destination === "account" ? "profile" : "";
-    if (!route) return;
+    const route=guestReturnDestination(destination);
+    if (!route) {try{sessionStorage.removeItem('wh_guest_return_tab_v1');}catch{}return;}
     try { sessionStorage.removeItem("wh_guest_return_tab_v1"); } catch {}
-    goTo(route as NavPage);
+    goTo(route.page as NavPage,undefined,route.params);
   }, [propertyIntent, isUserRole, navigationReady, workspaceReady, baseProfile?.profile_complete, auth.page, goTo]);
   const goToProfileEdit = useCallback(
       () => handleSetNavPage("profile_edit"),
@@ -1216,6 +1332,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
   }, [handleSetNavPage, navPage, roleRoot]);
 
   if (auth.isLoading) return <PageTransitionFallback />;
+  if (auth.pendingMfa) return <Suspense fallback={<PageTransitionFallback />}><AccountAuthenticatorGate requirement={auth.pendingMfa} onVerified={auth.completeSecondFactor} onSignOut={auth.logout}/></Suspense>;
   if (baseProfile && !workspaceReady) return workspaceError ? (
     <main className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[var(--wh-bg)] p-6 text-center text-[var(--wh-text)]">
       <h1 className="text-xl font-semibold">Unable to open your account</h1>
@@ -1242,18 +1359,24 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         kickedOut={auth.kickedOut}
         pendingDevice={auth.pendingDevice}
         publicProperty={propertyIntent}
+        publicActivityId={initialRoute?.page==='worker_discovery'?initialParams.experienceId:null}
         onDismissPublicProperty={consumePropertyIntent}
       />
     );
   if (auth.page === "setup" && profile)
     return (
-      <Setup profile={profile} onSetupComplete={auth.handleSetupComplete} />
+      <Setup profile={profile} onSetupComplete={auth.handleSetupComplete} onLogout={auth.logout} />
     );
   if (auth.page === "worker_setup" && profile)
     return (
       <WorkerSetup
         profile={profile}
-        onComplete={() => auth.handleSetupComplete(profile)}
+        onBack={() => {
+          auth.handleSetupComplete(baseProfile || profile);
+          if (workspaceAccess?.personal_workspace) switchWorkspace('personal');
+          else goTo(roleRoot());
+        }}
+        onComplete={() => auth.handleSetupComplete(baseProfile || profile)}
         onContinueVerification={() => {
           try {
             localStorage.setItem(NAV_STORAGE_KEY, "worker_verification");
@@ -1381,7 +1504,11 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         />
       );
     const props = { profile, savedIds, onToggleSave: toggle };
+    const allowedHere = activeWorkspace === 'personal' ? workspaceAccess?.personal_workspace : workspaceAccess?.privileged_workspaces?.some(w => w.role === activeWorkspace);
+    if (workspaceReady && !allowedHere && !ACCOUNT_PAGES.has(navPage)) return <div className="mx-auto max-w-2xl space-y-4 p-4"><AccountRecoveryCenter key={profile.user_id} signedIn onAccessChanged={reloadWorkspaces}/><button type="button" onClick={()=>void auth.logout()} className="min-h-11 px-4 text-sm">Sign out</button></div>;
     switch (navPage) {
+      case 'account_reviews':
+        return <PrivacySecuritySettings profile={profile} onUpdate={u=>auth.handleSetupComplete(u)} onBack={subpageBack} onLogout={auth.logout} initialSection="reviews"/>;
       case "payment_return":
         return <PaymentReturn profile={profile} onNavigate={(page, id) => {
           if (page === "my_reservations") setBookingContextId(id || null);
@@ -1454,6 +1581,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             profile={profile}
             onUpdate={(u) => auth.handleSetupComplete(u)}
             onBack={subpageBack}
+          onLogout={auth.logout}
           />
         );
       case "devices":
@@ -1462,6 +1590,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             profile={profile}
             onUpdate={(u) => auth.handleSetupComplete(u)}
             onBack={subpageBack}
+          onLogout={auth.logout}
             initialSection="devices"
           />
         );
@@ -1491,8 +1620,10 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       case "detail":
         return isUserRole && detailId ? (
           <ListingDetail
+            onGoToFriendChat={(id) => openUserDestination("activity", id)}
             key={detailId}
             listingId={detailId}
+            onOpenListing={goToDetail}
             onNavigate={goBack}
             isSaved={savedIds.has(detailId)}
             onToggleSave={() => toggle(detailId)}
@@ -1515,6 +1646,8 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             profile={profile}
             onNavigate={openUserDestination}
             conversationId={chatConvId}
+            initialFriendChatId={friendConversationId}
+            onFriendChatOpened={() => setFriendConversationId(null)}
             peerUserId={chatPeerId}
             onConversationClose={() => {
               setChatConvId(null);
@@ -1534,7 +1667,11 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             userCity={profile.city}
             profile={profile}
             preSelectedCategory={workerCategory}
-            onNavigate={(p) => goTo(p as NavPage)}
+            initialWorkerId={workerProfileId}
+            initialExperienceId={workerExperienceId}
+            onInitialExperienceOpened={()=>setWorkerExperienceId(null)}
+            onInitialWorkerOpened={() => setWorkerProfileId(null)}
+            onNavigate={(p, id) => openUserDestination(p, id)}
           />
         ) : (
           renderRoleRoot()
@@ -1560,25 +1697,16 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
         ) : (
           renderRoleRoot()
         );
-      case "new_listing":
-        return canList ? (
-          <CreateListing
-            profile={profile}
-            onBack={subpageBack}
-            onSuccess={() => handleSetNavPage(roleRoot())}
-          />
-        ) : (
-          renderRoleRoot()
-        );
       case "hotels":
         return isUserRole ? (
-          <HotelsHome onNavigate={openUserDestination} />
+          <HotelsHome key={profile.user_id} sessionKey={profile.user_id} onNavigate={openUserDestination} />
         ) : (
           renderRoleRoot()
         );
       case "hotel_detail":
         return isUserRole && hotelId ? (
           <HotelDetail
+            onGoToFriendChat={(id) => openUserDestination("activity", id)}
             onGoToChat={goToChat}
             hotelId={hotelId}
             onBack={subpageBack}
@@ -1588,7 +1716,13 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
               setHotelRatePlanId(ratePlanId);
               setHotelCheckIn(ci || "");
               setHotelCheckOut(co || "");
-              goTo("hotel_booking");
+              goTo("hotel_booking", undefined, {
+                hotelId: String(h),
+                roomId: String(r),
+                ratePlanId: String(ratePlanId),
+                checkIn: ci || "",
+                checkOut: co || "",
+              });
             }}
             profile={profile}
           />
@@ -1605,7 +1739,7 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
             checkOut={hotelCheckOut}
             profile={profile}
             onBack={subpageBack}
-            onComplete={() => goTo("hotels")}
+            onComplete={(bookingId) => openUserDestination('hotel_booking',bookingId?String(bookingId):undefined)}
           />
         ) : (
           renderRoleRoot()
@@ -1643,29 +1777,15 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
     unreadCount + supportUnreadCount,
     notificationCount,
   );
-  const hide = [
-    "profile",
-    "account",
-    "detail",
-    "chat",
-    "saved",
-    "followed_searches",
-    "profile_edit",
-    "privacy",
-    "security",
-    "devices",
-    "new_listing",
-    "worker_setup",
-    "hotel_detail",
-    "hotel_booking",
-    "worker_verification",
-    "payment_return",
-  ] as NavPage[];
+  // The tab bar belongs to the four main tabs only. Every other screen is a
+  // drill-down and keeps its own Back control, so the bar never sits on top of
+  // a property, a chat, a booking flow or any settings page.
+  const bottomNavPages = ["search", "my_reservations", "conversation", "messages"] as NavPage[];
   const showBottomNav =
       isUserRole &&
       !conversationOpen &&
       !nestedScreen &&
-      !hide.includes(navPage),
+      bottomNavPages.includes(navPage),
     supportRole = ["user", "worker", "property_partner", "hosting", "hotel_staff"].includes(
       profile?.role || "",
     );
@@ -1692,9 +1812,11 @@ function AppSession({ auth, propertyIntent, consumePropertyIntent }: { auth: Ret
       /> : null}
       <Suspense fallback={<RouteTransitionFallback />}>
         <Suspense fallback={null}>
-          <PrivateCallCenter />
+          {profile && <PrivateCallCenter key={profile.user_id} />}
         </Suspense>
+        {profile && <LegalGate userId={profile.user_id} onLogout={auth.logout} />}
         {profile && <NewLoginAlert profile={profile} />}
+        {profile && <EmailChangeFinisher />}
         <DesktopLayout
           navItems={desktopNavItems}
           activePage={navPage}

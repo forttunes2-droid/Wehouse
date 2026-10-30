@@ -1,8 +1,10 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import HotelRoomChoices from "@/components/HotelRoomChoices";
 import PropertyShareDialog from "@/components/PropertyShareDialog";
+import ReportListingDialog from "@/components/ReportListingDialog";
 import { sharePropertyExternally } from "@/lib/propertyShare";
 import { withTimeout } from "@/lib/withTimeout";
 import DateField from "@/components/BookingDateField";
@@ -32,6 +34,7 @@ import {
 } from "@/hooks/useDiscoveryLocation";
 import BackButton from "@/components/BackButton";
 import { locationLabel } from "@/lib/locationPresentation";
+import { formatRecordedMoney as formatMoney } from "@/lib/regional";
 
 type ReviewRow = HotelReview & {
   profiles: { username: string | null; avatar_url: string | null };
@@ -47,6 +50,7 @@ type Props = {
   hotelId: number;
   onBack: () => void;
   onGoToChat?: (id: string) => void;
+  onGoToFriendChat?: (id: string) => void;
   onBook: (
     hotelId: number,
     roomId: number,
@@ -62,6 +66,7 @@ export default function HotelDetailExperience({
   hotelId,
   onBack,
   onGoToChat,
+  onGoToFriendChat,
   onBook,
   profile,
   onRequireAuth,
@@ -69,6 +74,7 @@ export default function HotelDetailExperience({
   const { location } = useDiscoveryLocation();
   const [attempt, setAttempt] = useState(0);
   const [sendPropertyOpen, setSendPropertyOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [hotel, setHotel] = useState<HotelDetailRow | null>(null);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +107,7 @@ export default function HotelDetailExperience({
 
   useEffect(() => {
     let live = true;
-    setLoading(true); setHotel(null); setReviews([]); setSaved(false);
+    setLoading(true); setHotel(null); setReviews([]); setSaved(false); setReportOpen(false);
     setSelectedRoom(null); setSelectedRate(null); setReviewEligible(false);
     setCheckIn(""); setCheckOut("");
     // Optional reviews and Saved cannot delay the primary hotel record.
@@ -179,7 +185,13 @@ export default function HotelDetailExperience({
   }
 
   function selectRoom(room: HotelRoom) {
-    if (selectedRoom?.room_id === room.room_id) return;
+    if (selectedRoom?.room_id === room.room_id) {
+      // Room choices are toggles: tapping the current choice must let a guest
+      // clear it without selecting a different room first.
+      setSelectedRoom(null);
+      setSelectedRate(null);
+      return;
+    }
     setSelectedRoom(room);
     setSelectedRate(null);
     // Dates and guest intent belong to the search, not to a particular room.
@@ -187,7 +199,10 @@ export default function HotelDetailExperience({
   }
 
   function selectRate(plan: HotelRatePlan) {
-    if (selectedRate?.rate_plan_id === plan.rate_plan_id) return;
+    if (selectedRate?.rate_plan_id === plan.rate_plan_id) {
+      setSelectedRate(null);
+      return;
+    }
     setSelectedRate(plan);
     // Keep the selected dates while comparing packages.
   }
@@ -251,9 +266,7 @@ export default function HotelDetailExperience({
 
   if (loading)
     return (
-      <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)]">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   if (!hotel)
@@ -281,7 +294,15 @@ export default function HotelDetailExperience({
     <div className="min-h-[100dvh] bg-[var(--wh-bg)] pb-28 text-[var(--wh-text)]">
 
 
-      {sendPropertyOpen && onGoToChat && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "hotel", id: String(hotelId) }} title={hotel.name} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} />}
+      {sendPropertyOpen && onGoToChat && profile && <PropertyShareDialog userId={profile.user_id} property={{ kind: "hotel", id: String(hotelId) }} title={hotel.name} onClose={() => setSendPropertyOpen(false)} onConversation={onGoToChat} onFriendConversation={onGoToFriendChat} />}
+      {reportOpen && profile && <ReportListingDialog targetType="hotel" listingId={String(hotelId)} listingTitle={hotel.name} onClose={() => setReportOpen(false)} onUrgentSafety={() => {
+        setReportOpen(false);
+        window.dispatchEvent(new CustomEvent('openSupportChat', { detail: {
+          subject: `Urgent safety concern · ${hotel.name}`, category: 'safety',
+          contextType: 'support_case', contextId: String(hotelId), priority: 'urgent',
+          contextSnapshot: { source_type: 'hotel_property', source_id: String(hotelId), hotel_name: hotel.name, reason_code: 'safety_threat' },
+        } }));
+      }} />}
       <main className="mx-auto max-w-5xl space-y-5 px-4 pb-5 sm:px-6">
         <section className="-mx-4 overflow-hidden border-y border-[var(--wh-border-subtle)] sm:mx-0 sm:rounded-2xl sm:border">
           <PropertyMediaCarousel images={images} title={hotel.name}>
@@ -318,7 +339,7 @@ export default function HotelDetailExperience({
             ) : null}
           </div>
         </section>
-        <div className="flex justify-end"><button type="button" onClick={() => {
+        <div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => { if (!profile) { onRequireAuth?.(); return; } setReportOpen(true); }} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-[var(--wh-text-secondary)]">Report this hotel</button><button type="button" onClick={() => {
       if (profile && onGoToChat) { setSendPropertyOpen(true); return; }
       void sharePropertyExternally({ kind: "hotel", id: String(hotelId) }, hotel.name)
         .then(result => { if (result === "copied") toast.success("Hotel link copied"); })
@@ -401,7 +422,7 @@ export default function HotelDetailExperience({
                     Availability is rechecked before payment.
                   </p>
                 </div>
-                <p className="text-lg font-bold">₦{total.toLocaleString()}</p>
+                <p className="text-lg font-bold">{formatMoney(total)}</p>
               </div>
             ) : null}
           </section>

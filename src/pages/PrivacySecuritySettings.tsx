@@ -1,37 +1,53 @@
+import AccountRecoveryCenter from '@/components/AccountRecoveryCenter';
 import { useState } from 'react';
 import AccountShell, { AccountRow, AccountSection } from '@/components/AccountShell';
 import PrivacySettings from '@/pages/PrivacySettings';
 import SecuritySettings from '@/pages/SecuritySettings';
+import MyReports from '@/components/MyReports';
 import type { Profile } from '@/types';
+import { useWorkspaceAccess } from '@/hooks/useWorkspaceAccess';
+import { personalDataRequest } from '@/lib/personalDataReview';
 
-type Section='privacy'|'access'|'devices'|'close';
-type Props={profile:Profile;onUpdate:(profile:Profile)=>void;onBack:()=>void;initialSection?:Section};
+type Section='privacy'|'access'|'devices'|'close'|'reports'|'reviews';
+type Props={profile:Profile;onUpdate:(profile:Profile)=>void;onBack:()=>void;onLogout?:()=>Promise<unknown>;initialSection?:Section};
 
-export default function PrivacySecuritySettings({profile,onUpdate,onBack,initialSection}:Props){
+export default function PrivacySecuritySettings({profile,onUpdate,onBack,onLogout,initialSection}:Props){
   const [section,setSection]=useState<Section|null>(initialSection||null);
-  const hasPrivacyControls=profile.role==='user';
+  const workspace=useWorkspaceAccess(profile.user_id);
+  const hasPrivacyControls=Boolean(workspace.access?.personal_workspace||workspace.access?.privileged_workspaces?.some(item=>item.role==='worker'));
   const canClose=['user','worker','property_partner'].includes(profile.role);
   const back=section?()=>setSection(null):onBack;
-  const title=section==='privacy'?'Privacy':section==='access'?'Access & security':section==='devices'?'Devices':section==='close'?'Close account':'Privacy & Security';
-  const description=section==='privacy'?'Control roommate discovery and profile visibility.':section==='access'?'Manage your password, devices and account access.':section==='devices'?'Review every device that requested access to this account.':section==='close'?'Close this account after active obligations are cleared.':'Only settings that directly change or protect this account.';
+  const title=section==='reviews'?'Account reviews':section==='privacy'?'Privacy':section==='access'?'Access & security':section==='devices'?'Devices':section==='close'?'Close account':section==='reports'?'Reports you sent':'Privacy & Security';
+  const description=section==='privacy'?'Manage online status, incoming calls and profile visibility.':section==='access'?'Manage your password, devices and account access.':section==='devices'?'Review every device that requested access to this account.':section==='close'?'Close this account after active obligations are cleared.':section==='reports'?'Check the review status of reports you sent.':'Only settings that directly change or protect this account.';
   return <AccountShell profile={profile} title={title} description={description} onBack={back}>
 
-    {section==='privacy'?<PrivacySettings profile={profile} onUpdate={onUpdate} embedded/>:
-    section==='access'?<><SecuritySettings profile={profile} embedded focus="password"/><SecuritySettings profile={profile} embedded focus="sessions"/></>:
-    section==='devices'?<SecuritySettings profile={profile} embedded focus="sessions"/>:
-    section==='close'?<SecuritySettings profile={profile} embedded focus="close"/>:
+    {section==='privacy'?<PrivacySettings profile={profile} onUpdate={onUpdate} embedded workspaceAccess={workspace.access} workspaceError={workspace.error} reloadWorkspace={workspace.reload}/>:
+    section==='access'?<><SecuritySettings profile={profile} onLogout={onLogout} embedded focus="password"/><SecuritySettings profile={profile} onLogout={onLogout} embedded focus="sessions"/></>:
+    section==='devices'?<SecuritySettings profile={profile} onLogout={onLogout} embedded focus="sessions"/>:
+    section==='close'?<SecuritySettings profile={profile} onLogout={onLogout} embedded focus="close"/>:
+    section==='reviews'?<AccountRecoveryCenter key={profile.user_id} signedIn/>:
+    section==='reports'?<MyReports/>:
     <>
+      {workspace.error&&<p role="alert" className="rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4 text-sm">Privacy access could not be loaded. <button className="min-h-11 underline" onClick={()=>void workspace.reload()}>Try again</button></p>}
       {hasPrivacyControls&&<AccountSection title="Privacy">
-        <AccountRow title="Roommate visibility" detail="Control profile visibility and participation in roommate discovery" onClick={()=>setSection('privacy')} icon={<ShieldIcon/>}/>
+        <AccountRow title="Privacy & calls" detail="Incoming call controls and available profile visibility settings" onClick={()=>setSection('privacy')} icon={<ShieldIcon/>}/>
       </AccountSection>}
       <AccountSection title="Account access">
+        <AccountRow title="Account and workspace reviews" detail="Review restrictions, request a decision and follow case updates" onClick={()=>setSection('reviews')} icon={<ShieldIcon/>}/>
         <AccountRow title="Access & security" detail="Password, trusted devices and active sessions" onClick={()=>setSection('access')} icon={<LockIcon/>}/>
+      </AccountSection>
+      <AccountSection title="Safety">
+        <AccountRow title="Reports you sent" detail="Check whether WeHouse has received or reviewed your reports" onClick={()=>setSection('reports')} icon={<ShieldIcon/>}/>
       </AccountSection>
       {canClose&&<AccountSection title="Account ownership">
         {canClose&&(
           <AccountRow title="Close account" detail="Close this account after bookings, balances and obligations are cleared" onClick={()=>setSection('close')} icon={<WarningIcon/>}/>
         )}
       </AccountSection>}
+      <AccountSection title="Your personal data">
+        {(['access','correction','deletion'] as const).map(kind=><AccountRow key={kind} title={personalDataRequest(kind,profile.user_id).subject!} detail={kind==='access'?'Ask for a copy of your personal information':kind==='correction'?'Tell WeHouse what needs to be corrected':'Review what can be erased and what must be retained'} onClick={()=>window.dispatchEvent(new CustomEvent('openSupportChat',{detail:personalDataRequest(kind,profile.user_id)}))} icon={<ShieldIcon/>}/>)}
+        <p className="px-4 pb-4 text-xs leading-5 text-[var(--wh-text-secondary)]">Send your message to submit a request. Follow its case updates and reply in Messages. WeHouse will review your request and explain the completed work and any information retained, including the reason. Closing your account does not erase all records.</p>
+      </AccountSection>
     </>}
   </AccountShell>;
 }

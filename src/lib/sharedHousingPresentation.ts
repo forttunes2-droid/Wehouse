@@ -7,7 +7,7 @@ export function sharedHousingLane(group: SharedHousingGroup, userId: string, now
   return 'active';
 }
 export function sharedAmounts(rent: number, deposit: number, members:number) {
-  if (![rent,deposit].every(Number.isFinite) || rent<=0 || deposit<0 || !Number.isInteger(members) || members<2 || members>12) return null;
+  if (![rent,deposit].every(Number.isFinite) || rent<=0 || deposit<0 || !Number.isInteger(members) || members<2 || members>3) return null;
   const r=Math.round(rent*100), d=Math.round(deposit*100), total=r+d;
   if (![r,d,total].every(Number.isSafeInteger)) return null;
   return Array.from({length:members},(_,index)=>{

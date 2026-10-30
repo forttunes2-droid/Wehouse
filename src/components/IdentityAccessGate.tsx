@@ -27,10 +27,16 @@ export default function IdentityAccessGate({
   children: React.ReactNode;
 }) {
   const { data: state, loading, error: loadError, refresh } = useRpcRead<Status>('get_my_account_identity_status', profile.user_id);
+  const validStatus = state &&
+    ['required', 'gate_satisfied', 'current', 'enrolled'].every(key =>
+      typeof (state as unknown as Record<string, unknown>)[key] === 'boolean') &&
+    typeof state.status === 'string' && state.status.length > 0 &&
+    state.gate_satisfied === (!state.required || state.current);
+  const statusError = loadError || (!validStatus ? 'WeHouse could not confirm the workspace identity status. Please try again.' : '');
 
   if (loading)
     return (
-      <AccountShell profile={profile} title={workspace === 'property_partner' ? 'Property Partner' : 'Service Worker'} onWorkspaceSwitch={onWorkspaceSwitch}>
+      <AccountShell profile={profile} workspace={workspace} title={workspace === 'property_partner' ? 'Property Partner' : 'Service Worker'} onWorkspaceSwitch={onWorkspaceSwitch}>
         <section role="status" aria-live="polite" className="space-y-4 py-5">
           <p className="text-sm text-[var(--wh-text-secondary)]">Opening your workspace…</p>
           <div aria-hidden="true" className="space-y-3 animate-pulse">{[1, 2, 3].map(item => <div key={item} className="h-20 rounded-xl bg-[var(--wh-interactive)]" />)}</div>
@@ -41,20 +47,21 @@ export default function IdentityAccessGate({
   // Privileged provider/partner work should never silently fail open when the
   // server-side gate cannot be read. This is a connectivity/access error, not a
   // request to repeat face verification.
-  if (loadError)
+  if (statusError)
     return (
       <AccountShell
         profile={profile}
+        workspace={workspace}
         title="Workspace check unavailable"
         description="WeHouse could not safely confirm this workspace right now."
         onWorkspaceSwitch={onWorkspaceSwitch}
       >
         <section className="rounded-2xl border border-amber-500/15 bg-amber-500/[.05] p-4">
-          <p className="text-xs leading-6 text-amber-100/80">{loadError}</p>
+          <p role="alert" className="text-sm leading-6 text-amber-800 dark:text-amber-100/80">{statusError}</p>
           <button
             type="button"
             onClick={() => void refresh()}
-            className="mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold text-white"
+            className="wh-motion-control mt-4 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] text-sm font-semibold text-[var(--wh-text)]"
           >
             Check again
           </button>
@@ -77,6 +84,7 @@ export default function IdentityAccessGate({
     return (
       <AccountShell
         profile={profile}
+        workspace={workspace}
         title={pending ? 'Identity review pending' : expired ? 'Identity confirmation due' : 'Identity verification required'}
         description={
           pending
@@ -86,7 +94,7 @@ export default function IdentityAccessGate({
         onWorkspaceSwitch={onWorkspaceSwitch}
       >
         <section className="rounded-2xl border border-violet-500/15 bg-violet-500/[.045] p-4">
-          <p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">
+          <p className="text-xs font-bold uppercase tracking-[.16em] text-[var(--wh-accent-text)]">
             {pending ? 'WEHOUSE IDENTITY REVIEW' : 'IDENTITY CONFIRMATION'}
           </p>
           <p className="mt-2 text-xs leading-6 text-[var(--wh-text-secondary)]">

@@ -1,3 +1,4 @@
+import timeoutApi from './helpers/with-timeout.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -70,7 +71,7 @@ test('chat rendering provides a private document card and the shared picker expo
 });
 test('all real upload entrypoints still reject disguised media before touching storage', async()=>{
  const touched=[];
- const deps={'@/lib/chatMediaPolicy':policy,'./client':{supabase:{storage:{from(bucket){touched.push(bucket);throw new Error('Storage must not be reached');}}}},'./utils':{},'@/lib/e2ee':{},'@/lib/workerBookingContract':{},'@/lib/propertyBookingLifecycle':{},'@/lib/hotelConversationContext':{}};
+ const deps={'@/lib/withTimeout':timeoutApi,'@/lib/chatMediaPolicy':policy,'./client':{supabase:{storage:{from(bucket){touched.push(bucket);throw new Error('Storage must not be reached');}}}},'./utils':{},'@/lib/e2ee':{},'@/lib/workerBookingContract':{},'@/lib/propertyBookingLifecycle':{},'@/lib/hotelConversationContext':{}};
  const api={};
  for(const path of ['chat','worker-bookings','hotel-chat','support']) {
   const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(`src/lib/supabase/${path}.ts`,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports,require:name=>{assert.ok(name in deps,name);return deps[name];},Blob,File,URL,console});api[path]=exports;

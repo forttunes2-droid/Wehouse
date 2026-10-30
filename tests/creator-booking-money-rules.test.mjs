@@ -17,12 +17,17 @@ test("Creator exposes one nested Booking & money rules surface", async () => {
     (dashboard.match(/label: "Booking & money rules"/g) || []).length,
     1,
   );
-  assert.match(
-    dashboard,
-    /section === "booking_money" && <CreatorBookingMoneyRules \/>/,
-  );
+  const bookingMoneyStart = dashboard.indexOf('{section === "booking_money"');
+  const bookingMoneyEnd = dashboard.indexOf('{section === "workers"', bookingMoneyStart);
+  const bookingMoney = dashboard.slice(bookingMoneyStart, bookingMoneyEnd);
+  assert.match(bookingMoney, /section === "booking_money"/);
+  assert.match(bookingMoney, /<CreatorBookingMoneyRules \/>/);
+  assert.match(bookingMoney, /<CreatorWeHouseDiscounts \/>/);
   assert.match(editor, /creator_get_booking_money_rules/);
-  assert.match(editor, /creator_publish_booking_money_rules/);
+  assert.match(editor, /creator_publish_operating_money_rules/);
+  const commissions = await read('src/components/CreatorCommissionRules.tsx');
+  assert.match(commissions, /creator_publish_booking_money_rules_v4/);
+  assert.match(editor, /<CreatorCommissionRules/);
   assert.match(editor, /requestElevation\("policy_publish"/);
   assert.doesNotMatch(editor, /from\("platform_settings"\)/);
   assert.doesNotMatch(genericSettings, /reservation_fee|commission_short_let|commission_long_let|commission_hotel|commission_worker/);
@@ -62,7 +67,7 @@ test("money policy editor preserves launch product boundaries", async () => {
   assert.match(editor, /Security deposit/);
   assert.match(editor, /Off at launch/);
   assert.match(editor, /Existing\s+bookings keep the rules they accepted/);
-  assert.match(editor, /Refundable Short Let security deposits are excluded/);
+  assert.match(await read('src/components/CreatorCommissionRules.tsx'), /Refundable deposits are excluded/);
   assert.doesNotMatch(editor, /escrow/i);
 });
 

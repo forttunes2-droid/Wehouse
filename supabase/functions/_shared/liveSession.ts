@@ -5,7 +5,7 @@ export async function hasLiveSession(admin: { rpc: (name:string, params:Record<s
     const part = token.split('.')[1];
     const payload = JSON.parse(atob(part.replace(/-/g,'+').replace(/_/g,'/')));
     if (payload.sub !== verifiedAuthId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.session_id || '')) return false;
-    const {data,error} = await admin.rpc('auth_session_is_active',{p_auth_id:verifiedAuthId,p_session_id:payload.session_id});
+    const {data,error} = await admin.rpc('auth_session_security_satisfied',{p_auth_id:verifiedAuthId,p_session_id:payload.session_id,p_aal:payload.aal==='aal2'?'aal2':'aal1'});
     return !error && data === true;
   } catch { return false; }
 }

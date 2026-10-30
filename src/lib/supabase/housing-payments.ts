@@ -1,32 +1,18 @@
 import { supabase } from "./client";
+import {withTimeout} from '@/lib/withTimeout';
+import {paymentCheckoutReceipt,type PaymentInitResult} from '../../../supabase/functions/_shared/payment-checkout';
 
-type PaymentInitResult = {
-  success?: boolean;
-  already_paid?: boolean;
-  reference?: string;
-  purpose?: string;
-  authorization_url?: string;
-  access_code?: string;
-  existing?: boolean;
-  error?: string;
-};
-
-async function initializePaymentReference(reference: string) {
-  const { data, error } = await supabase.functions.invoke("payment-init", {
-    body: { reference },
-  });
-  if (!error) return { result: data as PaymentInitResult | null, error: null };
-  let message = error.message || "Payment checkout could not start";
-  try {
-    const body = await (error as any).context?.json?.();
-    if (body?.error) message = String(body.error);
-  } catch {
-    /* The network response may not contain JSON. */
+export async function initializePaymentReference(reference:string,purpose:string):Promise<{result:PaymentInitResult|null;error:Error|null}>{
+ try{
+  if(!/^[A-Za-z0-9.=_-]{6,120}$/.test(reference))throw Error('The payment reference could not be confirmed.');
+  const {data,error}=await withTimeout(supabase.functions.invoke('payment-init',{body:{reference}}),25000,'Checkout result is unknown. Refresh this booking before retrying.');
+  if(error){
+   let message=error.message||'Payment checkout could not start';
+   try{const body=await error.context?.clone?.().json();if(typeof body?.error==='string'&&body.error.length<=2000)message=body.error;}catch{/* A transport error may have no JSON response. */}
+   throw Error(message);
   }
-  return {
-    result: { success: false, error: message } as PaymentInitResult,
-    error: null,
-  };
+  return{result:paymentCheckoutReceipt(data,reference,purpose),error:null};
+ }catch(cause){return{result:null,error:cause instanceof Error?cause:new Error('Checkout could not be confirmed. Refresh before retrying.')};}
 }
 
 export async function initializeApartmentRentPayment(reservationId: string) {
@@ -47,7 +33,7 @@ export async function initializeApartmentRentPayment(reservationId: string) {
       result: { success: false, error: "Rent payment reference is missing" },
       error: null,
     };
-  return initializePaymentReference(reference);
+  return initializePaymentReference(reference,'apartment_rent');
 }
 
 export async function initializeShortStayPayment(reservationId: string) {
@@ -70,57 +56,6 @@ export async function initializeShortStayPayment(reservationId: string) {
       },
       error: null,
     };
-  return initializePaymentReference(reference);
+  return initializePaymentReference(reference,'apartment_rent');
 }
 
-export async function getRentPlanForReservation(reservationId: string) {
-  const { data: plan, error: planError } = await supabase
-    .from("rent_plans")
-    .select("*")
-    .eq("reservation_id", reservationId)
-    .in("status", ["active", "completed"])
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (planError || !plan)
-    return { plan: plan || null, contributions: [] as any[], error: planError };
-
-  const { data: contributions, error: contributionError } = await supabase
-    .from("rent_plan_contributions")
-    .select("*")
-    .eq("rent_plan_id", plan.id)
-    .order("target_year", { ascending: true })
-    .order("installment_number", { ascending: true });
-
-  return {
-    plan,
-    contributions: contributions || [],
-    error: contributionError,
-  };
-}
-
-export async function initializeRentContributionPayment(
-  contributionId: string,
-) {
-  const { data: bootstrap, error: bootstrapError } = await supabase.rpc(
-    "create_rent_plan_contribution_payment",
-    {
-      p_contribution_id: contributionId,
-    },
-  );
-  if (bootstrapError) return { result: null, error: bootstrapError };
-  if (!bootstrap?.success) return { result: bootstrap || null, error: null };
-  if (bootstrap.already_paid)
-    return { result: bootstrap as PaymentInitResult, error: null };
-
-  const reference = String(bootstrap.reference || "");
-  if (!reference)
-    return {
-      result: {
-        success: false,
-        error: "Contribution payment reference is missing",
-      },
-      error: null,
-    };
-  return initializePaymentReference(reference);
-}

@@ -14,6 +14,8 @@ export type DiscoveryLocation = {
 const STORAGE_KEY = "wh_discovery_location_v2";
 const EVENT_NAME = "wehouse:discovery-location";
 let memoryLocation: DiscoveryLocation | null | undefined;
+// A cleared location or newer request must invalidate pending GPS/address callbacks.
+let requestGeneration = 0;
 
 function normalizeStoredLocation(value: unknown): DiscoveryLocation | null {
   if (!value || typeof value !== "object") return null;
@@ -74,12 +76,14 @@ export function useDiscoveryLocation() {
       const next = (event as CustomEvent<DiscoveryLocation | null>).detail;
       setLocation(next);
       setError(next?.address || "");
+      if (!next) setLocating(false);
     };
     window.addEventListener(EVENT_NAME, sync);
     return () => window.removeEventListener(EVENT_NAME, sync);
   }, []);
 
   const requestLocation = useCallback(() => {
+    const generation = ++requestGeneration;
     if (!navigator.geolocation) {
       setError("Current location is not available on this device.");
       return;
@@ -88,6 +92,7 @@ export function useDiscoveryLocation() {
     setError("");
     navigator.geolocation.getCurrentPosition(
       async (position) => {
+        if (generation !== requestGeneration) return;
         const base: DiscoveryLocation = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
@@ -117,6 +122,7 @@ export function useDiscoveryLocation() {
               ),
             ),
           ]);
+          if (generation !== requestGeneration) return;
           if (!result.error && result.data?.address) {
             const resolved: DiscoveryLocation = {
               ...base,
@@ -133,14 +139,16 @@ export function useDiscoveryLocation() {
             );
           }
         } catch {
+          if (generation !== requestGeneration) return;
           setError(
             "Location found, but the street address could not be identified. Distance still works.",
           );
         } finally {
-          setLocating(false);
+          if (generation === requestGeneration) setLocating(false);
         }
       },
       (reason) => {
+        if (generation !== requestGeneration) return;
         setLocating(false);
         setError(
           reason.code === reason.PERMISSION_DENIED
@@ -153,7 +161,9 @@ export function useDiscoveryLocation() {
   }, []);
 
   const clearLocation = useCallback(() => {
+    ++requestGeneration;
     publish(null);
+    setLocating(false);
     setLocation(null);
     setError("");
   }, []);

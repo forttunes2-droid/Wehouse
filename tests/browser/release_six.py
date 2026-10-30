@@ -1,4 +1,4 @@
-import asyncio,json,os,subprocess
+import asyncio,json,os,re,subprocess
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
 OUT=Path('test-results/experience');B=Path('test-results/release-six-offline')
@@ -28,14 +28,14 @@ async def main():
       await expect(page.get_by_role('button',name='Pause bookings',exact=True)).to_be_visible()
       await expect(page.get_by_label('Nightly price',exact=True)).to_have_value('25000')
       await page.get_by_label('Nightly price',exact=True).fill('30000')
-      await page.get_by_role('button',name='Save',exact=True).click()
-      await expect(page.get_by_text('₦30,000 per night',exact=True)).to_be_visible()
+      await page.get_by_label('Nightly price',exact=True).locator('xpath=../..').get_by_role('button',name='Save',exact=True).click()
+      await expect(page.get_by_text(re.compile(r'Booking currency: NGN\.\s*₦30,000 per night'))).to_be_visible()
       await page.get_by_role('button',name='Pause bookings',exact=True).click()
       await expect(page.get_by_text('Bookings paused',exact=True)).to_be_visible()
       assert await page.evaluate("window.__releaseSix.calls.some(x=>x.name==='set_my_property_future_price')")
       assert await page.evaluate("window.__releaseSix.calls.some(x=>x.name==='set_my_property_booking_availability')")
      else:
-      await expect(page.get_by_role('heading',name='Creator action authenticator',exact=True)).to_be_visible()
+      await expect(page.get_by_role('heading',name='Two-factor authentication',exact=True)).to_be_visible()
       await expect(page.get_by_role('button',name='Set up authenticator',exact=True)).to_be_visible()
       await expect(page.get_by_role('heading',name='Additional protection',exact=True)).to_be_visible()
       await expect(page.get_by_role('button',name='Set protection password',exact=True)).to_be_visible()

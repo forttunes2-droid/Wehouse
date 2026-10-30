@@ -2,6 +2,8 @@
 const MB = 1_000_000;
 export const PUBLIC_VIDEO_MAX_BYTES = 13 * MB;
 export const CHAT_VIDEO_MAX_BYTES = 13 * MB;
+export const PUBLIC_VIDEO_MAX_INPUT_BYTES = 50 * MB;
+export const EVIDENCE_VIDEO_MAX_INPUT_BYTES = 100 * MB;
 export const VIDEO_TARGET_PER_15_SECONDS_BYTES = 2 * MB;
 const MAX_REENCODE_SECONDS = 90;
 
@@ -31,23 +33,23 @@ const supportedRecorderType = () => {
 
 type VideoLimits = {
   maxInputBytes: number;
+  inputLabel?: string;
   maxOutputBytes: number;
   outputLabel: string;
   maxDurationSeconds?: number;
-  scaleBudgetByDuration?: boolean;
 };
 
 async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVideo> {
   if (!["video/mp4", "video/quicktime", "video/webm"].includes(file.type))
     throw new Error("Choose an MP4, MOV or WebM video");
   if (file.size > limits.maxInputBytes)
-    throw new Error(`Choose a video under ${Math.round(limits.maxInputBytes / MB)} MB before compression`);
+    throw new Error(`Choose a video under ${limits.inputLabel || `${Math.round(limits.maxInputBytes / MB)} MB`} before compression`);
   const original: PreparedVideo = {
     body: file,
     contentType: file.type,
     extension: file.type === "video/quicktime" ? "mov" : file.type === "video/webm" ? "webm" : "mp4",
   };
-  if (file.size <= VIDEO_TARGET_PER_15_SECONDS_BYTES) return original;
+  if (file.size <= 0) throw new Error('Choose a video that is not empty');
 
   const video = document.createElement("video");
   const capture = (video as HTMLVideoElement & { captureStream?: () => MediaStream })
@@ -58,20 +60,19 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
   video.playsInline = true;
   let captured: MediaStream | null = null;
   try {
-    try {
-      await new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => resolve();
-        video.onerror = () => reject(new Error("This video could not be opened"));
-        video.src = url;
-      });
-    } catch (error) {
-      if (file.size <= limits.maxOutputBytes) return original;
-      throw error;
-    }
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        video.onloadedmetadata = null; video.onerror = null;
+        reject(new Error('This video took too long to open. Choose another file and try again.'));
+      }, 10000);
+      video.onloadedmetadata = () => { window.clearTimeout(timeout); resolve(); };
+      video.onerror = () => { window.clearTimeout(timeout); reject(new Error('This video could not be opened. Choose another MP4, MOV or WebM file.')); };
+      video.src = url;
+    });
     const seconds = video.duration;
     const durationLimit = limits.maxDurationSeconds || MAX_REENCODE_SECONDS;
     if (!Number.isFinite(seconds) || seconds <= 0 || seconds > durationLimit)
-      throw new Error(`Trim this video to ${durationLimit} seconds or export it below ${limits.outputLabel} before uploading.`);
+      throw new Error(`Choose a playable video lasting no more than ${durationLimit} seconds.`);
 
     const targetBytes = videoTargetBytes(seconds, limits.maxOutputBytes);
     if (file.size <= targetBytes) return original;
@@ -208,7 +209,7 @@ async function prepareVideo(file: File, limits: VideoLimits): Promise<PreparedVi
 
 export function preparePublicVideo(file: File): Promise<PreparedVideo> {
   return prepareVideo(file, {
-    maxInputBytes: 50 * MB,
+    maxInputBytes: PUBLIC_VIDEO_MAX_INPUT_BYTES,
     maxOutputBytes: PUBLIC_VIDEO_MAX_BYTES,
     outputLabel: "13 MB",
   });
@@ -217,7 +218,8 @@ export function preparePublicVideo(file: File): Promise<PreparedVideo> {
 /** Private message media is compressed before encryption, then uploaded to Storage. */
 export function prepareChatVideo(file: File): Promise<PreparedVideo> {
   return prepareVideo(file, {
-    maxInputBytes: 25 * MB,
+    maxInputBytes: 25 * 1024 * 1024,
+    inputLabel: '25 MiB',
     maxOutputBytes: CHAT_VIDEO_MAX_BYTES,
     outputLabel: "13 MB",
   });
@@ -226,10 +228,9 @@ export function prepareChatVideo(file: File): Promise<PreparedVideo> {
 /** Continuous private access and verification evidence needs legible detail. */
 export function prepareEvidenceVideo(file: File): Promise<PreparedVideo> {
   return prepareVideo(file, {
-    maxInputBytes: 100 * MB,
+    maxInputBytes: EVIDENCE_VIDEO_MAX_INPUT_BYTES,
     maxOutputBytes: 13 * MB,
     outputLabel: "13 MB",
     maxDurationSeconds: 180,
-    scaleBudgetByDuration: true,
   });
 }

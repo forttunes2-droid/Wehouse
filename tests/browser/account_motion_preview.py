@@ -84,6 +84,30 @@ async def main():
   await page.evaluate('window.scrollTo(0,320)')
   await tabs.get_by_role('button',name='Overview').evaluate('(node)=>node.click()')
   assert await page.evaluate('document.scrollingElement.scrollTop')==620
+  for theme in ('light','dark'):
+   await page.evaluate("theme=>{localStorage.setItem('wehouse:appearance',theme);window.dispatchEvent(new StorageEvent('storage',{key:'wehouse:appearance'}));window.__showProviderEntry();}",theme)
+   opener=page.get_by_role('button',name='Open workspace switcher',exact=True);await opener.click()
+   dialog=page.get_by_role('dialog',name='Switch workspace',exact=True)
+   await expect(dialog).to_be_visible();await expect(dialog).to_contain_text('Your services, Experiences, bookings and earnings')
+   await page.keyboard.press('Shift+Tab');assert await page.evaluate("document.activeElement.textContent.includes('Property Partner')")
+   await page.keyboard.press('Tab');await expect(page.get_by_role('button',name='Close workspace switcher',exact=True)).to_be_focused()
+   await dialog.get_by_role('button',name='Service Worker' if theme=='light' else 'Property Partner',exact=False).click();await expect(dialog).to_have_count(0)
+   await expect(page.get_by_label('Selected workspace',exact=True)).to_have_text('worker' if theme=='light' else 'property_partner');await expect(opener).to_be_focused()
+   assert not await page.evaluate("document.querySelector('#root').inert||document.body.style.overflow==='hidden'")
+   await opener.click();await dialog.screenshot(path=str(OUT/f'workspace-switch-{theme}-390.png'))
+   await page.keyboard.press('Escape');await expect(dialog).to_have_count(0)
+  await page.evaluate("window.__activationCalls=0;window.__activateFixture=async()=>{window.__activationCalls++;throw Error('Synthetic setup connection failure');};window.__showProviderOnboarding();")
+  await page.get_by_role('button',name='Switch workspace',exact=False).click()
+  offer=page.get_by_role('button',name='Offer services or Experiences',exact=False)
+  await offer.evaluate('(node)=>{node.click();node.click();}')
+  await expect(page.get_by_text('Synthetic setup connection failure',exact=True)).to_be_visible();await expect(offer).to_be_enabled()
+  assert await page.evaluate('window.__activationCalls')==1
+  assert await page.evaluate('window.__activatedWorkspace||null') is None
+  await page.evaluate("window.__activateFixture=async()=>{window.__activationCalls++;return {data:{},error:null};};void 0;")
+  await offer.click();await expect(page.get_by_text('Services setup started',exact=True)).to_be_visible()
+  activation=await page.evaluate('({calls:window.__activationCalls,workspace:window.__activatedWorkspace})')
+  assert activation=={'calls':2,'workspace':'worker'},activation
+  print('PROVIDER_SHARED_ENTRY_FOCUS_THEME_AND_RECOVERY=passed',flush=True)
   assert not errors,errors
   await browser.close()
 if __name__=='__main__':asyncio.run(main())

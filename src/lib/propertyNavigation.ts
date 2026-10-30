@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/regional";
 /** Typed record keys prevent a hotel, listing and inspection sharing an ID from
  * opening each other's surfaces. These are navigation hints, never authority. */
 export type PropertyKind = "hotel" | "listing" | "inspection";
@@ -22,7 +23,7 @@ export function hotelInventorySummary(hotel: Record<string, any>) {
   if (hotel.room_type_count == null || hotel.total_room_count == null || !Number.isFinite(types) || !Number.isFinite(rooms)) return "Room inventory unavailable";
   const label = `${types} room ${types === 1 ? "type" : "types"} · ${rooms} ${rooms === 1 ? "room" : "rooms"}`;
   const rate = Number(hotel.starting_rate || 0);
-  return rate > 0 ? `${label} · from ₦${rate.toLocaleString("en-NG")}` : label;
+  return rate > 0 ? `${label} · from ${formatMoney(rate)}` : label;
 }
 export function hotelPaymentLabel(status: string, paymentStatus: string) {
   if (paymentStatus === "paid") return "Payment verified";

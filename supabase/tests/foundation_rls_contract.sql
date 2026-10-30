@@ -17,11 +17,27 @@ begin
       'get_current_legal_documents()', 'get_discoverable_homes()',
       'get_discoverable_hotels()', 'get_discoverable_listings()',
       'search_discoverable_homes(text,text,text,text,numeric,numeric,integer,integer,timestamp with time zone,uuid,integer)',
+      -- Reviewed Home-style filter overload; same bounded public projection.
+      'search_discoverable_homes(text,text,text,text,numeric,numeric,integer,integer,timestamp with time zone,uuid,integer,text)',
       'search_discoverable_hotels(text,text,text,text[],numeric,numeric,double precision,double precision,numeric,boolean,timestamp with time zone,integer,integer)',
       'get_public_hotel_detail(integer)', 'get_public_listing_detail(text)',
+      -- Explicit setting-key allowlist and published-only, 12-offer site page.
+      'get_public_discovery_settings()',
+      -- Bounded enabled category labels for guest/customer discovery; no host
+      -- status, private evidence, table access or activity creation authority.
+      'get_experience_categories(text)',
+      -- Published support address only; no arguments or account lookup.
+      -- account_sanction_session_contract verifies its anonymous projection.
+      'get_public_account_support()',
+      -- Caller-only boolean used by the Data API hook and restrictive RLS.
+      -- No parameters, account lookup, records or mutation authority.
+      'request_mfa_satisfied()',
+      'get_property_site_offers(uuid,text,date,date,uuid)',
       'get_hotel_review_summary(integer)',
       'get_accommodation_rate_terms()',
       'get_listing_review_summary(text)',
+      'listing_discount_percent(uuid,date)',
+      'listing_discount_breakdown(uuid,date)',
       -- This bounded reader returns IDs for eligible public home/hotel ads;
       -- its Worker branch explicitly requires an authenticated viewer.
       'get_sponsored_discovery(text,text,text,text,integer)',
@@ -33,6 +49,22 @@ begin
   end if;
 end;
 $$;
+
+set local role anon;
+do $$
+declare rows jsonb;entry jsonb;
+begin
+ rows:=public.get_experience_categories('NG');
+ if jsonb_typeof(rows) is distinct from 'array' or jsonb_array_length(rows)>100 then raise exception 'Public Experience categories must be bounded metadata';end if;
+ for entry in select * from jsonb_array_elements(rows) loop
+  if (select count(*) from jsonb_object_keys(entry))<>4 or not entry ?& array['code','name','description','examples']
+   or exists(select 1 from jsonb_object_keys(entry) key where key not in('code','name','description','examples')) then
+   raise exception 'Public Experience categories exposed unexpected fields';
+  end if;
+ end loop;
+ if has_table_privilege('anon','public.experience_categories','select') then raise exception 'Public category labels must not expose the base table';end if;
+end $$;
+reset role;
 
 -- Browser roles must not retain direct table privileges where RLS has no policies.
 -- Also prevent broad default grants from silently reopening future tables.

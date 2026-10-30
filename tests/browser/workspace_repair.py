@@ -140,9 +140,10 @@ async def main():
     context,page,errors=await mount(browser,'bill',width)
     try:
      await expect(page.get_by_text('Stay charge',exact=True)).to_be_visible()
-     await expect(page.get_by_text('₦240,000',exact=True)).to_be_visible()
-     await expect(page.get_by_text('₦50,000',exact=True)).to_be_visible()
-     await expect(page.get_by_text('₦290,000',exact=True)).to_be_visible()
+     await expect(page.get_by_text('₦240,000.00',exact=True)).to_be_visible()
+     await expect(page.get_by_text('₦50,000.00',exact=True)).to_be_visible()
+     await expect(page.get_by_text('Stay balance to pay · ₦290,000.00',exact=True)).to_be_visible()
+     await expect(page.get_by_text('₦300,000.00',exact=True)).to_be_visible()
      assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
      await page.screenshot(path=str(OUT/f'short-let-post-reservation-review-{width}.png'))
      results.append({'test':'short-let-itemized-review','width':width,'passed':not errors,'page_errors':errors})

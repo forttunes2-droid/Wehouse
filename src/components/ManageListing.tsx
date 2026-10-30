@@ -1,8 +1,10 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import PropertyMediaCarousel from '@/components/PropertyMediaCarousel';
+import { formatMoney } from "@/lib/regional";
 
 type Props={
   listingId:string;
@@ -12,7 +14,7 @@ type Props={
 export default function ManageListing({listingId,source}:Props){
  const[listing,setListing]=useState<any|null>(null),[loading,setLoading]=useState(true);
  useEffect(()=>{let active=true;void(async()=>{const{data,error}=await supabase.from('listings').select('*').eq('id',listingId).maybeSingle();if(!active)return;if(error)toast.error(error.message);setListing(data);setLoading(false)})();return()=>{active=false}},[listingId]);
- if(loading)return <div className="grid min-h-48 place-items-center"><div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent"/></div>;
+ if(loading)return <WeHouseLoadingState compact label="Loading" />;
  if(!listing)return <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[.04] p-4 text-[10px] text-amber-200">The published listing record could not be loaded.</div>;
  const photos=Array.isArray(listing.images)?listing.images:[];
  const videos=Array.isArray(listing.videos)?listing.videos:[];
@@ -28,7 +30,7 @@ export default function ManageListing({listingId,source}:Props){
    {photos.length||videos.length?<PropertyMediaCarousel images={photos} videos={videos} title={listing.title||'Published property'}/>:<div className="grid aspect-[4/3] place-items-center bg-black/30 text-[10px] text-[var(--wh-text-muted)]">No public gallery</div>}
    <div className="p-4 sm:p-5">
     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="break-words text-xl font-bold">{listing.title||source.property_address||'Published property'}</h2><p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">{location||'Location not recorded'}</p></div><span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/[.08] px-2.5 py-1 text-[8px] font-semibold text-emerald-300">LIVE</span></div>
-    <p className="mt-4 text-xl font-bold text-violet-200">₦{Number(listing.price||0).toLocaleString('en-NG')} <span className="text-[9px] font-medium text-[var(--wh-text-muted)]">{listing.sub_type === 'short_let' ? '/ night' : '/ year'}</span></p>
+    <p className="mt-4 text-xl font-bold text-violet-200">{formatMoney(Number(listing.price||0))} <span className="text-[9px] font-medium text-[var(--wh-text-muted)]">{listing.sub_type === 'short_let' ? '/ night' : '/ year'}</span></p>
     <div className="mt-4 grid grid-cols-2 gap-x-4 sm:grid-cols-4">{facts.map(([label,value])=><div key={label} className="border-t border-[var(--wh-border-subtle)] py-3"><p className="text-[8px] uppercase tracking-wide text-[var(--wh-text-muted)]">{label}</p><p className="mt-1 break-words text-[10px] font-semibold capitalize">{String(value)}</p></div>)}</div>
     {listing.description&&<p className="border-t border-[var(--wh-border-subtle)] pt-4 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{listing.description}</p>}
    </div>

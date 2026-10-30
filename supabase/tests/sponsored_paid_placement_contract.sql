@@ -4,6 +4,7 @@ begin;
 do $test$
 declare
   v_owner text:='sponsored-test-owner';
+  v_reviewer text:='sponsored-test-reviewer';
   v_inspection uuid:=gen_random_uuid();
   v_rule uuid:=gen_random_uuid();
   v_first uuid:=gen_random_uuid();
@@ -20,16 +21,34 @@ begin
     raise exception 'Guests cannot see eligible public home and hotel Sponsored placements'; end if;
   insert into public.profiles(auth_id,email,user_id,role,account_kind)
   values(gen_random_uuid()::text,'sponsored-test@example.invalid',v_owner,'property_partner','property_partner');
+  insert into public.profiles(auth_id,email,user_id,role)
+  values(gen_random_uuid()::text,'sponsored-reviewer@example.invalid',v_reviewer,'user');
   insert into public.workspace_role_assignments(user_id,workspace_role,scope_type,status)
   values(v_owner,'property_partner','global','active');
   insert into public.inspection_requests(
     id,request_code,owner_id,owner_email,property_address,property_city,property_state,status
   ) values(v_inspection,'SPONSORED-ROLLBACK',v_owner,'sponsored-test@example.invalid',
     'Test address','Ikeja','Lagos','completed');
+  -- Set up reviewed synthetic evidence, then retain the real publication guard
+  -- for the Hotel insert. No public inventory or payment bypass is enabled.
+  perform set_config('wehouse.property_document_command','configure',true);
+  update public.inspection_requests set property_type='hotel',
+   document_requirements=public._default_property_document_requirements('hotel',null),
+   document_requirements_revision=1,document_requirements_set_by=v_reviewer,
+   document_requirements_set_at=now() where id=v_inspection;
+  insert into public.property_submission_documents(request_id,requirement_code,requirements_revision,
+   version,request_key,submitted_by,original_name,mime_type,byte_size,object_path,status,
+   submitted_at,reviewed_at,reviewed_by,review_note)
+  select v_inspection,rule->>'code',1,1,gen_random_uuid(),v_owner,
+   'synthetic-sponsored-evidence.pdf','application/pdf',12,
+   'synthetic-sponsored/'||v_inspection||'/'||(rule->>'code')||'.pdf','approved',
+   now(),now(),v_reviewer,'Synthetic reviewed Hotel evidence'
+  from jsonb_array_elements(public._default_property_document_requirements('hotel',null)) rule;
+  perform set_config('wehouse.property_document_command','',true);
   insert into public.hotels(
     hotel_id,name,state,city,owner_id,status,inspection_request_id,approved_by,approved_at,published_at
   ) values(987654321,'Sponsored Test Hotel','Lagos','Ikeja',v_owner,'active',
-    v_inspection,v_owner,now(),now());
+    v_inspection,v_reviewer,now(),now());
   insert into public.sponsored_market_rules(
     rule_id,resource_type,scope_type,scope_key,enabled,slot_count,daily_price_ngn,
     allowed_durations,updated_by

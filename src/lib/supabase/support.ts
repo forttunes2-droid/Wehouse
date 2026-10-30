@@ -1,6 +1,7 @@
 import { isChatAttachmentType } from "@/lib/chatMediaPolicy";
 import { prepareChatImageFile, prepareChatVideo, validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from "./client";
+import { withTimeout } from '@/lib/withTimeout';
 import { propertyBookingStatusLabel, type PropertyJourneyAudience } from "@/lib/propertyBookingLifecycle";
 
 export type SupportThread = {
@@ -171,7 +172,7 @@ export function conversationPresentation(
     const domain = String(snapshot.owning_domain || (
       ["payment_issue", "payout_issue", "caution_claim"].includes(reason) ? "finance_operations"
         : ["account_compromise", "blocked_active_obligation", "safety_threat"].includes(reason) ? "security_operations"
-          : ["worker_job_issue", "worker_verification"].includes(reason) ? "worker_operations" : "support"
+          : ["worker_job_issue", "worker_verification", "experience_booking_help"].includes(reason) ? "worker_operations" : "support"
     ));
     const operator = domain === "finance_operations" ? "WeHouse Finance Operations"
       : domain === "security_operations" ? "WeHouse Security Operations"
@@ -376,8 +377,8 @@ export async function getSupportCaseEvents(conversationId: string) {
   return { events: (data || []) as SupportCaseEvent[], error };
 }
 export async function claimCommunicationCase(conversationId: string) {
-  const { error } = await supabase.rpc("claim_my_communication_case", { p_conversation_id: conversationId });
-  return { error };
+  const { data, error } = await withTimeout(supabase.rpc("claim_my_communication_case", { p_conversation_id: conversationId }),15000,'Assignment confirmation took too long. Refresh before retrying.');
+  return { error: error || (data===true?null:new Error('Assignment was not confirmed. Refresh before retrying.')) };
 }
 export async function transitionSupportCase(
   conversationId: string, action: "start" | "request_info" | "escalate" | "resolve" | "close", note?: string,
@@ -385,7 +386,8 @@ export async function transitionSupportCase(
   const { data, error } = await supabase.rpc("transition_my_support_case", {
     p_conversation_id: conversationId, p_action: action, p_note: note || null,
   });
-  return { conversation: data, error };
+  const expected={start:'in_progress',request_info:'waiting_for_user',escalate:'escalated',resolve:'resolved',close:'closed'}[action];
+  return { conversation: data, error: error || (data?.id===conversationId&&data?.status===expected?null:new Error('The case change was not confirmed. Refresh its status before retrying.')) };
 }
 export async function completeSupportCase(conversationId: string) {
   const { data, error } = await supabase.rpc("complete_my_support_case", { p_conversation_id: conversationId });
@@ -417,26 +419,69 @@ export function supportNextStep(status?: string | null, assignedStaffName?: stri
 }
 export async function sendSupportMessage(
   conversationId: string, content: string, attachments: string[] = [], attachmentTypes: string[] = [],
-  context?: SupportOpenContext | null, visibility: "customer" | "internal" = "customer",
+  context?: SupportOpenContext | null, visibility: "customer" | "internal" = "customer",requestId:string=crypto.randomUUID(),
 ) {
-  const actionType = context ? "message" : null;
-  const actionMetadata = context ? {
-    category: context.category || "general", context_type: context.contextType || "general",
-    context_id: context.contextId || null, context_snapshot: sanitizeSupportSnapshot(context.contextSnapshot), subject: context.subject || null,
-  } : {};
-  const { data, error } = await supabase.rpc("send_support_message", {
+  void context; // Existing conversation context remains server-owned.
+  const { data, error } = await withTimeout(supabase.rpc("send_support_message_v2", {
+    p_request_id:requestId,
     p_conversation_id: conversationId, p_content: content, p_attachments: attachments,
-    p_attachment_types: attachmentTypes, p_action_type: actionType, p_action_metadata: actionMetadata, p_visibility: visibility,
-  });
-  return { messageId: data as string | null, error };
+    p_attachment_types: attachmentTypes, p_visibility: visibility,
+  }),15000,'Message confirmation took too long. Retry the same message to confirm it.');
+  const valid=typeof data==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(data);
+  return { messageId: valid?data:null, error:error||(valid?null:new Error('The message was not confirmed. Retry the same message to confirm it.')) };
+}
+
+type ReplyAttempt={requestId:string;paths:string[];types:string[];uploaded:number;inFlight?:Promise<{messageId:string|null;error:{message:string}|null}>};
+const pendingReplies=new Map<string,ReplyAttempt>();
+const replyFileIds=new WeakMap<File,string>();
+/** Retain intent and uploads until a valid receipt; retries cannot send a second message. */
+export async function sendReliableSupportReply(actorId:string,conversationId:string,content:string,files:File[],visibility:'customer'|'internal'='customer'){
+  const fileKeys=files.map(file=>{let key=replyFileIds.get(file);if(!key){key=crypto.randomUUID();replyFileIds.set(file,key);}return key;});
+  const key=JSON.stringify([actorId,conversationId,visibility,content,fileKeys]);
+  let attempt=pendingReplies.get(key);
+  if(!attempt){
+    if(pendingReplies.size>=30)throw new Error('Confirm pending replies before starting more messages.');
+    attempt={requestId:crypto.randomUUID(),paths:[],types:[],uploaded:0};pendingReplies.set(key,attempt);
+  }
+  if(attempt.inFlight)return attempt.inFlight;
+  const captured=attempt;
+  captured.inFlight=(async()=>{
+    try{
+      for(let index=captured.uploaded;index<files.length;index++){
+        const uploaded=await uploadSupportAttachment(conversationId,files[index]);
+        if(uploaded.error||!uploaded.path)throw new Error(uploaded.error?.message||'Attachment upload could not be confirmed.');
+        captured.paths.push(uploaded.path);captured.types.push(files[index].type);captured.uploaded++;
+      }
+      const receipt=await sendSupportMessage(conversationId,content,captured.paths,captured.types,null,visibility,captured.requestId);
+      if(!receipt.error)pendingReplies.delete(key);
+      return receipt;
+    }catch(error){return{messageId:null,error:error instanceof Error?error:new Error((error as {message?:string})?.message||'Message confirmation failed. Retry the same message.')};}
+    finally{captured.inFlight=undefined;}
+  })();
+  return captured.inFlight;
 }
 export async function markSupportMessagesRead(conversationId: string) {
   const { error } = await supabase.rpc("mark_support_messages_read", { p_conversation_id: conversationId });
   if (!error && typeof window !== "undefined") window.dispatchEvent(new Event("wehouse:unread-changed"));
   return { error };
 }
+export type SupportQueue = "all" | "support" | "operations" | "property_operations" | "reservation_operations" | "field_operations" | "worker_operations" | "finance_operations" | "security_operations";
+
+// Presentation of server-confirmed assignment; write authority stays in the RPCs.
+export function operationalConversationControls(
+  row: { assigned_staff_id?: string | null; context_snapshot?: Record<string, unknown> | null },
+  actorId: string,
+  queue: SupportQueue,
+) {
+  const ownsCase = Boolean(actorId) && row.assigned_staff_id === actorId;
+  const fieldParticipant = Boolean(actorId) && queue === 'field_operations'
+    && row.context_snapshot?.field_assignee_id === actorId;
+  return { ownsCase, fieldParticipant, canReply: ownsCase || fieldParticipant,
+    canClaim: Boolean(actorId) && !row.assigned_staff_id && !fieldParticipant };
+}
+
 export async function getSupportInbox(
-  queue: "all" | "support" | "operations" | "property_operations" | "reservation_operations" | "field_operations" = "support",
+  queue: SupportQueue = "support",
 ) {
   const { data, error } = await supabase.rpc("support_inbox", { p_queue: queue });
   return { conversations: data || [], error };

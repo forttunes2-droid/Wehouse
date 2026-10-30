@@ -49,6 +49,15 @@ insert into public.support_case_events(
   'resolved','bundle-creator','in_progress','resolved','resolved note','{}'
 );
 
+-- Real Auth and trusted-device fixtures are required by current access checks.
+insert into auth.users(id,aud,role,email,created_at,updated_at)
+select auth_id::uuid,'authenticated','authenticated',email,now(),now()
+from public.profiles where user_id in ('bundle-customer','bundle-creator','bundle-outsider');
+insert into auth.sessions(id,user_id,created_at,updated_at)
+select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles where user_id in ('bundle-customer','bundle-creator','bundle-outsider');
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select user_id,auth_id::uuid,auth_id::uuid,'contract-'||auth_id,'Browser',true,'trusted'
+from public.profiles where user_id in ('bundle-customer','bundle-creator','bundle-outsider');
 set local session_replication_role=origin;
 select set_config('request.jwt.claim.role','authenticated',true);
 set local role authenticated;
@@ -58,7 +67,7 @@ declare
   bundle jsonb;
   contents jsonb;
 begin
-  perform set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','22222222-2222-4222-8222-222222222222','session_id','22222222-2222-4222-8222-222222222222','role','authenticated')::text,true);
   bundle:=public.get_operational_conversation_bundle('33333333-3333-4333-8333-333333333333');
 
   if jsonb_array_length(bundle->'messages')<>2 then
@@ -81,14 +90,14 @@ begin
      or bundle->'messages'->0->>'content'<>'hello' then
     raise exception 'Role-independent sender sides or tie-break ordering is incorrect';
   end if;
-  perform set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','11111111-1111-4111-8111-111111111111','session_id','11111111-1111-4111-8111-111111111111','role','authenticated')::text,true);
   begin
     perform public.get_operational_conversation_bundle('33333333-3333-4333-8333-333333333333');
     raise exception 'Requester read a team-only bundle';
   exception when others then
     if sqlerrm<>'Operational team access required' then raise; end if;
   end;
-  perform set_config('request.jwt.claim.sub','66666666-6666-4666-8666-666666666666',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','66666666-6666-4666-8666-666666666666','session_id','66666666-6666-4666-8666-666666666666','role','authenticated')::text,true);
   begin
     perform public.get_operational_conversation_bundle('33333333-3333-4333-8333-333333333333');
     raise exception 'Unrelated user read a team-only bundle';
@@ -103,7 +112,7 @@ update public.workspace_role_assignments set status='revoked',revoked_at=now()
 where user_id='bundle-creator';
 set local role authenticated;
 do $$ begin
-  perform set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
+  perform set_config('request.jwt.claims',jsonb_build_object('sub','22222222-2222-4222-8222-222222222222','session_id','22222222-2222-4222-8222-222222222222','role','authenticated')::text,true);
   begin
     perform public.get_operational_conversation_bundle('33333333-3333-4333-8333-333333333333');
     raise exception 'Revoked grant still read the bundle';

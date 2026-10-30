@@ -10,7 +10,8 @@ const mock=path.resolve('tests/browser/accountMotionClientFixture.ts');
 const empty=path.resolve('tests/browser/accountMotionEmptyFixture.tsx');
 await build({entryPoints:['tests/browser/account-motion-preview.tsx'],bundle:true,format:'iife',jsx:'automatic',outfile:out+'/fixture.js',
   plugins:[{name:'account-motion-offline',setup(api){api.onResolve({filter:/.*/},args=>{
-    if(args.path==='@/lib/supabase')return {path:mock};
+    if(['@/lib/supabase','@/lib/supabase/client'].includes(args.path)
+      || (args.path==='./client' && args.importer.startsWith(path.resolve('src/lib/supabase')+path.sep)))return {path:mock};
     if(['@/components/AccountHelpCenter','@/pages/PrivacySecuritySettings','@/components/MediaViewer'].includes(args.path))return {path:empty};
     if(args.path==='@/lib/supabase/legal')return {path:empty,namespace:'legal'};
     if(args.path==='@/lib/supabase/activity')return {path:empty,namespace:'activity'};

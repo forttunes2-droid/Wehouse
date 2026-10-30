@@ -43,13 +43,14 @@ export function useWorkerShowcase(workerId: string, owner: boolean, enabled = tr
       offset.current = start + page.length; setMore(rows.length > PAGE); setLoadedFor(identity); setLoading(false);
       // Signing failure does not manufacture an empty profile. The grid remains
       // selectable and each post can retry an individual authorised media request.
-      if (page.length) void withTimeout(
-        supabase.storage.from("worker-showcase").createSignedUrls(page.map(row => row.storage_path), 3600),
+      const previews = page.filter(row => row.media_type === 'image');
+      if (previews.length) void withTimeout(
+        supabase.storage.from("worker-showcase").createSignedUrls(previews.map(row => row.storage_path), 3600),
         12000, "Media previews took too long.",
       ).then(signed => {
         if (request !== generation.current || latestIdentity.current !== identity) return;
         const urls = new Map((signed.data || []).map(item => [item.path, item.signedUrl || ""]));
-        const next = page.map(row => ({ ...row, url: urls.get(row.storage_path) || "" }));
+        const next = previews.map(row => ({ ...row, url: urls.get(row.storage_path) || "" }));
         const updates = new Map(next.map(row => [row.id, row]));
         setPosts(current => current.map(row => updates.get(row.id) || row));
         if (signed.error || next.some(post => !post.url)) setError("Some media previews could not be loaded. Open a post to retry.");

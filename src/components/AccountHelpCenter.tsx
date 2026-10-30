@@ -1,9 +1,10 @@
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import AccountShell, { AccountRow, AccountSection } from "@/components/AccountShell";
 import type { WorkspaceName } from "@/lib/workspacePresentation";
 import { withTimeout } from "@/lib/withTimeout";
-import { helpTargetKey, paymentHelpTargets, isHelpTargetsResponse, type HelpTarget } from "@/lib/helpTargets";
+import { experienceHelpContext, helpTargetKey, paymentHelpTargets, isHelpTargetsResponse, type HelpTarget } from "@/lib/helpTargets";
 import HelpRecordPicker from "@/components/HelpRecordPicker";
 import { useRecordScreenBack } from "@/hooks/useRecordScreenBack";
 import { supabase } from "@/lib/supabase";
@@ -13,6 +14,7 @@ type HelpTargets = {
   account?: HelpTarget;
   worker_profile?: HelpTarget | null;
   worker_jobs?: HelpTarget[];
+  experience_bookings?: HelpTarget[];
   withdrawals?: HelpTarget[];
   reservations?: HelpTarget[];
   hotel_bookings?: HelpTarget[];
@@ -30,7 +32,7 @@ type GeneralReason = "app_help" | "account_access";
 const TOPICS: Array<{ id: Topic; title: string; detail: string }> = [
   { id: "general", title: "Using WeHouse or my account", detail: "App help and account access" },
   { id: "property", title: "Property or stay", detail: "Your home or hotel booking" },
-  { id: "job", title: "Service job", detail: "A service you booked" },
+  { id: "job", title: "Services and activities", detail: "A service or activity you booked" },
   { id: "money", title: "Payment or payout", detail: "A payment, refund or withdrawal" },
   { id: "security", title: "Safety or account security", detail: "Report a concern or secure your account" },
 ];
@@ -87,7 +89,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     if (item.id === 'property' && workspace === 'property_partner') return { ...item, title:'Properties and guests', detail:'Your submissions, properties and guest bookings' };
     if (item.id === 'property' && workspace === 'hotel') return { ...item, title:'Your hotel', detail:'Help with your assigned hotel' };
     if (item.id === 'property' && workspace === 'hosting') return { ...item, title:'Assigned homes and guest operations', detail:'Get help with a property you currently host' };
-    if (item.id === 'job' && workspace === 'worker') return { ...item, title:'Jobs and professional profile', detail:'Your jobs, setup and review' };
+    if (item.id === 'job' && workspace === 'worker') return { ...item, title:'Jobs, activities and professional profile', detail:'Your work, setup and review' };
     if (item.id === 'money' && workspace === 'personal') return { ...item, title:'Payments and refunds', detail:'A payment for a booking or service' };
     if (item.id === 'money') return { ...item, title:'Earnings and payouts', detail:'Job payments, guest payments and withdrawals' };
     return item;
@@ -97,11 +99,11 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     ...(targets.properties || []), ...(targets.hotels || []), ...(targets.partner_reservations || []),
     ...(targets.partner_hotel_bookings || []),
   ], [targets]);
-  const jobTargets = [...(targets.worker_profile ? [targets.worker_profile] : []), ...(targets.worker_jobs || [])];
+  const jobTargets = [...(targets.worker_profile ? [targets.worker_profile] : []), ...(targets.worker_jobs || []), ...(targets.experience_bookings || [])];
   const paymentTargets = useMemo(() => paymentHelpTargets(targets), [targets]);
   const payoutTargets = targets.withdrawals || [];
   const safetyTargets = useMemo(() => [
-    ...(targets.worker_jobs || []), ...(targets.reservations || []), ...(targets.hotel_bookings || []),
+    ...(targets.worker_jobs || []), ...(targets.experience_bookings || []), ...(targets.reservations || []), ...(targets.hotel_bookings || []),
     ...(targets.partner_reservations || []), ...(targets.partner_hotel_bookings || []),
   ], [targets]);
 
@@ -139,7 +141,11 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
   }
   function startJob(targetId: string) {
     const target = jobTargets.find(item => helpTargetKey(item) === targetId);
-    if (!target) return toast.error("Choose the job or Worker profile first");
+    if (!target) return toast.error("Choose the service, activity or professional profile first");
+    if (target.subject_type === 'experience_booking') {
+      openConversation(experienceHelpContext(target.subject_id, target.label, workspace === 'worker' ? 'worker' : 'personal'));
+      return;
+    }
     if (target.subject_type === "worker") {
       openConversation({
         subject: target.label, category: "worker_verification", contextType: "contextual_help", contextId: target.subject_id,
@@ -155,6 +161,10 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     });
   }
   function openLinkedJourney(target: HelpTarget, reasonCode: "payment_issue" | "safety_threat", subject: string) {
+    if (target.subject_type === 'experience_booking') {
+      openConversation(experienceHelpContext(target.subject_id, target.label, workspace === 'worker' ? 'worker' : 'personal', reasonCode));
+      return true;
+    }
     const contextType = target.context_type || "";
     if (!["apartment_reservation", "hotel_booking", "worker_booking"].includes(contextType)) return false;
     openConversation({
@@ -200,7 +210,7 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
     });
   }
 
-  const retryButton = <button className="mt-3 min-h-11 text-violet-300" onClick={() => setRetry(value => value + 1)}>Try again</button>;
+  const retryButton = <button className="mt-3 min-h-11 text-[var(--wh-accent-text)]" onClick={() => setRetry(value => value + 1)}>Try again</button>;
   const title = topic === "security" ? "Safety concern" : topic ? topics.find(item => item.id === topic)?.title || "Help" : "Help";
   return <AccountShell profile={profile} workspace={workspace} title={title} narrow onBack={topic ? backToHelp : onBack}>
     <div className="mx-auto w-full max-w-xl">
@@ -214,15 +224,15 @@ export default function AccountHelpCenter({ profile, onBack, workspace = "person
         <AccountRow title="Account security" onClick={() => startSecurity("", "account_compromise")} disabled={!ready} />
         <AccountRow title="Report a safety concern" onClick={() => {resetTopic("security");setSecurityReason("safety_threat");}} />
       </AccountSection>
-      {loading && <p role="status" className="text-sm text-[var(--wh-text-secondary)]">Loading your help options…</p>}
+      {loading && <WeHouseLoadingState compact label="Loading your help options" />}
     </div> : <>
       {loading || !ready ? <div role="status" className="py-5 text-sm text-[var(--wh-text-secondary)]">Loading your help options…</div> : <>
         {topic === "property" && <HelpRecordPicker key={`${scope}:property`} title="Which property or stay?" targets={propertyTargets} onChoose={target => startProperty(helpTargetKey(target))} />}
         {topic === "property" && !propertyTargets.length && <p className="py-5 text-sm text-[var(--wh-text-secondary)]">No property or stay is linked to this account yet.</p>}
-        {topic === "job" && <HelpRecordPicker key={`${scope}:job`} title="Which job or Worker profile?" targets={jobTargets} onChoose={target => startJob(helpTargetKey(target))} />}
-        {topic === "job" && !jobTargets.length && <p className="py-5 text-sm text-[var(--wh-text-secondary)]">No job or Worker profile is linked to this account yet.</p>}
+        {topic === "job" && <HelpRecordPicker key={`${scope}:job`} title="Which service, activity or professional profile?" targets={jobTargets} onChoose={target => startJob(helpTargetKey(target))} />}
+        {topic === "job" && !jobTargets.length && <p className="py-5 text-sm text-[var(--wh-text-secondary)]">No service, activity or professional profile is linked to this account yet.</p>}
         {topic === "money" && <>
-          {workspace !== "personal" && <div className="mb-3 flex gap-2" role="group" aria-label="Payment help type">{([["payment_issue","Payments and refunds"],["payout_issue","Withdrawals"]] as const).map(([value,label]) => <button key={value} type="button" aria-pressed={moneyReason === value} onClick={() => setMoneyReason(value)} className={`min-h-11 rounded-xl border px-3 text-sm ${moneyReason === value ? "border-violet-400/50 text-violet-200" : "border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>{label}</button>)}</div>}
+          {workspace !== "personal" && <div className="mb-3 flex gap-2" role="group" aria-label="Payment help type">{([["payment_issue","Payments and refunds"],["payout_issue","Withdrawals"]] as const).map(([value,label]) => <button key={value} type="button" aria-pressed={moneyReason === value} onClick={() => setMoneyReason(value)} className={`min-h-11 rounded-xl border px-3 text-sm ${moneyReason === value ? "border-violet-400/50 text-[var(--wh-accent-text)]" : "border-[var(--wh-border-subtle)] text-[var(--wh-text-secondary)]"}`}>{label}</button>)}</div>}
           <HelpRecordPicker key={`${scope}:${moneyReason}`} title={moneyReason === "payout_issue" ? "Which withdrawal?" : "Which payment is this about?"} targets={moneyReason === "payout_issue" ? payoutTargets : paymentTargets} onChoose={target => startMoney(helpTargetKey(target))} includeHistory />
           {!(moneyReason === "payout_issue" ? payoutTargets : paymentTargets).length && <p className="py-5 text-sm leading-6 text-[var(--wh-text-secondary)]">{moneyReason === "payout_issue" ? "No withdrawal request is linked to this account yet." : "No payment or active payment attempt is linked to this workspace."}</p>}
         </>}

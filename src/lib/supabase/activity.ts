@@ -106,6 +106,7 @@ export type ActivityWorkspace =
   | "worker"
   | "partner"
   | "property_partner"
+  | "hosting"
   | "hotel"
   | "staff"
   | "admin"
@@ -148,8 +149,8 @@ export async function getCanonicalActivity(
     p_limit: limit,
   });
   return {
-    rows: (Array.isArray(data) ? data : []) as CanonicalActivityRow[],
-    error,
+    rows: validActivityRows(data) ? data : [],
+    error: error || (validActivityRows(data) ? null : {message:'Activity returned an invalid response. Try again.'}),
   };
 }
 
@@ -161,14 +162,29 @@ export async function getCanonicalActivitySummary(
     { p_workspace: workspace },
   );
   const value = (data || {}) as Partial<CanonicalActivitySummary>;
+  const valid = Number.isSafeInteger(value.unread) && Number(value.unread)>=0 &&
+    Number.isSafeInteger(value.needs_action) && Number(value.needs_action)>=0 &&
+    (value.latest_at === null || (typeof value.latest_at==='string' && Number.isFinite(Date.parse(value.latest_at))));
   return {
     summary: {
       unread: Number(value.unread || 0),
       needs_action: Number(value.needs_action || 0),
       latest_at: value.latest_at ? String(value.latest_at) : null,
     },
-    error,
+    error: error || (valid ? null : {message:'Activity counts could not be confirmed. Refresh Activity.'}),
   };
+}
+
+function validActivityRows(value:unknown):value is CanonicalActivityRow[]{
+  if(!Array.isArray(value))return false;
+  return value.every(row=>row&&typeof row.id==='string'&&row.id.length>0&&
+    typeof row.type==='string'&&typeof row.title==='string'&&typeof row.read==='boolean'&&
+    typeof row.workspace==='string'&&row.workspace.length>0&&typeof row.action_required==='boolean'&&
+    typeof row.created_at==='string'&&Number.isFinite(Date.parse(row.created_at))&&
+    (row.resolved_at===null||(typeof row.resolved_at==='string'&&Number.isFinite(Date.parse(row.resolved_at))))&&
+    ['message','source_type','source_id','destination_route'].every(key=>row[key]===null||typeof row[key]==='string')&&
+    (row.destination_params===null||(typeof row.destination_params==='object'&&!Array.isArray(row.destination_params))))&&
+    new Set(value.map(row=>row.id)).size===value.length;
 }
 
 export async function markCanonicalActivityRead(
@@ -182,7 +198,7 @@ export async function markCanonicalActivityRead(
       p_workspace: workspace,
     },
   );
-  return { read: Boolean(data), error };
+  return { read: data === true, error: error || (data === true ? null : {message:'The Activity read receipt could not be confirmed. Refresh Activity.'}) };
 }
 
 export async function markAllCanonicalActivityRead(
@@ -192,7 +208,8 @@ export async function markAllCanonicalActivityRead(
     "mark_all_my_canonical_activity_read",
     { p_workspace: workspace },
   );
-  return { count: Number(data || 0), error };
+  return { count: typeof data==='number'&&Number.isSafeInteger(data)&&data>=0?data:0,
+    error: error || (typeof data==='number'&&Number.isSafeInteger(data)&&data>=0?null:{message:'The Activity read count could not be confirmed. Refresh Activity.'}) };
 }
 
 export function subscribeToCanonicalActivity(

@@ -1,3 +1,5 @@
+import { dateInZone, dateTimeInputInZone, propertyTimeZone, timeZoneLabel, viewerTimeZone, zonedInputToISO } from "./regional";
+
 /** Date-only booking values are calendar dates, never UTC instants. */
 export function displayDate(value: unknown): string {
   if (!value) return "—";
@@ -16,18 +18,26 @@ export function displayDateTime(value: unknown, timeZone?: string): string {
   });
 }
 
-/** Nigeria property arrival times stay consistent for travellers in other zones. */
-export function nigeriaDateTimeInput(value: Date): string {
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(value);
-  const part = (type: string) => parts.find(p => p.type === type)?.value || "";
-  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
+/** Time at a property, with its zone name, so travellers in other zones are never confused. */
+export function displayDateTimeAtProperty(value: unknown, zone?: string | null): string {
+  const timeZone = propertyTimeZone(zone);
+  const text = displayDateTime(value, timeZone);
+  return text === "—" ? text : `${text} ${timeZoneLabel(timeZone, new Date(String(value)))}`;
 }
 
-export function nigeriaDate(value = new Date()): string {
-  return nigeriaDateTimeInput(value).slice(0, 10);
+/** A moment (payment, deadline) shown in the viewer's own time zone. */
+export function displayMoment(value: unknown): string {
+  return displayDateTimeAtProperty(value, viewerTimeZone());
 }
 
-export function nigeriaInputToISO(value: string): string {
-  // Nigerian property time is WAT (UTC+01:00), without daylight-saving changes.
-  return new Date(`${value}:00+01:00`).toISOString();
+export function propertyDateTimeInput(value: Date, zone?: string | null): string {
+  return dateTimeInputInZone(value, zone);
+}
+
+export function propertyDate(value = new Date(), zone?: string | null): string {
+  return dateInZone(zone, value);
+}
+
+export function propertyInputToISO(value: string, zone?: string | null): string {
+  return zonedInputToISO(value, zone);
 }

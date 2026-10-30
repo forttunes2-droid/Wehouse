@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import WorkspaceFrameV2 from "@/components/WorkspaceFrameV2";
 import WorkerActivationHome from "@/components/WorkerActivationHome";
+import ExperienceActivitiesPanel from "@/components/ExperienceActivitiesPanel";
+import ExperienceHostBookings from '@/components/ExperienceHostBookings';
 import WorkerJobsPanelV2, {
   WorkerInboxPanel,
 } from "@/components/WorkerJobsPanelV2";
@@ -14,7 +16,7 @@ import AccountCenter, {
   type WorkspaceChoice,
 } from "@/pages/AccountCenter";
 import AccountShell from "@/components/AccountShell";
-import WorkerProfilePanelV3 from "@/components/WorkerProfilePanelV2";
+import WorkerProfilePanel from "@/components/WorkerProfilePanel";
 import type { Profile } from "@/types";
 import IdentityAccessGate from "@/components/IdentityAccessGate";
 import WorkerWallet from "@/pages/WorkerWallet";
@@ -23,20 +25,25 @@ import WorkerAvailabilityControl from "@/components/WorkerAvailabilityControl";
 import { useWorkerInboxSummary } from "@/hooks/useWorkerInboxSummary";
 import { useWorkerPro } from "@/hooks/useWorkerPro";
 import WorkspaceSwitchSheet from "@/components/WorkspaceSwitchSheet";
+import InboxActivityEntry from '@/components/InboxActivityEntry';
+import ActivityHeader from '@/components/ActivityHeader';
+import Notifications from '@/pages/Notifications';
+import { useProviderWorkspaceCapabilities } from '@/hooks/useProviderWorkspaceCapabilities';
 
-type Tab = "home" | "jobs" | "inbox" | "showcase" | "earnings" | "account";
+type Tab = "experiences" | "home" | "jobs" | "inbox" | "showcase" | "earnings" | "account";
 
-const LIVE_NAV = [
-  { id: "jobs", label: "Jobs" },
+const COMMON_NAV = [
+  { id: "experiences", label: "Experiences" },
   { id: "inbox", label: "Inbox" },
-  { id: "showcase", label: "Showcase" },
   { id: "earnings", label: "Earnings" },
   { id: "account", label: "Account" },
 ];
 
-const ACTIVATION_NAV = [{ id: "home", label: "Setup" }, { id: "inbox", label: "Inbox" }];
+export default function WorkerWorkspaceModern(props: Parameters<typeof WorkerWorkspaceContent>[0]) {
+  return <WorkerWorkspaceContent key={props.profile.user_id} {...props} />;
+}
 
-export default function WorkerWorkspaceModern({
+function WorkerWorkspaceContent({
   profile,
   onGoToSetup,
   onLogout,
@@ -55,21 +62,25 @@ export default function WorkerWorkspaceModern({
   activeWorkspace?: WorkspaceChoice;
   onSwitchWorkspace?: (workspace: WorkspaceChoice) => void;
 }) {
-  const live =
-    profile.worker_status === "verified" && profile.worker_verified === true;
+  const access = useProviderWorkspaceCapabilities(profile.user_id,`${profile.worker_status}:${profile.worker_verified}`);
+  const serviceReviewed = access.capabilities?.service_reviewed===true;
+  const canManageJobs = access.capabilities?.can_manage_jobs===true;
   const inbox = useWorkerInboxSummary(profile.user_id);
-  const nav = live
-    ? LIVE_NAV.map((item) =>
+  const rootItem = canManageJobs ? { id: "jobs", label: "Jobs" } : { id: "home", label: "Overview" };
+  const nav = [rootItem,...COMMON_NAV.slice(0,2),
+    ...(access.capabilities?.can_manage_showcase?[{id:'showcase',label:'Showcase'}]:[]),...COMMON_NAV.slice(2)].map((item) =>
         item.id === "inbox"
           ? { ...item, badge: inbox.totalUnread || undefined }
           : item,
-      )
-    : ACTIVATION_NAV;
-  const [tab, setTab] = useState<Tab>(live ? "jobs" : "home");
+      );
+  const [tab, setTab] = useState<Tab>('home');
   const [conversation, setConversation] =
     useState<WorkerBookingConversation | null>(null);
   const [showcaseTargetId, setShowcaseTargetId] = useState<string>();
   const [switchOpen, setSwitchOpen] = useState(false);
+  const [experienceTarget,setExperienceTarget]=useState<{id:string;sequence:number}|null>(null);
+  const [experienceBookingTarget,setExperienceBookingTarget]=useState<{id:string;sequence:number}|null>(null);
+  const [reminderTarget,setReminderTarget]=useState<string|null>(null);
   const [accountView, setAccountView] = useState<
     "account" | "profile" | "paid_tools" | "sponsored"
   >("account");
@@ -88,18 +99,16 @@ export default function WorkerWorkspaceModern({
     window.addEventListener("wehouse:worker-pro-activated", activated);
     return () => window.removeEventListener("wehouse:worker-pro-activated", activated);
   }, [profile.user_id]);
-  const safeTab =
-    !live &&
-    (tab === "jobs" ||
-      tab === "showcase" ||
-      tab === "earnings" ||
-      tab === "account")
-      ? "home"
-      : tab;
+  const safeTab = tab==='home'&&canManageJobs?'jobs':(tab==='jobs'&&!canManageJobs)||(tab==='showcase'&&!access.capabilities?.can_manage_showcase)?'home':tab;
 
   function openActivityDestination(page: string, id?: string) {
     const route = page.toLowerCase().replace(/-/g, "_");
+    if(route==='experience_application'&&id){
+      setExperienceBookingTarget(null);setExperienceTarget({id,sequence:Date.now()});setConversation(null);setTab('experiences');return;
+    }
+    if(route==='experience_booking'&&id){setExperienceBookingTarget({id,sequence:Date.now()});setConversation(null);setTab('experiences');return;}
     if (route === "worker_paid_tools") {
+      setReminderTarget(id||null);
       setConversation(null);
       setAccountView("paid_tools");
       setTab("account");
@@ -118,11 +127,12 @@ export default function WorkerWorkspaceModern({
       return (
         <AccountShell
           profile={profile}
+          workspace="worker"
           title="Service Worker profile"
           description="Services, coverage and the public details customers see."
           onBack={() => setAccountView("account")}
         >
-          <WorkerProfilePanelV3
+          <WorkerProfilePanel
             profile={profile}
             onEdit={onGoToSetup}
             onVerification={() => onNavigate?.("worker_verification")}
@@ -132,22 +142,24 @@ export default function WorkerWorkspaceModern({
     if (accountView === "paid_tools")
       return (
         <ServiceProviderPaidToolsAccount
+          key={reminderTarget||'paid-tools'}
           profile={profile}
-          onBack={() => setAccountView("account")}
+          initialBusinessTools={Boolean(reminderTarget)}
+          onBack={() => {setReminderTarget(null);setAccountView("account");}}
         />
       );
     if (accountView === "sponsored")
-      return <AccountShell profile={profile} title="Sponsored" description="Campaigns and placements are separate from WeHouse Pro." onBack={() => setAccountView("account")}><SponsoredCampaignPanel types={['worker']} /></AccountShell>;
+      return <AccountShell profile={profile} workspace="worker" title="Sponsored" description="Promote an eligible service profile or activity." onBack={() => setAccountView("account")}><SponsoredCampaignPanel types={['worker','experience']} /></AccountShell>;
     return (
       <AccountCenter
         profile={profile}
-        onBack={() => setTab(live ? "jobs" : "home")}
+        onBack={() => setTab('home')}
         onGoToPrivacy={() => {}}
         onGoToSaved={() => onNavigate?.("saved")}
         onGoToSecurity={() => {}}
         onGoToProfileEdit={() => setAccountView("profile")}
-        onGoToWorkerPaidTools={live ? () => setAccountView("paid_tools") : undefined}
-        onGoToSponsored={live ? () => setAccountView("sponsored") : undefined}
+        onGoToWorkerPaidTools={canManageJobs ? () => setAccountView("paid_tools") : undefined}
+        onGoToSponsored={access.capabilities?.can_apply_experiences ? () => setAccountView("sponsored") : undefined}
         onNavigate={(page) => onNavigate?.(page)}
         onLogout={onLogout}
         workspaceAccess={workspaceAccess}
@@ -158,10 +170,12 @@ export default function WorkerWorkspaceModern({
   }
 
   let content: React.ReactNode;
-  if (live && safeTab === "jobs") {
+  if (safeTab === "experiences") {
+    content = experienceBookingTarget?<ExperienceHostBookings key={experienceBookingTarget.sequence} userId={profile.user_id} initialBookingId={experienceBookingTarget.id} onBack={()=>setExperienceBookingTarget(null)}/>:<ExperienceActivitiesPanel profile={profile} initialApplication={experienceTarget} />;
+  } else if (canManageJobs && safeTab === "jobs") {
     content = (
       <div className="space-y-4">
-        <WorkerAvailabilityControl profile={profile} />
+        {serviceReviewed?<WorkerAvailabilityControl profile={profile} />:<p className="rounded-xl border border-[var(--wh-border)] p-4 text-sm text-[var(--wh-text-secondary)]">Your existing jobs remain available. New service requests require current service approval.</p>}
         <WorkerJobsPanelV2
           profile={profile}
           onOpenConversation={(row) => {
@@ -171,11 +185,11 @@ export default function WorkerWorkspaceModern({
         />
       </div>
     );
-  } else if (!live && safeTab === "inbox") {
+  } else if (!canManageJobs && safeTab === "inbox") {
     // Setup-related WeHouse messages remain reachable without exposing jobs or
     // treating an unapproved worker as a public service provider.
-    content = <SupportEntryCard profile={profile} compact />;
-  } else if (live && safeTab === "inbox") {
+    content = <ApplicantInbox profile={profile} unread={inbox.activityUnread} onNavigate={openActivityDestination} onUnreadChange={()=>void inbox.refresh()} />;
+  } else if (canManageJobs && safeTab === "inbox") {
     content = (
       <WorkerInboxPanel
         profile={profile}
@@ -188,42 +202,39 @@ export default function WorkerWorkspaceModern({
         onUnreadRefresh={inbox.refresh}
       />
     );
-  } else if (live && safeTab === "showcase") {
+  } else if (access.capabilities?.can_manage_showcase && safeTab === "showcase") {
     content = (
       <WorkerShowcaseManager
         profile={profile}
         initialPostId={showcaseTargetId}
       />
     );
-  } else if (live && safeTab === "earnings") {
+  } else if (safeTab === "earnings") {
     content = (
       <div className="space-y-5">
         <WorkerWallet profile={profile} />
-        <PayoutAccountManager profile={profile} />
+        <PayoutAccountManager profile={profile} workspace="worker" />
       </div>
-    );
-  } else if (live) {
-    content = (
-      <WorkerJobsPanelV2
-        profile={profile}
-        onOpenConversation={(row) => {
-          setConversation(row);
-          setTab("inbox");
-        }}
-      />
     );
   } else {
     content = (
       <WorkerActivationHome
         profile={profile}
         onProfile={onGoToSetup}
+        onExperiences={() => setTab("experiences")}
+        activityBookings={access.capabilities?.experience_next}
+        hasActivityBookings={access.capabilities?.has_activity_bookings}
+        onActivityBooking={id=>{setExperienceBookingTarget({id:id||'',sequence:Date.now()});setTab('experiences');}}
+        onRefresh={access.refresh}
         onVerification={() => onNavigate?.("worker_verification")}
       />
     );
   }
 
   const description =
-    safeTab === "inbox"
+    safeTab === "experiences"
+      ? "Create private activity applications and follow WeHouse review."
+      : safeTab === "inbox"
       ? "Job conversations and important payment, security and official activity."
       : safeTab === "earnings"
         ? "See available earnings, withdrawals and your verified payout account."
@@ -231,9 +242,7 @@ export default function WorkerWorkspaceModern({
           ? "Publish and manage the work customers see on your profile."
           : safeTab === "jobs"
             ? "Track each job from request to completion, including its earnings."
-            : live
-              ? "Manage your WeHouse Services work from one place."
-              : "Finish Service Worker onboarding before your services become public.";
+            : "Manage requested services and Experiences from one workspace. Each offering has its own review requirements.";
 
   const workspace = (
     <WorkspaceFrameV2
@@ -245,13 +254,20 @@ export default function WorkerWorkspaceModern({
       compact={safeTab === "showcase"}
       items={nav}
       active={safeTab}
-      setActive={(id) => setTab(id as Tab)}
+      setActive={(id) => {setExperienceTarget(null);setTab(id as Tab);}}
       onWorkspaceSwitch={
         workspaceAccess && onSwitchWorkspace ? () => setSwitchOpen(true) : undefined
       }
-      onAccount={!live ? () => onNavigate?.("profile") : undefined}
+      onAccount={() => setTab('account')}
       onLogout={onLogout}
     >
+      {access.error&&<section role="alert" className="mb-4 space-y-2 rounded-xl border border-[var(--wh-border)] p-4"><p className="text-sm text-red-700 dark:text-red-300">{access.error}</p><button type="button" disabled={access.loading} onClick={access.refresh} className="wh-motion-control min-h-11 rounded-xl border border-[var(--wh-border)] px-3 text-sm font-semibold">Retry workspace access</button></section>}
+      {access.loading&&<p role="status" className="mb-3 text-sm text-[var(--wh-text-secondary)]">Checking workspace access...</p>}
+      {!canManageJobs && safeTab==='home' && workspaceAccess?.personal_workspace && onSwitchWorkspace && (
+        <button type="button" onClick={()=>onSwitchWorkspace('personal')} className="mb-4 flex min-h-11 items-center gap-2 rounded-lg pr-3 text-sm font-semibold text-[var(--wh-accent-text)]">
+          <span aria-hidden="true">←</span> Back to Personal
+        </button>
+      )}
       {content}
     </WorkspaceFrameV2>
   );
@@ -268,7 +284,7 @@ export default function WorkerWorkspaceModern({
       />
     ) : null;
 
-  return live ? (
+  return ['jobs','showcase','earnings'].includes(safeTab) ? (
     <>
       <IdentityAccessGate
         profile={profile}
@@ -289,22 +305,33 @@ export default function WorkerWorkspaceModern({
   );
 }
 
+function ApplicantInbox({profile,unread,onNavigate,onUnreadChange}:{
+  profile:Profile;unread:number;onNavigate:(page:string,id?:string)=>void;onUnreadChange:()=>void;
+}){
+  const [activity,setActivity]=useState(false);
+  return activity?<div><ActivityHeader onBack={()=>setActivity(false)}/><Notifications profile={profile} scope="worker" embedded onNavigate={onNavigate} onUnreadChange={onUnreadChange}/></div>:<div className="space-y-4"><InboxActivityEntry unread={unread} detail="Application decisions, account security and official updates" onOpen={()=>setActivity(true)}/><SupportEntryCard profile={profile} compact/></div>;
+}
+
 function ServiceProviderPaidToolsAccount({
   profile,
   onBack,
+  initialBusinessTools=false,
 }: {
   profile: Profile;
   onBack: () => void;
+  initialBusinessTools?:boolean;
 }) {
   const workerPro = useWorkerPro(profile.user_id);
   return (
     <AccountShell
       profile={profile}
       title="WeHouse Pro · Work tools"
+      workspace="worker"
       description="Optional business tools for this Service Worker workspace. Review and trust are earned separately."
       onBack={onBack}
     >
       <WorkerProPanel
+        initialBusinessTools={initialBusinessTools}
         profile={profile}
         pro={workerPro.pro}
         loading={workerPro.loading}

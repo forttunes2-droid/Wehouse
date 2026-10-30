@@ -1,4 +1,13 @@
+import { createBookingActionRunner } from "@/lib/bookingActionRunner";
+import { createRefreshScheduler } from "@/lib/refreshScheduler";
+import ProviderReviewAppeal from '@/components/ProviderReviewAppeal';
+import { subscribeToServiceBookingChanges } from "@/lib/serviceBookingLive";
+import { parseWorkerQuotePrice } from "@/lib/workerBookingContract";
+import { withTimeout } from "@/lib/withTimeout";
 import { isSelectableChatAttachment, CHAT_MEDIA_ONLY_MESSAGE, type ChatAttachmentSource } from "@/lib/chatMediaPolicy";
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { useMessagePins } from "@/hooks/useMessagePins";
+import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesBar";
 import MessageMedia, { AttachmentState, PendingMessageMedia } from "@/components/MessageMedia";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -7,14 +16,15 @@ import {
   getBookingMessages,
   sendBookingMessage,
   uploadBookingChatAttachment,
-  workerAcceptBooking,
   workerStartJob,
   workerMarkComplete,
   customerConfirmCompletion,
   customerRaiseDispute,
   cancelBooking,
+  cancelPaidBookingBeforeStart,
+  providerCancelPaidService,
+  requestWorkerRefundReview,
   getBookingDetails,
-  createWorkerBookingPayment,
   BOOKING_STATUS_LABELS,
   markBookingMessagesRead,
   hideBookingConversation,
@@ -22,6 +32,7 @@ import {
   submitWorkerBookingReview,
   reactToBookingMessage,
 } from "@/lib/supabase/worker-bookings";
+import {sendServiceQuote,acceptServiceQuoteAndCheckout} from '@/lib/supabase/service-checkout';
 import { chatPresenceLabel } from "@/lib/supabase/presence";
 import useChatPresence from "@/hooks/useChatPresence";
 import { supabase } from "@/lib/supabase";
@@ -31,6 +42,7 @@ import MediaViewer from "@/components/MediaViewer";
 import { getCallCapabilities, launchPrivateCall } from "@/lib/private-calls";
 import PrivateCallHistory from "@/components/PrivateCallHistory";
 import BackButton from "@/components/BackButton";
+import BookingPaymentReview from "@/components/BookingPaymentReview";
 import VoiceRecorderPanel from "@/components/VoiceRecorderPanel";
 import useVoiceRecorder from "@/hooks/useVoiceRecorder";
 import SecureChatOnboarding from "@/components/SecureChatOnboarding";
@@ -43,12 +55,16 @@ import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import WorkerPublicProfile from "@/components/WorkerPublicProfile";
 import WorkerBookingDocuments from "@/components/WorkerBookingDocuments";
 import { PublicProfileAction } from "@/components/PublicProfileSurface";
+import ReportDialog from "@/components/ReportDialog";
 import {
   lockEncryptionIdentity,
   privateConversationReadiness,
   rememberPrivateMessagingProfile,
   type PrivateConversationReadiness,
 } from "@/lib/e2ee";
+import { formatRecordedMoney, currencySymbol, getRegionalDefaults, zonedInputToISO } from "@/lib/regional";
+import {parseServiceQuote} from '@/lib/serviceQuote';
+import {displayDateTimeAtProperty} from '@/lib/displayDate';
 
 type Props = {
   conversationId: string;
@@ -74,12 +90,20 @@ type ChatMessage = {
   delivery_state?: "sending" | "failed";
 };
 type Booking = {
+  canonical_job_state?: string|null;
+  user_approved?: boolean|null;
+  money_state?: string|null;
   user_id: string;
   worker_id: string;
   status: string;
   booking_code?: string | null;
   service_type?: string | null;
   scheduled_date?: string | null;
+  service_quote?: unknown;
+  service_quote_revision?:number;
+  service_quote_accepted_revision?:number|null;
+  service_quote_accepted_at?:string|null;
+  currency?: string | null;
   negotiated_amount?: number | null;
   agreed_amount?: number | null;
   address?: string | null;
@@ -109,7 +133,10 @@ type ConversationProfile = Partial<Profile> & {
 };
 const MAX_FILES = 6,
   MAX_FILE_SIZE = 25 * 1024 * 1024;
-export default function BookingNegotiationChat({
+export default function BookingNegotiationChat(props:Props){
+ return <BookingNegotiationChatSession key={`${props.profile.user_id}:${props.bookingId}:${props.conversationId}`} {...props}/>;
+}
+function BookingNegotiationChatSession({
   conversationId,
   bookingId,
   profile,
@@ -121,18 +148,22 @@ export default function BookingNegotiationChat({
   }, [profile.user_id]);
   const [messageMenuAnchor, setMessageMenuAnchor] = useState<MessageMenuAnchor | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]),
+    pins = useMessagePins("worker", conversationId, messages.length),
     [messageError, setMessageError] = useState<string | null>(null),
     [booking, setBooking] = useState<Booking | null>(null),
     [input, setInput] = useState(""),
     [loading, setLoading] = useState(true),
     [acceptAmount, setAcceptAmount] = useState(""),
     [acceptDate, setAcceptDate] = useState(""),
+    [acceptTime,setAcceptTime]=useState(''),
+    [acceptScope,setAcceptScope]=useState(''),
     [showAcceptForm, setShowAcceptForm] = useState(false),
     [disputeReason, setDisputeReason] = useState(""),
     [showDisputeForm, setShowDisputeForm] = useState(false),
+    [reviewKind, setReviewKind] = useState<"customer_cancel_after_start" | "worker_no_show" | "worker_not_delivered" | "customer_late_cancellation">("worker_not_delivered"),
     [cancelReason, setCancelReason] = useState(""),
     [showCancelForm, setShowCancelForm] = useState(false),
-    [paying, setPaying] = useState(false),
+    [reportOpen, setReportOpen] = useState(false),
     [sending, setSending] = useState(false),
     [files, setFiles] = useState<File[]>([]),
     [menuOpen, setMenuOpen] = useState(false),
@@ -156,6 +187,16 @@ export default function BookingNegotiationChat({
     [reviewSaving, setReviewSaving] = useState(false),
     [reviewOpen, setReviewOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [showPaymentReview, setShowPaymentReview] = useState(false);
+  const [quoteConsent,setQuoteConsent]=useState(false);
+  const [quoteCheckoutError,setQuoteCheckoutError]=useState('');
+  const quoteCandidate=parseServiceQuote(booking?.service_quote);
+  const currentQuote=quoteCandidate&&booking&&quoteCandidate.booking_id===bookingId
+    &&quoteCandidate.customer_id===booking.user_id&&quoteCandidate.provider_id===booking.worker_id
+    &&quoteCandidate.revision===booking.service_quote_revision
+    &&quoteCandidate.amount===Number(booking.negotiated_amount??booking.agreed_amount)?quoteCandidate:null;
+  const [bookingError,setBookingError]=useState('');
+  const bookingReadVersion=useRef(0),quoteVersion=useRef('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const voice = useVoiceRecorder();
   const messageById = useMemo(
@@ -191,16 +232,25 @@ export default function BookingNegotiationChat({
     },
     [conversationId],
   );
+  const loadBooking=useCallback(async()=>{
+    const request=++bookingReadVersion.current;
+    const result=await withTimeout(getBookingDetails(bookingId),15000,'Booking details could not be confirmed.').catch(()=>({booking:null,error:{message:'Booking details could not be confirmed.'}}));
+    if(request!==bookingReadVersion.current)return null;
+    const next=(result.booking||null) as Booking|null;
+    if(result.error||!next||(next.user_id!==profile.user_id&&next.worker_id!==profile.user_id)){
+      setBookingError('The current price and booking status could not be confirmed. Retry before taking an action.');
+      return null;
+    }
+    const fingerprint=JSON.stringify([next.negotiated_amount,next.agreed_amount,next.scheduled_date,next.status,next.service_quote]);
+    if(quoteVersion.current&&quoteVersion.current!==fingerprint){setShowPaymentReview(false);setQuoteConsent(false);setQuoteCheckoutError('');}
+    quoteVersion.current=fingerprint;
+    setBookingError('');setBooking(next);setPeerBlocked(Boolean(next.blocked_by_me));setBlockedByPeer(Boolean(next.blocked_me));
+    return next;
+  },[bookingId,profile.user_id]);
   const loadAll = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
-      const bookingRes = await getBookingDetails(bookingId);
-      const loadedBooking = (bookingRes.booking || null) as Booking | null;
-      if (!bookingRes.error) {
-        setBooking(loadedBooking);
-        setPeerBlocked(Boolean(loadedBooking?.blocked_by_me));
-        setBlockedByPeer(Boolean(loadedBooking?.blocked_me));
-      }
+      const loadedBooking = await loadBooking();
       const loadedPeerId = loadedBooking
         ? isWorker
           ? loadedBooking.user_id
@@ -217,7 +267,7 @@ export default function BookingNegotiationChat({
           }
         });
     },
-    [bookingId, isWorker, loadMessages],
+    [bookingId, isWorker, loadMessages,loadBooking],
   );
   const finishSecureUnlock = useCallback(async () => {
     if (!peerId) return;
@@ -287,16 +337,6 @@ export default function BookingNegotiationChat({
             ? loadMessages(peerId, true)
             : loadAll(true)),
       )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "worker_bookings",
-          filter: `id=eq.${bookingId}`,
-        },
-        () => void loadAll(true),
-      )
       .subscribe();
     const refresh = () => {
       if (document.visibilityState === "visible") void loadAll(true);
@@ -309,6 +349,16 @@ export default function BookingNegotiationChat({
       void supabase.removeChannel(channel);
     };
   }, [bookingId, conversationId, loadAll, loadMessages, peerId]);
+  useEffect(()=>{
+    let live=false,lastRecovery=Date.now();
+    const scheduler=createRefreshScheduler(async()=>{await loadBooking();},()=>document.visibilityState==='visible');
+    const refresh=()=>{lastRecovery=Date.now();scheduler.request();};
+    const unsubscribe=subscribeToServiceBookingChanges(bookingId,refresh,healthy=>{live=healthy;});
+    const timer=window.setInterval(()=>{if(!live||Date.now()-lastRecovery>=300_000)refresh();},60_000);
+    window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);
+    return()=>{bookingReadVersion.current++;scheduler.dispose();unsubscribe();window.clearInterval(timer);
+      window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);};
+  },[bookingId,loadBooking]);
   function openSupport() {
     setMenuOpen(false);
     window.dispatchEvent(
@@ -335,11 +385,15 @@ export default function BookingNegotiationChat({
       }),
     );
   }
+  function openReport() {
+    setProfileOpen(false);
+    setReportOpen(true);
+  }
   function chooseFiles(list: FileList | null, source: ChatAttachmentSource = "media") {
     if (!list) return;
     const incoming = Array.from(list).filter((file) => {
       if (!isSelectableChatAttachment(file, source)) {
-        toast.error(file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25MB` : CHAT_MEDIA_ONLY_MESSAGE);
+        toast.error(file.size > MAX_FILE_SIZE ? `${file.name} is larger than 25 MiB` : CHAT_MEDIA_ONLY_MESSAGE);
         return false;
       }
       return true;
@@ -528,44 +582,92 @@ export default function BookingNegotiationChat({
     setReviewOpen(false);
     toast.success("Your review was saved");
   }
+  const jobActions=useRef(createBookingActionRunner());
+  const [jobActionBusy,setJobActionBusy]=useState(false);
+  function runJobAction(work:()=>Promise<unknown>){
+    return jobActions.current(bookingId,async()=>{await work();await withTimeout(loadAll(true),12000,"Job saved; refresh its current status.");},id=>setJobActionBusy(id!==null),async()=>{
+      toast.error("The job action could not be confirmed. Your input is retained; refresh the booking before retrying.");
+      void withTimeout(loadAll(true),12000,"The current job status could not be refreshed.").catch(()=>{});
+    });
+  }
+
   async function handleWorkerAccept() {
-    const amount = Number(acceptAmount.replace(/[^0-9]/g, ""));
+    return runJobAction(async()=>{
+    const amount = parseWorkerQuotePrice(acceptAmount);
     if (!amount || amount <= 0) return toast.error("Enter a valid amount");
-    if (!acceptDate) return toast.error("Pick a schedule date");
-    const { success, error } = await workerAcceptBooking(
+    if (!acceptDate||!acceptTime) return toast.error("Pick a date and start time");
+    const zone=getRegionalDefaults().timeZone;
+    const startsAt=zonedInputToISO(`${acceptDate}T${acceptTime}`,zone);
+    const { quote, error } = await sendServiceQuote(
       bookingId,
       amount,
-      acceptDate,
+      startsAt,zone,acceptScope,
     );
-    if (error || !success)
-      return toast.error(error?.message || "Booking could not be accepted");
-    toast.success("Booking accepted. The customer can now pay.");
+    if (error || !quote)
+      return toast.error(error?.message || "The quote could not be confirmed");
+    toast.success("Quote sent. The customer can review your work, price and schedule.");
     setShowAcceptForm(false);
-    void loadAll(true);
+
+    });
+  }
+  async function handleQuoteCheckout(){
+    if(!currentQuote||!quoteConsent||!booking||isWorker)return;
+    return runJobAction(async()=>{
+      setQuoteCheckoutError('');
+      try{
+      const {result,error}=await acceptServiceQuoteAndCheckout(bookingId,currentQuote.revision);
+      if(error||result?.success!==true)throw new Error(error?.message||result?.error||'Checkout could not be confirmed. Refresh before retrying.');
+      if(result.already_paid){setShowPaymentReview(false);return toast.success('Payment is already recorded. Refreshing the booking.');}
+      if(typeof result.authorization_url!=='string')throw new Error('The checkout address could not be confirmed.');
+      const url=new URL(result.authorization_url);
+      if(url.protocol!=='https:'||url.hostname!=='checkout.paystack.com')throw new Error('The checkout address could not be confirmed.');
+      window.location.assign(url.href);
+      }catch(error){const message=error instanceof Error?error.message:'Checkout could not be confirmed. Refresh before retrying.';setQuoteCheckoutError(message);toast.error(message);}
+    });
   }
   async function handleWorkerStart() {
+    return runJobAction(async()=>{
     const { success, error } = await workerStartJob(bookingId);
     if (error || !success)
       return toast.error(error?.message || "Job could not be started");
     toast.success("Job started");
-    void loadAll(true);
+
+    });
   }
   async function handleWorkerComplete() {
+    return runJobAction(async()=>{
     const { success, error } = await workerMarkComplete(bookingId);
     if (error || !success)
       return toast.error(error?.message || "Job could not be completed");
     toast.success("Marked complete. Waiting for customer confirmation.");
-    void loadAll(true);
+
+    });
   }
   async function handleCustomerConfirm() {
+    return runJobAction(async()=>{
     const { success, error } = await customerConfirmCompletion(bookingId);
     if (error || !success)
       return toast.error(error?.message || "Completion could not be confirmed");
-    toast.success("Job confirmed. Payment released to the Worker.");
-    void loadAll(true);
+    toast.success("Completion confirmed. Payment release is being processed.");
+
+    });
   }
   async function handleCustomerDispute() {
+    return runJobAction(async()=>{
     if (!disputeReason.trim()) return toast.error("Enter a reason");
+    if (booking?.status === "in_progress" || booking?.status === "confirmed") {
+      const { reviewId, error: reviewError } = await requestWorkerRefundReview(
+        bookingId,
+        reviewKind,
+        disputeReason.trim(),
+      );
+      if (reviewError || !reviewId)
+        return toast.error(reviewError?.message || "Refund review could not be requested");
+      toast.success("WeHouse is reviewing your refund. The money stays protected until it is decided.");
+      setShowDisputeForm(false);
+
+      return;
+    }
     const { success, error } = await customerRaiseDispute(
       bookingId,
       disputeReason.trim(),
@@ -574,10 +676,32 @@ export default function BookingNegotiationChat({
       return toast.error(error?.message || "Dispute could not be raised");
     toast.success("Dispute sent to WeHouse for review");
     setShowDisputeForm(false);
-    void loadAll(true);
+
+    });
   }
   async function handleCancel() {
+    return runJobAction(async()=>{
     if (!cancelReason.trim()) return toast.error("Enter a reason");
+    if (booking?.status === "confirmed" || isWorker&&booking?.status==='in_progress') {
+      if(!isWorker&&currentQuote&&Date.now()>Date.parse(currentQuote.cancellation.full_refund_until)){
+        setReviewKind('customer_late_cancellation');setDisputeReason(cancelReason);setShowCancelForm(false);setShowDisputeForm(true);
+        toast.info('The free-cancellation deadline has passed. Describe your cancellation request for WeHouse review.');return;
+      }
+      const { result, error: cancelError } = await (isWorker?providerCancelPaidService:cancelPaidBookingBeforeStart)(
+        bookingId,
+        cancelReason.trim(),
+      );
+      if (cancelError || !result?.cancelled)
+        return toast.error(cancelError?.message || "Booking could not be cancelled");
+      toast.success(
+        result.refund_amount
+          ? `Booking cancelled. ${formatRecordedMoney(Number(result.refund_amount))} is being refunded.`
+          : "Booking cancelled",
+      );
+      setShowCancelForm(false);
+
+      return;
+    }
     const { success, error } = await cancelBooking(
       bookingId,
       cancelReason.trim(),
@@ -586,53 +710,12 @@ export default function BookingNegotiationChat({
       return toast.error(error?.message || "Booking could not be cancelled");
     toast.success("Booking cancelled");
     setShowCancelForm(false);
-    void loadAll(true);
+
+    });
   }
-  async function handleCustomerPay() {
-    setPaying(true);
-    try {
-      const { result: bootstrap, error: bootstrapErr } =
-        await createWorkerBookingPayment(bookingId);
-      if (bootstrapErr || !bootstrap?.success) {
-        setPaying(false);
-        return toast.error(bootstrap?.error || "Payment initialization failed");
-      }
-      const reference = bootstrap.reference as string,
-        amount = bootstrap.amount as number;
-      const { data: initialized, error: initError } =
-        await supabase.functions.invoke("payment-init", {
-          body: { reference },
-        });
-      if (initError || !initialized?.success) {
-        throw new Error(
-          initialized?.error ||
-            initError?.message ||
-            "Checkout could not start",
-        );
-      }
-      if (initialized.already_paid) {
-        toast.success("Payment is already confirmed");
-        setPaying(false);
-        void loadAll(true);
-        return;
-      }
-      if (!initialized.authorization_url)
-        throw new Error("Paystack checkout link is missing");
-      try {
-        localStorage.setItem(
-          "wh_worker_booking_payment",
-          JSON.stringify({ reference, bookingId, amount }),
-        );
-      } catch {
-        /* Checkout still works when storage is unavailable. */
-      }
-      window.location.assign(String(initialized.authorization_url));
-    } catch (error: unknown) {
-      setPaying(false);
-      toast.error(error instanceof Error ? error.message : "Payment failed");
-    }
-  }
-  const statusInfo = booking?.status
+  const completionConfirmed=booking?.user_approved===true&&booking?.canonical_job_state==='completed';
+  const releasePending=completionConfirmed&&booking?.money_state==='release_pending';
+  const statusInfo = releasePending?{label:'Completion confirmed',color:'bg-violet-500/10 text-[var(--wh-accent-text)]'}:booking?.status
       ? BOOKING_STATUS_LABELS[booking.status]
       : null,
     paymentReview = booking?.payment_review_required === true,
@@ -658,7 +741,7 @@ export default function BookingNegotiationChat({
   if (loading)
     return createPortal(
       <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--wh-bg)]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+        <WeHouseLoadingState />
       </div>,
       document.body,
     );
@@ -693,6 +776,15 @@ export default function BookingNegotiationChat({
               </p>
             </div>
           </button>
+          {peerId && (
+            <button
+              type="button"
+              onClick={() => setReportOpen(true)}
+              className="min-h-10 shrink-0 px-2 text-[11px] font-semibold text-amber-200"
+            >
+              Report
+            </button>
+          )}
           {openConversation && !contactBlocked && (
             <>
               <button
@@ -768,12 +860,12 @@ export default function BookingNegotiationChat({
                   What happens next
                 </p>
                 <p className="mt-1 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
-                  {workerNextStep(booking.status, isWorker)}
+                  {releasePending?'Completion is confirmed. Payment release is processing; the wallet updates after release is confirmed.':workerNextStep(booking.status, isWorker)}
                 </p>
               </div>
               {Number(booking.negotiated_amount || 0) > 0 && (
                 <p className="shrink-0 text-xs font-bold">
-                  ₦{Number(booking.negotiated_amount).toLocaleString()}
+                  {formatRecordedMoney(Number(booking.negotiated_amount),booking.currency)}
                 </p>
               )}
             </div>
@@ -822,21 +914,22 @@ export default function BookingNegotiationChat({
                 </p>
               </div>
             )}
+            {currentQuote&&<p className="mt-2 text-xs text-[var(--wh-text-secondary)]">Start time: {displayDateTimeAtProperty(currentQuote.starts_at,currentQuote.timezone)}</p>}
             <div className="mt-2 flex flex-wrap gap-1.5">
               {isWorker &&
-                ["booking_requested", "negotiating"].includes(
+                ["booking_requested", "negotiating", "waiting_payment"].includes(
                   booking.status,
                 ) && (
                   <button
-                    onClick={() => setShowAcceptForm((v) => !v)}
+                    onClick={() => {if(!showAcceptForm)setAcceptScope(booking.description||booking.customer_message||'');setShowAcceptForm(v=>!v);}}
                     className="rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
                   >
-                    Set price &amp; accept
+                    {booking.status==='waiting_payment'?'Update quote':'Send a quote'}
                   </button>
                 )}
-              {isWorker && booking.status === "confirmed" && (
+              {isWorker && !paymentReview && booking.status === "confirmed" && (
                 <button
-                  onClick={() => void handleWorkerStart()}
+                  disabled={jobActionBusy} onClick={() => void handleWorkerStart()}
                   className="rounded-lg bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
                 >
                   Start job
@@ -844,7 +937,7 @@ export default function BookingNegotiationChat({
               )}
               {isWorker && booking.status === "in_progress" && (
                 <button
-                  onClick={() => void handleWorkerComplete()}
+                  disabled={jobActionBusy} onClick={() => void handleWorkerComplete()}
                   className="rounded-lg bg-violet-500/10 px-3 py-1.5 text-[9px] font-semibold text-violet-300"
                 >
                   Mark complete
@@ -854,18 +947,15 @@ export default function BookingNegotiationChat({
                 !paymentReview &&
                 booking.status === "waiting_payment" && (
                   <button
-                    onClick={() => void handleCustomerPay()}
-                    disabled={paying}
-                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold disabled:opacity-50"
+                    disabled={Boolean(bookingError)} onClick={() => setShowPaymentReview(true)}
+                    className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold"
                   >
-                    {paying
-                      ? "Processing…"
-                      : `Pay ₦${Number(booking.negotiated_amount || 0).toLocaleString()}`}
+                    {`Review quote · ${formatRecordedMoney(Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0),booking.currency)}`}
                   </button>
                 )}
-              {!isWorker && booking.status === "completed_pending_approval" && (
+              {!isWorker && !paymentReview && !completionConfirmed && booking.status === "completed_pending_approval" && (
                 <button
-                  onClick={() => void handleCustomerConfirm()}
+                  disabled={jobActionBusy} onClick={() => void handleCustomerConfirm()}
                   className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[9px] font-semibold"
                 >
                   Confirm completion
@@ -878,18 +968,19 @@ export default function BookingNegotiationChat({
                   "completed_pending_approval",
                 ].includes(booking.status) && (
                   <button
-                    onClick={() => setShowDisputeForm((v) => !v)}
+                    onClick={() => {setReviewKind(booking.status==='confirmed'?'worker_no_show':'worker_not_delivered');setShowDisputeForm(v=>!v);}}
                     className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[9px] font-semibold text-red-300"
                   >
-                    Raise dispute
+                    {booking.status === "in_progress" || booking.status === "confirmed" ? "Ask for a refund review" : "Raise dispute"}
                   </button>
                 )}
               {!paymentReview &&
-                [
+                ([
                   "booking_requested",
                   "negotiating",
                   "waiting_payment",
-                ].includes(booking.status) && (
+                  "confirmed",
+                ].includes(booking.status) || isWorker&&booking.status==='in_progress') && (
                   <button
                     onClick={() => setShowCancelForm((v) => !v)}
                     className="rounded-lg bg-[var(--wh-interactive)] px-3 py-1.5 text-[9px] text-[var(--wh-text-secondary)]"
@@ -901,29 +992,44 @@ export default function BookingNegotiationChat({
             {showAcceptForm && (
               <div className="mt-2 space-y-2 rounded-xl border border-emerald-500/15 bg-emerald-500/[.035] p-2">
                 <label className="block text-[9px] font-semibold text-[var(--wh-text-secondary)]">
-                  Your price (₦)
+                  Proposed price ({currencySymbol(booking.currency||'NGN')})
                   <input
-                    inputMode="numeric"
+                    inputMode="decimal"
                     value={acceptAmount}
                     onChange={(e) =>
-                      setAcceptAmount(e.target.value.replace(/[^0-9]/g, ""))
+                      setAcceptAmount(e.target.value)
                     }
-                    placeholder="Enter the final price"
+                    placeholder="Enter the price for this job"
                     className="mt-1 h-9 w-full rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs outline-none"
                   />
                 </label>
                 <BookingDateField label="Job date" value={acceptDate} onChange={setAcceptDate} context="Service schedule" />
+                <label className="block text-sm font-medium">Start time ({getRegionalDefaults().timeZone})<input aria-label="Service start time" type="time" value={acceptTime} onChange={event=>setAcceptTime(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3"/></label>
+                <label className="block text-sm font-medium">Work included<textarea aria-label="Work included in quote" minLength={10} maxLength={4000} rows={3} value={acceptScope} onChange={event=>setAcceptScope(event.target.value)} className="mt-1 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-3 text-sm"/></label>
                 <button
-                  disabled={!Number(acceptAmount) || !acceptDate}
+                  disabled={jobActionBusy || parseWorkerQuotePrice(acceptAmount)===null || !acceptDate || !acceptTime || acceptScope.trim().length<10}
                   onClick={() => void handleWorkerAccept()}
                   className="h-9 w-full rounded-lg bg-violet-500 text-[10px] font-semibold disabled:cursor-not-allowed disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
                 >
-                  Confirm price &amp; accept booking
+                  Send quote to customer
                 </button>
               </div>
             )}
             {showDisputeForm && (
               <div className="mt-2 space-y-2 rounded-xl border border-red-500/15 bg-red-500/[.035] p-2">
+                {["in_progress","confirmed"].includes(booking.status) && (
+                  <select
+                    value={reviewKind}
+                    onChange={(e) => setReviewKind(e.target.value as typeof reviewKind)}
+                    aria-label="Reason for the review"
+                    className="h-9 w-full rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-2 text-xs outline-none"
+                  >
+                    <option value="worker_not_delivered">The work was not delivered or is not what we agreed</option>
+                    <option value="worker_no_show">The Worker stopped showing up</option>
+                    <option value="customer_cancel_after_start">I no longer want the job</option>
+                    {booking.status==='confirmed'&&currentQuote&&Date.now()>Date.parse(currentQuote.cancellation.full_refund_until)&&<option value="customer_late_cancellation">I need to cancel after the free-cancellation deadline</option>}
+                  </select>
+                )}
                 <textarea
                   value={disputeReason}
                   onChange={(e) => setDisputeReason(e.target.value)}
@@ -932,7 +1038,7 @@ export default function BookingNegotiationChat({
                   className="w-full resize-none rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] p-2 text-xs outline-none"
                 />
                 <button
-                  onClick={() => void handleCustomerDispute()}
+                  disabled={jobActionBusy} onClick={() => void handleCustomerDispute()}
                   className="h-9 w-full rounded-lg bg-red-500 text-[10px] font-semibold"
                 >
                   Submit dispute
@@ -956,7 +1062,7 @@ export default function BookingNegotiationChat({
                     Keep booking
                   </button>
                   <button
-                    onClick={() => void handleCancel()}
+                    disabled={jobActionBusy} onClick={() => void handleCancel()}
                     className="h-9 rounded-lg bg-red-500/10 text-[10px] font-semibold text-red-300"
                   >
                     Cancel booking
@@ -967,8 +1073,23 @@ export default function BookingNegotiationChat({
           </div>
         )}
       </header>
+      <PinnedMessagesBar
+        items={pins.pinned.map((id) => messages.find((m) => m.id === id)).filter((m): m is ChatMessage => Boolean(m)).map((m) => ({ id: m.id, text: m.content || "Attachment" }))}
+        onJump={scrollToMessage}
+        onUnpin={(id) => void pins.toggle(id)}
+      />
+      {reportOpen && peerId && (
+        <ReportDialog
+          subjectType="worker_chat"
+          subjectUserId={peerId}
+          subjectName={peerName || "this person"}
+          subjectRef={conversationId}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
       <main className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(124,58,237,.045),transparent_32%)] px-3 py-4 sm:px-4">
         <div className="mx-auto max-w-4xl space-y-3">
+          {bookingError&&<div role="alert" className="rounded-xl border border-amber-500/25 bg-[var(--wh-surface)] p-3 text-sm"><p>{bookingError}</p><button type="button" className="mt-2 min-h-10 underline" onClick={()=>void loadBooking()}>Retry booking details</button></div>}
           {messages.some((message) => message.decryption_failed) ? (
             <section className="flex items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[.06] p-3">
               <div>
@@ -1032,6 +1153,7 @@ export default function BookingNegotiationChat({
               <div key={msg.id}>
                 {showDay && <DaySeparator value={msg.created_at} />}
                 <MessagePress
+                  messageId={msg.id}
                   onOpen={(anchor) => {
                     setMessageMenuAnchor(anchor);
                     setMessageMenuMode("actions");
@@ -1262,6 +1384,7 @@ export default function BookingNegotiationChat({
             </div>
             {!isWorker && booking?.status === "approved_released" && (
               <section className="mt-3 border-t border-[var(--wh-border-subtle)] pt-3">
+                {review?.hidden_at&&<div className="mb-3 space-y-2 rounded-xl border border-[var(--wh-border-subtle)] p-3 text-xs leading-5"><p>Your review is hidden from public ratings.</p><p className="whitespace-pre-wrap">{review.moderation_reason}</p><ProviderReviewAppeal key={review.id} reviewId={review.id}/></div>}
                 {review && !reviewOpen ? (
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -1377,6 +1500,7 @@ export default function BookingNegotiationChat({
             if (peerBlocked) void togglePeerBlock();
             else setBlockPrompt(true);
           }}
+          onReport={openReport}
         />
       ) : null}
       {detailsOpen && booking ? (
@@ -1389,6 +1513,8 @@ export default function BookingNegotiationChat({
       ) : null}
       {messageMenu && (
         <MessageActionSheet
+          pinned={pins.pinned.includes(messageMenu.id)}
+          onPin={() => { const id = messageMenu.id; setMessageMenu(null); void pins.toggle(id); }}
           anchor={messageMenuAnchor}
           mode={messageMenuMode}
           currentReaction={messageMenu.reactions?.[profile.user_id] || null}
@@ -1435,13 +1561,56 @@ export default function BookingNegotiationChat({
       />
       <ConfirmDialog
         isOpen={blockPrompt}
-        title={`Block ${peerProfile?.full_name || peerName}?`}
-        description="Messages and private calls will stop. If money is secured for an active job, WeHouse will move it to review instead of silently cancelling it."
-        confirmLabel="Block person"
+        title={`Stop contact with ${peerProfile?.full_name || peerName}?`}
+        description="Messages and private calls will stop. Your booking, payment review and chat history will stay intact unless WeHouse flags a real safety issue."
+        confirmLabel="Stop contact"
         variant="danger"
         onCancel={() => setBlockPrompt(false)}
         onConfirm={() => void togglePeerBlock()}
       />
+      {showPaymentReview && booking && !isWorker ? (
+        <div
+          className="fixed inset-0 z-[140] flex items-center justify-center overflow-y-auto bg-slate-950/70 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Review service booking payment"
+          onClick={(event) => {
+            if (event.target === event.currentTarget)
+              setShowPaymentReview(false);
+          }}
+        >
+          <div className="my-auto w-full max-w-2xl">
+            <BookingPaymentReview
+              eyebrow="Service booking"
+              title="Review before payment"
+              subtitle="Review the proposed work, provider, date and price. Receiving a quote does not commit you to paying."
+              rows={[
+                { label: "Service", value: booking.service_type || "Service request" },
+                { label: "Service provider", value: booking.worker_name || peerName },
+                { label: "Scheduled start", value: currentQuote?`${displayDateTimeAtProperty(currentQuote.starts_at,currentQuote.timezone)} (${currentQuote.timezone})`:formatServiceBookingDate(booking.scheduled_date) },
+                { label: "Work included", value: currentQuote?.scope || booking.description || booking.customer_message || "No work description saved" },
+                { label: "Service location", value: currentQuote?.address || booking.address || "Not saved" },
+                { label: "Booking reference", value: booking.booking_code || bookingId },
+              ]}
+              amountLabel="Total due now"
+              amount={`${formatRecordedMoney(currentQuote?.amount??Number(booking.negotiated_amount ?? booking.agreed_amount ?? 0),currentQuote?.currency??booking.currency)}`}
+              checkoutLabel={currentQuote?'Secure checkout by Paystack':'Payment paused until the provider sends a complete quote'}
+              termsTitle="Cancellation and refund terms"
+              terms={
+                currentQuote?<div className="space-y-3"><p>{Date.now()>Date.parse(currentQuote.cancellation.full_refund_until)?<>The free-cancellation deadline has passed for this start time. Cancellation requests require WeHouse review.</>:<>Cancel by {displayDateTimeAtProperty(currentQuote.cancellation.full_refund_until,currentQuote.timezone)} ({currentQuote.timezone}) for a full refund of what you paid. Later cancellations require WeHouse review.</>} If the provider cancels, you receive a full refund.</p><p>There is no additional customer service charge on this quote. Payment stays protected until completion is confirmed and release is authorised.</p><label className="flex items-start gap-3"><input type="checkbox" aria-label="Accept Service quote and cancellation terms" checked={quoteConsent} disabled={jobActionBusy} onChange={event=>setQuoteConsent(event.target.checked)} className="mt-1 h-4 w-4 shrink-0"/><span>I accept this work, location, start time, total price and cancellation terms.</span></label></div>:<p>The provider needs to send an exact start time, work description and cancellation terms. Your existing conversation stays available.</p>
+              }
+              note={<>{quoteCheckoutError&&<span role="alert" className="mb-2 block text-red-700 dark:text-red-300">{quoteCheckoutError}</span>}Return to the conversation if any detail needs correcting. Accepting a quote records your agreement; only verified payment confirms the booking.</>}
+              editLabel="Back to conversation"
+              confirmLabel={currentQuote?'Accept quote and continue to payment':'Payment unavailable'}
+              busy={jobActionBusy}
+              busyLabel="Confirming quote and opening checkout…"
+              confirmDisabled={!currentQuote||!quoteConsent||Date.parse(currentQuote.starts_at)<=Date.now()}
+              onEdit={() => setShowPaymentReview(false)}
+              onConfirm={() => void handleQuoteCheckout()}
+            />
+          </div>
+        </div>
+      ) : null}
       {confirmDelete && (
         <DeleteSheet
           onCancel={() => setConfirmDelete(false)}
@@ -1451,6 +1620,13 @@ export default function BookingNegotiationChat({
     </div>,
     document.body,
   );
+}
+function formatServiceBookingDate(value?: string | null) {
+  if (!value) return "Not set";
+  const date = new Date(`${value.slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString(undefined, { dateStyle: "long" });
 }
 function ChatAvatar({ name, src }: { name: string; src?: string | null }) {
   return (
@@ -1477,6 +1653,7 @@ function ConversationIdentitySheet({
   blockedByPeer,
   blockBusy,
   onToggleBlock,
+  onReport,
 }: {
   profile: ConversationProfile | null;
   booking: Booking | null;
@@ -1491,6 +1668,7 @@ function ConversationIdentitySheet({
   blockedByPeer: boolean;
   blockBusy: boolean;
   onToggleBlock: () => void;
+  onReport: () => void;
 }) {
   const [fullProfile, setFullProfile] = useState(false);
   const viewingWorker = !isWorker;
@@ -1509,13 +1687,19 @@ function ConversationIdentitySheet({
         onBack={() => setFullProfile(false)}
         onBook={() => undefined}
         showBookingAction={false}
+        fullProfile
           communicationActions={!blocked && !blockedByPeer ? (
           <>
             <PublicProfileAction label="Audio" onClick={onAudioCall}><Phone /></PublicProfileAction>
             <PublicProfileAction label="Video" onClick={onVideoCall}><VideoCall /></PublicProfileAction>
           </>
         ) : undefined}
-        safetyAction={<ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />}
+        safetyAction={
+          <div className="mt-5 space-y-2">
+            <button type="button" className="h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200" onClick={onReport}>Report profile</button>
+            <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+          </div>
+        }
       />
     );
   }
@@ -1561,7 +1745,7 @@ function ConversationIdentitySheet({
               />
               <CaseFact
                 label="Agreed price"
-                value={Number(booking.agreed_amount || booking.negotiated_amount || 0) > 0 ? `₦${Number(booking.agreed_amount || booking.negotiated_amount).toLocaleString("en-NG")}` : "Not agreed"}
+                value={Number(booking.agreed_amount || booking.negotiated_amount || 0) > 0 ? `${formatRecordedMoney(Number(booking.agreed_amount || booking.negotiated_amount),booking.currency)}` : "Not agreed"}
               />
             </div>
             {booking.address ? (
@@ -1578,7 +1762,10 @@ function ConversationIdentitySheet({
             ) : null}
           </div>
         ) : null}
-        <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+        <div className="mt-5 space-y-2">
+          <button type="button" className="h-12 w-full rounded-2xl border border-[var(--wh-border-subtle)] text-[11px] font-semibold text-[var(--wh-text)]" onClick={onReport}>Report profile</button>
+          <ProfileBlockAction blocked={blocked} busy={blockBusy} onClick={onToggleBlock} />
+        </div>
         </>
       }
     />
@@ -1731,7 +1918,7 @@ function VideoCall() {
   );
 }
 function ProfileBlockAction({ blocked, busy, onClick }: { blocked: boolean; busy: boolean; onClick: () => void }) {
-  return <button type="button" disabled={busy} onClick={onClick} className="mt-6 h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200 disabled:opacity-45">{busy ? "Updating…" : blocked ? "Unblock person" : "Block person"}</button>;
+  return <button type="button" disabled={busy} onClick={onClick} className="h-12 w-full rounded-2xl border border-amber-500/20 text-[11px] font-semibold text-amber-200 disabled:opacity-45">{busy ? "Updating…" : blocked ? "Resume contact" : "Stop contact"}</button>;
 }
 function TrashIcon() {
   return (
@@ -1850,7 +2037,7 @@ function workerNextStep(status: string, isWorker: boolean) {
   const copy: Record<string, [string, string]> = {
     booking_requested: ["Review the request, set the full price and confirm the work date.", "The professional is reviewing your request and will set the full price and work date."],
     negotiating: ["Agree the work details, full price and date with the customer.", "Agree the work details, full price and date with the professional."],
-    waiting_payment: ["Wait for the customer to approve the agreement and pay through WeHouse.", "Review the final price and date, then pay through WeHouse to confirm the job."],
+    waiting_payment: ["Your quote is with the customer for review. Payment stays protected until the work is completed and release is authorized.", "Review the proposed work, date and price. A quote does not commit you to paying."],
     confirmed: ["Payment is secured. Start the job only when you arrive and begin the agreed work.", "Payment is secured. The professional can start the job when the agreed work begins."],
     in_progress: ["Complete the agreed work, then mark it ready for the customer to review.", "The work is in progress. Do not confirm completion until you have checked the result."],
     completed_pending_approval: ["Wait for the customer to confirm the work or open a problem report.", "Check the finished work. Confirm it only if the agreed work is complete, or report a problem."],

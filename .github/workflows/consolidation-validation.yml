@@ -41,6 +41,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244 # v1.7.0
+        with:
+          version: 2.114.0
+      - run: supabase --version
       - name: Reject duplicate migration versions
         shell: bash
         run: |
@@ -52,97 +57,325 @@ jobs:
           fi
       - name: Start local Supabase and apply migrations
         # Consolidation replay does not use Inbucket; avoid a shared runner port collision.
-        run: npx --yes supabase@2.114.0 start --exclude inbucket
+        run: node scripts/disposable-supabase.mjs start --exclude inbucket
       - name: Replay migrations from an empty database
-        run: npx --yes supabase@2.114.0 db reset --local
+        id: fresh_replay
+        run: node scripts/disposable-supabase.mjs reset
+      # Contracts use separate connections/rollback fixtures. Collect all failures
+      # in one run after a successful fresh replay; preserve the failed job result.
+      - name: Verify authenticator API and table boundaries
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/authenticator_boundary_contract.sql
       - name: Verify canonical schema exists
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         shell: bash
         run: |
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE';")" -ge 90
           test "$(docker exec supabase_db_wehouse psql -U postgres -d postgres -Atc "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public';")" -ge 280
+      - name: Verify managed fee configuration and explicit Partner consent
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/provider_fee_consent_contract.sql
       - name: Exercise indexed public listing identifiers and visibility
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/public_detail_identifier_contract.sql
       - name: Exercise actual arrival dates and booking-code authority
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/arrival_dates_contract.sql
       - name: Exercise paid hotel cancellation and refund reconciliation
-        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_paid_cancellation_contract.sql
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_paid_cancellation_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_recorded_charge_guard_contract.sql
+      - name: Verify accommodation policy prerequisites and immutable retry
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: |
+          docker cp supabase supabase_db_wehouse:/tmp/wehouse-contract-supabase
+          docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/accommodation_policy_prerequisite_contract.sql
       - name: Exercise guest-held hotel arrival and departure codes
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_guest_presence_contract.sql
       - name: Exercise accommodation handover contract
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/accommodation_handover_contract.sql
       - name: Exercise identity policy and Service Provider review contract
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_face_review_contract.sql
       - name: Exercise atomic Message WeHouse first-send contract
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_first_send_contract.sql
       - name: Exercise payment cancellation and payout contract
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/payment_cancellation_payout_contract.sql
+      - name: Reject unsupported payment confirmations without manufacturing paid bookings
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/payment_confirmation_routing_contract.sql
+      - name: Preserve accepted Service commission through policy changes and receipt retries
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_checkout_commission_contract.sql
+      - name: Verify complete Service quote, consent, protection and cancellation lifecycle
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/service_quote_lifecycle_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/service_provider_search_contract.sql
+      - name: Verify agreed Long Let monthly and full-term schedules
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_rent_schedule_contract.sql
+      - name: Verify Long Let commercial owner authority and stale-update protection
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_rent_offer_authority_contract.sql
+      - name: Verify private service quote updates and outsider denial
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/service_booking_live_contract.sql
+      - name: Bind subscription event retries to the original verified account and receipt
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/subscription_event_replay_contract.sql
       - name: Exercise Creator booking and money policy authority
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/booking_money_policy_contract.sql
       - name: Exercise reviewed legal signup and acceptance contract
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/legal_review_contract.sql
       - name: Exercise Creator bootstrap and platform controls
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/creator_controls_contract.sql
       - name: Exercise Creator dashboard and identity policy
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/creator_dashboard_identity_contract.sql
       - name: Exercise team grants and private evidence access
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/team_evidence_contract.sql
       - name: Exercise team scope and Operation capacity
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/team_scope_capacity_contract.sql
+      - name: Verify professional evidence survives private location changes
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_credential_contract.sql
       - name: Exercise identity routing, Partner gate and Worker services
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/identity_partner_service_contract.sql
+      - name: Verify personal and professional location isolation and atomic profile saves
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/profile_location_workspace_contract.sql
       - name: Exercise Worker Operations and Admin canonical identity
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_operations_and_admin_identity_contract.sql
       - name: Exercise post-82 profile and Worker summary repair
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/post82_profile_summary_contract.sql
       - name: Exercise canonical Activity routing and least privilege
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/canonical_activity_domain_contract.sql
       - name: Exercise operational conversation lane separation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operational_conversation_bundle_contract.sql
       - name: Exercise property routing inventory and revoked hotel Activity
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_workspace_routing_contract.sql
       - name: Exercise Partner Pro ownership, task mutation and calendar isolation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_partner_pro_contract.sql
       - name: Exercise Worker Pro business records, paid access and ownership
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_pro_business_contract.sql
       - name: Exercise Partner Pro terms, checkout and verified entitlement
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/partner_pro_payment_contract.sql
       - name: Exercise work-post comment pagination and hidden-post isolation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_showcase_comment_pages_contract.sql
+      - name: Verify showcase limits and durable upload admission
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/showcase_upload_budget_contract.sql
       - name: Hotel conversation context and recipient receipts
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_conversation_context_contract.sql
+      - name: Hotel base tables are not directly readable or writable by browser roles
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_base_table_exposure_contract.sql
+      - name: Case routing and private reply receipts
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        # Support contracts exercise the same current Auth/device and case routing authority.
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_reply_receipt_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/case_routing_catalog_contract.sql
+      - name: Assigned inspection submission, evidence review and recovery
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/inspection_command_authority_contract.sql
+      - name: Finance action authority, held funds and stable provider references
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/finance_action_receipt_contract.sql
+      - name: Booking arrival authority and negative access boundaries
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/booking_arrival_boundary_contract.sql
+      - name: Service booking command session authority
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/service_command_session_contract.sql
+      - name: Experience application evidence and exact Creator booking authority
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/experience_application_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/creator_exact_booking_contract.sql
+      - name: Friend relationship and payer cap
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: |
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_relationship_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_recipient_preview_contract.sql
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/email_account_security_contract.sql
+      - name: Friend bucket and encrypted chat
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_bucket_and_chat_contract.sql
+      - name: Friend request expiry and daily cap
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_request_limits_contract.sql
+      - name: Friend chat key exchange
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_chat_key_exchange_contract.sql
+      - name: Friend private live delivery and reaction isolation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: |
+          node scripts/prime-local-realtime.mjs
+          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_chat_live_contract.sql
+      - name: Long Let shared booking cost with Roommate or Friend
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_split_roommate_or_friend_contract.sql
+      - name: Shared rent schedules reconcile payer, annual and Partner amounts
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shared_rent_allocation_contract.sql
+      - name: Shared Long Let checkout, handover and individual later-year rent
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shared_long_let_rent_collection_contract.sql
+      - name: Wallet withdrawal receipts and payout destination isolation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/wallet_withdrawal_receipt_contract.sql
+      - name: Shared content reports and scoped moderation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shared_content_reports_contract.sql
+      - name: Hotel reports, private receipts and geographic review boundaries
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_listing_reports_contract.sql
+      - name: Property and Hotel submission fact validation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_submission_facts_contract.sql
+      - name: Verify internal listing bypass retirement
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/internal_listing_retirement_contract.sql
+      - name: Private property documents and publication boundaries
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_document_review_contract.sql
+      - name: Partner Pro costs, ownership and reporting boundaries
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/partner_operating_costs_contract.sql
+      - name: Roommate cancel connection wait
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/roommate_cancel_wait_contract.sql
+      - name: Roommate cancel connection notice
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/roommate_cancel_notice_contract.sql
+      - name: Listing discount rules
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/listing_discounts_contract.sql
+      - name: Pinned messages and discount breakdown
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/message_pins_contract.sql
+      - name: Fixed fee and withdrawal controls
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/fixed_fee_and_withdrawal_controls_contract.sql
+      - name: Service Worker refund rules
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_refund_rules_contract.sql
+      - name: Hotel discounts
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/hotel_discounts_contract.sql
+      - name: Short Let cancel and email change
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cancel_and_email_change_contract.sql
+      - name: Country settings
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/country_settings_contract.sql
       - name: Practical reciprocal roommate rules
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/practical_roommate_contract.sql
       - name: Fresh linked-provider recovery
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/recovery_freshness_contract.sql
       - name: Creator worker-publication authority
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/creator_worker_publication_contract.sql
       - name: Shared Short Let reservation and payments
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/short_let_shared_review_contract.sql
+      - name: Verify actual shared Short Let charges and protected components
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shared_short_let_verified_charge_contract.sql
+      - name: Verify real shared checkout member and attempt identities
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shared_checkout_identity_contract.sql
       - name: Exercise privileged RPC write guards
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/security_definer_write_guard_contract.sql
+      - name: Verify online privacy, chat relationships and revoked devices
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/presence_privacy_contract.sql
+      - name: Verify account restrictions, ended sessions and stale security decisions
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/account_sanction_session_contract.sql
+      - name: Verify scoped restrictions and tracked appeals
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_recovery_contract.sql
+      - name: Verify reviewed personal data requests and case audit authority
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/personal_data_review_contract.sql
+      - name: Verify existing plan billing during workspace restrictions
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/paid_plan_billing_contract.sql
       - name: Exercise workspace grants, revocation and geographic scope
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_authority_contract.sql
       - name: Exercise recorded Creator and receipt journeys as authenticated users
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/recorded_journeys_contract.sql
+      - name: Exercise private call trusted devices, preferences and signal isolation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/private_call_session_contract.sql
+      - name: Exercise compound and physical-space submission authority
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_space_identity_contract.sql
       - name: Exercise workspace inbox separation and revocation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_inbox_contract.sql
       - name: Exercise Help payment eligibility and workspace isolation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/workspace_help_payment_contract.sql
       - name: Exercise hotel and property first-send workspace routing
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_topic_workspace_contract.sql
       - name: Verify signup hook through Supabase Auth
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: node scripts/verify-signup-legal-hook.mjs
       - name: Exercise cross-user RLS foundation contract
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/foundation_rls_contract.sql
       - name: Exercise invitations, Hosting Help and Worker market capacity
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/marketplace_controls_contract.sql
       - name: Verify prepublication management choice and public media bounds
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/property_management_publication_contract.sql
+      - name: Verify active co-host access and invitation retry controls
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cohost_invitation_control_contract.sql
       - name: Exercise Sponsored payment and placement contract
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/sponsored_paid_placement_contract.sql
+      - name: Verify account, booking, notification and audit FK lookup coverage
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/readiness_fk_index_contract.sql
+      - name: Verify durable Pro reminders, revisions and job cancellation
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_pro_reminder_delivery_contract.sql
       - name: Stop local Supabase
         if: always()
-        run: npx --yes supabase@2.114.0 stop --no-backup
+        run: supabase stop --no-backup
 
   existing-account-upgrade:
     name: Existing Account Upgrade
@@ -159,12 +392,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Set up pinned Supabase CLI
+        uses: supabase/setup-cli@ad077b4817fff9ecc3c1fd20d271ec351e2d7244 # v1.7.0
+        with:
+          version: 2.114.0
+      - run: supabase --version
       - name: Start disposable local Supabase
-        run: npx --yes supabase@2.114.0 start
+        run: node scripts/disposable-supabase.mjs start
       - name: Load the current production baseline
-        run: npx --yes supabase@2.114.0 db reset --local --version 20260913181317
+        run: node scripts/disposable-supabase.mjs reset --version 20260913181317
       - name: Seed existing approvals, reviews, private evidence and a wallet
         run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/existing_account_upgrade_fixture.sql
+      - name: Verify reviewed additions do not hide record changes or row loss
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/release_worker_preservation_contract.sql
       - name: Verify the full upgrade rolls back without changing records or history
         run: python scripts/coordinated-database-release.py check --local-ci
       - name: Verify the full upgrade commits with existing records preserved
@@ -175,7 +415,7 @@ jobs:
         run: python scripts/coordinated-database-release.py apply --local-ci
       - name: Stop local Supabase
         if: always()
-        run: npx --yes supabase@2.114.0 stop --no-backup
+        run: supabase stop --no-backup
 
   consolidation-gate:
     name: Consolidation Validation

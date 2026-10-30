@@ -1,16 +1,21 @@
+import SponsoredPlacement from "@/components/SponsoredPlacement";
+import DiscoveryRail from '@/components/DiscoveryRail';
+import {ImageOff} from 'lucide-react';
+import {matchesDiscoveryText} from '@/lib/discoveryText';
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { takeFollowedSearchIntent } from "@/lib/followedSearchIntent";
 import ShowcaseMediaThumbnail from "@/components/ShowcaseMediaThumbnail";
 import { useDiscoveryAccess } from '@/components/DiscoveryAccess';
-import { useSponsoredDiscovery, recordSponsoredImpression, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
+import { useSponsoredDiscovery, recordSponsoredOpen } from '@/hooks/useSponsoredDiscovery';
 import { locationLabel } from "@/lib/locationPresentation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getHotels } from "@/lib/supabase";
 import { toast } from "sonner";
-import { NIGERIA_STATES, getCitiesForState } from "@/data/nigeria-locations";
 import { HOTEL_AMENITIES } from "@/types";
 import type { Hotel } from "@/types";
 import SearchableSelect from "@/components/SearchableSelect";
+import LocationFilterFields from "@/components/LocationFilterFields";
 import DiscoveryPriceRangeSlider from "@/components/DiscoveryPriceRangeSlider";
 import DiscoveryShell, {
   DiscoveryEmpty,
@@ -44,7 +49,7 @@ type HotelRow = Hotel & {
   gps_latitude?: number | null;
   gps_longitude?: number | null;
 };
-type Props = { onNavigate: (page: string, id?: string) => void };
+type Props = { onNavigate: (page: string, id?: string) => void; sessionKey?: string };
 const HOTEL_PRICE_FLOOR = 1000;
 const HOTEL_PRICE_CEILING = 1000000;
 const HOTEL_PRICE_STEP = 1000;
@@ -52,8 +57,10 @@ const HOTEL_PRICE_STEP = 1000;
 function normalize(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
-let hotelFilters = { query: '', state: '', city: '', amenities: [] as string[], minPrice: '' as number | '', maxPrice: '' as number | '', radius: '' as number | '' };
-export default function HotelsHome({ onNavigate }: Props) {
+const emptyHotelFilters = { query: '', state: '', city: '', amenities: [] as string[], minPrice: '' as number | '', maxPrice: '' as number | '', radius: '' as number | '', followedOrigin: null as {lat:number;lng:number}|null };
+const filtersBySession = new Map<string,typeof emptyHotelFilters>();
+export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
+  const initialFilters=filtersBySession.get(sessionKey)||emptyHotelFilters;
   const guest = useDiscoveryAccess();
   const [attempt, setAttempt] = useState(0);
   const [loadError, setLoadError] = useState(false);
@@ -63,20 +70,20 @@ export default function HotelsHome({ onNavigate }: Props) {
   const [hasMore, setHasMore] = useState(false);
   const [cursor, setCursor] = useState<{ featured: boolean; createdAt: string; id: number } | null>(null);
   const requestGeneration = useRef(0);
-  const [query, setQuery] = useState(() => hotelFilters.query);
-  const [state, setState] = useState(() => hotelFilters.state);
-  const [city, setCity] = useState(() => hotelFilters.city);
+  const [query, setQuery] = useState(() => initialFilters.query);
+  const [state, setState] = useState(() => initialFilters.state);
+  const [city, setCity] = useState(() => initialFilters.city);
   const sponsoredResults = useSponsoredDiscovery('hotel', state, city);
-  const [amenities, setAmenities] = useState<string[]>(() => hotelFilters.amenities);
-  const [minPrice, setMinPrice] = useState<number | "">(() => hotelFilters.minPrice);
-  const [maxPrice, setMaxPrice] = useState<number | "">(() => hotelFilters.maxPrice);
+  const [amenities, setAmenities] = useState<string[]>(() => initialFilters.amenities);
+  const [minPrice, setMinPrice] = useState<number | "">(() => initialFilters.minPrice);
+  const [maxPrice, setMaxPrice] = useState<number | "">(() => initialFilters.maxPrice);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [radius, setRadius] = useState<number | "">(() => hotelFilters.radius);
+  const [radius, setRadius] = useState<number | "">(() => initialFilters.radius);
   const [savingSearch, setSavingSearch] = useState(false);
   const [followedSearches, setFollowedSearches] = useState<SavedSearch[]>([]);
   const [savedHotelIds, setSavedHotelIds] = useState<Set<number>>(new Set());
   const [savingHotelId, setSavingHotelId] = useState<number | null>(null);
-  const [followedOrigin, setFollowedOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  const [followedOrigin, setFollowedOrigin] = useState<{ lat: number; lng: number } | null>(()=>initialFilters.followedOrigin);
   useEffect(() => {
     const criteria = takeFollowedSearchIntent('hotels');
     if (!criteria) return;
@@ -102,7 +109,8 @@ export default function HotelsHome({ onNavigate }: Props) {
     requestLocation,
     clearLocation,
   } = useDiscoveryLocation();
-  useEffect(() => { hotelFilters = { query, state, city, amenities, minPrice, maxPrice, radius }; }, [query, state, city, amenities, minPrice, maxPrice, radius]);
+  const activeRadius=followedOrigin||userLocation ? radius : '';
+  useEffect(() => { filtersBySession.set(sessionKey,{ query, state, city, amenities, minPrice, maxPrice, radius:activeRadius, followedOrigin }); }, [sessionKey,query, state, city, amenities, minPrice, maxPrice, activeRadius,followedOrigin]);
   const [distanceMap, setDistanceMap] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
@@ -119,21 +127,23 @@ export default function HotelsHome({ onNavigate }: Props) {
     return () => { live = false; };
   }, [Boolean(guest)]);
 
+  const searchText = query.trim();
   const serverFilters = useMemo(() => ({
-    search: query, state, city, amenities,
+    search: searchText, state, city, amenities,
     minPrice: minPrice === '' ? undefined : minPrice,
     maxPrice: maxPrice === '' ? undefined : maxPrice,
-    latitude: radius === '' ? undefined : (followedOrigin || userLocation)?.lat,
-    longitude: radius === '' ? undefined : (followedOrigin || userLocation)?.lng,
-    radiusKm: radius === '' ? undefined : radius,
-  }), [query, state, city, amenities, minPrice, maxPrice, radius, followedOrigin, userLocation]);
+    latitude: activeRadius === '' ? undefined : (followedOrigin || userLocation)?.lat,
+    longitude: activeRadius === '' ? undefined : (followedOrigin || userLocation)?.lng,
+    radiusKm: activeRadius === '' ? undefined : activeRadius,
+  }), [searchText, state, city, amenities, minPrice, maxPrice, activeRadius, followedOrigin, userLocation]);
   useEffect(() => {
     let live = true;
+    const controller = new AbortController();
     const generation = ++requestGeneration.current;
     setHotels([]); setCursor(null); setHasMore(false); setLoadingMore(false);
     setLoading(true); setLoadError(false);
     const timer = window.setTimeout(() => {
-      void getHotels(serverFilters).then(result => {
+      void getHotels(serverFilters, null, controller.signal).then(result => {
         if (!live || generation !== requestGeneration.current) return;
         setLoadError(Boolean(result.error));
         if (!result.error) {
@@ -142,8 +152,8 @@ export default function HotelsHome({ onNavigate }: Props) {
         }
       }).catch(() => { if (live && generation === requestGeneration.current) setLoadError(true); })
         .finally(() => { if (live && generation === requestGeneration.current) setLoading(false); });
-    }, query.trim() ? 250 : 0);
-    return () => { live = false; window.clearTimeout(timer); };
+    }, 300);
+    return () => { live = false; window.clearTimeout(timer); controller.abort(); };
   }, [serverFilters, attempt]);
 
   async function loadMore() {
@@ -164,15 +174,6 @@ export default function HotelsHome({ onNavigate }: Props) {
     finally { if (generation === requestGeneration.current) setLoadingMore(false); }
   }
 
-  const cities = useMemo(() => getCitiesForState(state), [state]);
-  const stateOptions = useMemo(
-    () => NIGERIA_STATES.map((item) => ({ value: item.state, label: item.state })),
-    [],
-  );
-  const cityOptions = useMemo(
-    () => cities.map((item) => ({ value: item, label: item })),
-    [cities],
-  );
   const priceScale = useMemo(() => {
     const prices = hotels
       .flatMap((hotel) =>
@@ -206,8 +207,7 @@ export default function HotelsHome({ onNavigate }: Props) {
           distance: distanceMap.get(`hotel:${hotel.hotel_id}`) ?? null,
         }))
         .filter(({ hotel }) => {
-          const needle = normalize(query);
-          if (needle && !normalize(hotel.name).includes(needle)) return false;
+          if (!matchesDiscoveryText([hotel.name, hotel.city, hotel.state], query)) return false;
           if (state && normalize(hotel.state) !== normalize(state)) return false;
           if (city && normalize(hotel.city) !== normalize(city)) return false;
           if (
@@ -231,24 +231,22 @@ export default function HotelsHome({ onNavigate }: Props) {
           return true;
         })
         .sort((a, b) =>
-          userLocation
+          (followedOrigin || userLocation)
             ? (a.distance ?? Infinity) - (b.distance ?? Infinity)
             : Number(Boolean(b.hotel.featured)) - Number(Boolean(a.hotel.featured)),
         ),
-    [hotels, query, state, city, amenities, minPrice, maxPrice, distanceMap],
+    [hotels, query, state, city, amenities, minPrice, maxPrice, distanceMap,userLocation,followedOrigin],
   );
   const sponsoredHotels = useMemo(() => sponsoredResults.map(item => ({
     campaignId: item.campaign_id,
     entry: filtered.find(({ hotel }) => String(hotel.hotel_id) === item.resource_id),
   })).filter((item): item is { campaignId: string; entry: (typeof filtered)[number] } => Boolean(item.entry)),
     [sponsoredResults, filtered]);
-  useEffect(() => {
-    sponsoredHotels.forEach(item => recordSponsoredImpression(item.campaignId, 'hotel_discovery'));
-  }, [sponsoredHotels]);
+
 
   const priceActive = minPrice !== "" || maxPrice !== "";
   const filterCount =
-    [state, city, radius].filter(Boolean).length +
+    [state, city, activeRadius].filter(Boolean).length +
     amenities.length +
     (priceActive ? 1 : 0);
   const currentSearchCriteria = useMemo(
@@ -259,11 +257,11 @@ export default function HotelsHome({ onNavigate }: Props) {
       min_price: minPrice === "" ? null : minPrice,
       max_price: maxPrice === "" ? null : maxPrice,
       amenities,
-      radius_km: radius === "" ? null : radius,
-      latitude: radius === "" ? null : (followedOrigin || userLocation)?.lat,
-      longitude: radius === "" ? null : (followedOrigin || userLocation)?.lng,
+      radius_km: activeRadius === "" ? null : activeRadius,
+      latitude: activeRadius === "" ? null : (followedOrigin || userLocation)?.lat,
+      longitude: activeRadius === "" ? null : (followedOrigin || userLocation)?.lng,
     }),
-    [amenities, city, maxPrice, minPrice, query, radius, state, userLocation?.lat, userLocation?.lng, followedOrigin],
+    [amenities, city, maxPrice, minPrice, query, activeRadius, state, userLocation?.lat, userLocation?.lng, followedOrigin],
   );
   const currentSearchKey = savedSearchKey("hotels", currentSearchCriteria);
   const followedSearch = followedSearches.find(
@@ -354,43 +352,52 @@ export default function HotelsHome({ onNavigate }: Props) {
     );
   }
 
+  const showBrowseRail = !query.trim() && filterCount===0 && !userLocation && !followedOrigin && filtered.length>6;
+  const browseHotels = showBrowseRail ? filtered.slice(0,6) : [];
+  const resultHotels = showBrowseRail ? filtered.slice(6) : filtered;
+  const hotelCard = ({hotel,distance}: (typeof filtered)[number]) => (
+    <HotelCard key={hotel.hotel_id} hotel={hotel} distance={distance}
+      saved={savedHotelIds.has(Number(hotel.hotel_id))} saving={savingHotelId===Number(hotel.hotel_id)}
+      onToggleSave={()=>void toggleHotelSave(Number(hotel.hotel_id))}
+      onOpen={()=>onNavigate('hotel_detail',String(hotel.hotel_id))} />
+  );
+
   return (
     <DiscoveryShell active="hotels" onNavigate={onNavigate}>
       <main className="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-6 lg:px-8">
-        {loadError && <div role="alert" className="px-4 py-3 text-sm text-amber-200">Hotels could not be loaded. <button className="min-h-11 px-2 font-semibold text-violet-300" onClick={() => setAttempt(value => value + 1)}>Try again</button></div>}
+        {loadError && <div role="alert" className="px-4 py-3 text-sm text-[var(--wh-text)]">Hotels could not be loaded. <button className="min-h-11 px-2 font-semibold text-[var(--wh-accent-text)]" onClick={() => setAttempt(value => value + 1)}>Try again</button></div>}
       <DiscoveryToolbar
           value={query}
           onChange={setQuery}
-          placeholder="Search hotel name"
+          placeholder="Search hotel name or location"
           onFilters={() => setFiltersOpen(true)}
           filterCount={filterCount}
           locationDetail={locationError || undefined}
           locationLabel={followedOrigin ? "Using followed search location" : userLocation ? "Using current location" : "Use my location"}
           locationActive={Boolean(followedOrigin || userLocation)}
           locationBusy={locating}
-          onLocation={() => { setFollowedOrigin(null); requestLocation(); }}
+          onLocation={() => { setFollowedOrigin(null); setRadius(''); requestLocation(); }}
           onClearLocation={() => { setFollowedOrigin(null); clearLocation(); setRadius(''); }}
         />
         {sponsoredHotels.length > 0 && <section aria-label="Sponsored hotels" className="rounded-3xl border border-amber-300/15 bg-amber-300/[.04] p-4">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">Sponsored hotels</p>
           <p className="mb-3 text-xs text-muted-foreground">Paid placement among matching hotels. WeHouse checks and organic order are separate.</p>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sponsoredHotels.map(({ campaignId, entry: { hotel, distance } }) => <div key={campaignId}>
+          <DiscoveryRail title="Sponsored">
+            {sponsoredHotels.map(({ campaignId, entry: { hotel, distance } }) => <SponsoredPlacement key={campaignId} campaignId={campaignId} context="hotel_discovery">
               <span className="mb-2 inline-block rounded-full border border-amber-300/30 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Sponsored</span>
               <HotelCard hotel={hotel} distance={distance} saved={savedHotelIds.has(Number(hotel.hotel_id))}
                 saving={savingHotelId === Number(hotel.hotel_id)}
                 onToggleSave={() => void toggleHotelSave(Number(hotel.hotel_id))}
                 onOpen={() => { recordSponsoredOpen(campaignId); onNavigate('hotel_detail', String(hotel.hotel_id)); }} />
-            </div>)}
-          </div>
+            </SponsoredPlacement>)}
+          </DiscoveryRail>
         </section>}
 
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold">
+            <p className="text-sm font-semibold">
               {loading ? "Loading hotels…" : `${filtered.length} ${filtered.length === 1 ? "hotel" : "hotels"}${hasMore ? ' · more available' : ''}`}
             </p>
-            <p className="mt-1 text-[9px] text-[var(--wh-text-muted)]">
+            <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">
               {city ? `${city}, ${state}` : state || "All locations"}
             </p>
           </div>
@@ -400,11 +407,7 @@ export default function HotelsHome({ onNavigate }: Props) {
                 type="button"
                 disabled={savingSearch}
                 onClick={() => void toggleFollowSearch()}
-                className={`rounded-full border px-3 py-2 text-[9px] font-semibold disabled:opacity-40 ${
-                  followedSearch?.notifications_enabled
-                    ? "border-emerald-500/25 text-emerald-300"
-                    : "border-violet-500/20 text-violet-300"
-                }`}
+                className="rounded-full border border-[var(--wh-border)] px-3 py-2 text-xs font-semibold text-[var(--wh-accent-text)] disabled:opacity-40"
               >
                 {savingSearch
                   ? "Updating…"
@@ -419,7 +422,7 @@ export default function HotelsHome({ onNavigate }: Props) {
               <button
                 type="button"
                 onClick={clearFilters}
-                className="text-[9px] font-semibold text-violet-300"
+                className="text-xs font-semibold text-[var(--wh-accent-text)]"
               >
                 Clear
               </button>
@@ -428,9 +431,7 @@ export default function HotelsHome({ onNavigate }: Props) {
         </div>
 
         {loading ? (
-          <div className="grid min-h-56 place-items-center">
-            <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-          </div>
+          <WeHouseLoadingState compact label="Loading" />
         ) : filtered.length === 0 ? (
           <DiscoveryEmpty
             title={
@@ -441,21 +442,17 @@ export default function HotelsHome({ onNavigate }: Props) {
             text="Change the selected filters to see other hotels."
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map(({ hotel, distance }) => (
-              <HotelCard
-                key={hotel.hotel_id}
-                hotel={hotel}
-                distance={distance}
-                saved={savedHotelIds.has(Number(hotel.hotel_id))}
-                saving={savingHotelId === Number(hotel.hotel_id)}
-                onToggleSave={() => void toggleHotelSave(Number(hotel.hotel_id))}
-                onOpen={() => onNavigate("hotel_detail", String(hotel.hotel_id))}
-              />
-            ))}
-          </div>
+          <>
+            {showBrowseRail && <DiscoveryRail title="Hotels to explore">{browseHotels.map(hotelCard)}</DiscoveryRail>}
+            <section aria-label={showBrowseRail?'More hotels':'Hotel results'} className="space-y-4">
+              {showBrowseRail && <h2 className="text-lg font-semibold tracking-tight">More hotels</h2>}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {resultHotels.map(hotelCard)}
+              </div>
+            </section>
+          </>
         )}
-        {!loading && hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="mx-auto block min-h-12 rounded-full border border-violet-400/30 px-6 text-sm font-semibold text-violet-200 disabled:opacity-50">{loadingMore ? 'Loading more…' : 'Show more hotels'}</button>}
+        {!loading && hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="mx-auto block min-h-12 rounded-full border border-[var(--wh-border)] px-6 text-sm font-semibold text-[var(--wh-accent-text)] disabled:opacity-50">{loadingMore ? 'Loading more…' : 'Show more hotels'}</button>}
       </main>
 
       {filtersOpen ? (
@@ -464,25 +461,7 @@ export default function HotelsHome({ onNavigate }: Props) {
           onClose={() => setFiltersOpen(false)}
           onClear={clearStructuredFilters}
         >
-          <div className="grid grid-cols-2 gap-3">
-            <SearchableSelect
-              label="State"
-              value={state}
-              onChange={chooseState}
-              options={stateOptions}
-              placeholder="Any State"
-              searchPlaceholder="Search State"
-            />
-            <SearchableSelect
-              label="LGA"
-              value={city}
-              onChange={setCity}
-              options={cityOptions}
-              placeholder={state ? "Any LGA" : "Choose State"}
-              searchPlaceholder="Search LGA"
-              disabled={!state}
-            />
-          </div>
+          <LocationFilterFields region={state} locality={city} onRegionChange={chooseState} onLocalityChange={setCity} />
           <DiscoveryPriceRangeSlider
             label="Room price per night"
             floor={priceScale.floor}
@@ -494,16 +473,16 @@ export default function HotelsHome({ onNavigate }: Props) {
             onMaxChange={setMaxPrice}
           />
           <div>
-            <p className="mb-2 text-[10px] font-medium text-[var(--wh-text-muted)]">Amenities</p>
+            <p className="mb-2 text-xs font-medium text-[var(--wh-text-secondary)]">Amenities</p>
             <div className="flex flex-wrap gap-2">
               {HOTEL_AMENITIES.map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => toggleAmenity(item)}
-                  className={`min-h-9 rounded-full border px-3.5 py-2 text-[9px] font-semibold leading-tight ${
+                  className={`min-h-11 rounded-full border px-3.5 py-2 text-xs font-semibold leading-tight ${
                     amenities.includes(item)
-                      ? "border-violet-500/30 bg-violet-500/14 text-violet-100"
+                      ? "border-violet-500/30 bg-[var(--wh-accent-surface)] text-[var(--wh-accent-text)]"
                       : "border-[var(--wh-border-subtle)] bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"
                   }`}
                 >
@@ -512,9 +491,9 @@ export default function HotelsHome({ onNavigate }: Props) {
               ))}
             </div>
           </div>
-          {userLocation ? (
+          {followedOrigin || userLocation ? (
             <SearchableSelect
-              label="Distance from your current location"
+              label={followedOrigin ? 'Distance from followed search location' : 'Distance from your current location'}
               value={radius === "" ? "" : String(radius)}
               onChange={(value) => setRadius(value ? Number(value) : "")}
               options={[
@@ -552,18 +531,14 @@ function HotelCard({
   const image = hotel.images?.[0];
   const roomCount = (hotel.hotel_rooms || []).length;
   return (
-    <article className="group border-b border-[var(--wh-border)] pb-5">
-      <div className={`relative overflow-hidden rounded-2xl bg-[var(--wh-elevated)] ${image ? "aspect-[4/3]" : "h-40"}`}>
-        <button
-          type="button"
-          onClick={onOpen}
-          className="block h-full w-full text-left"
-        >
-          <ShowcaseMediaThumbnail src={image} mediaType="image" alt={hotel.name} className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+    <article data-hotel-card className="relative min-w-0 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-2.5 pb-4">
+      <button type="button" onClick={onOpen} aria-label={`View ${hotel.name}`} className="absolute inset-0 z-10 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--wh-violet)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wh-bg)]" />
+      <div className={`relative overflow-hidden rounded-xl bg-[var(--wh-elevated)] ${image ? "aspect-[4/3]" : "h-36"}`}>
+          {image ? <ShowcaseMediaThumbnail src={image} mediaType="image" alt={hotel.name} className="h-full w-full object-cover" />
+            : <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--wh-text-muted)]"><ImageOff size={24} aria-hidden="true"/><span className="text-xs">Photos not available</span></div>}
           {hotel.featured ? (
-            <span className="absolute left-3 top-3 rounded-full bg-violet-500 px-2.5 py-1 text-[10px] font-bold">
-              FEATURED
+            <span className="absolute left-3 top-3 rounded-full bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white">
+              Featured
             </span>
           ) : null}
           {distance != null ? (
@@ -573,7 +548,6 @@ function HotelCard({
                 : `${distance.toFixed(1)} km`}
             </span>
           ) : null}
-        </button>
         <button
           type="button"
           disabled={saving}
@@ -584,45 +558,40 @@ function HotelCard({
           }}
           aria-label={saved ? `Remove ${hotel.name} from Saved` : `Save ${hotel.name}`}
           aria-pressed={saved}
-          className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur active:scale-95 disabled:opacity-50"
+          className={`absolute right-2 top-2 z-20 grid h-11 w-11 place-items-center rounded-full border shadow-sm disabled:opacity-50 ${image?'border-white/20 bg-black/55 text-white':'border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text)]'}`}
         >
           <Heart filled={saved} />
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`View ${hotel.name}`}
-        className="block w-full px-1 pt-3 text-left"
-      >
+      <div className="px-1 pt-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="line-clamp-2 text-[15px] font-bold">{hotel.name}</h2>
-            <p className="mt-1 truncate text-xs text-[var(--wh-text-secondary)]">
+            <h3 className="line-clamp-2 text-base font-semibold leading-snug">{hotel.name}</h3>
+            <p className="mt-1 truncate text-sm text-[var(--wh-text-secondary)]">
               {locationLabel(hotel.area, hotel.city, hotel.state)}
             </p>
           </div>
           {Number(hotel.rating || 0) > 0 ? (
-            <span className="shrink-0 text-xs font-semibold text-amber-300">
+            <span className="shrink-0 text-xs font-semibold text-[var(--wh-text)]">
               ★ {Number(hotel.rating).toFixed(1)}
             </span>
           ) : null}
         </div>
-        <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+        <div className="mt-3 text-xs">
           <span className="text-[var(--wh-text-secondary)]">
             {roomCount
               ? `${roomCount} room ${roomCount === 1 ? "type" : "types"}`
               : "Room details available inside"}
           </span>
-          <span className="font-semibold text-violet-300">View rooms & packages ›</span>
         </div>
         {hotel.amenities?.length > 0 ? (
           <p className="mt-2 text-xs text-[var(--wh-text-secondary)]">
-            {hotel.amenities.length} {hotel.amenities.length === 1 ? "amenity" : "amenities"}
+            {hotel.amenities.slice(0,3).join(' · ')}
           </p>
         ) : null}
-      </button>
+        <p className="mt-3 text-sm font-semibold text-[var(--wh-accent-text)]">View rooms &amp; packages ›</p>
+      </div>
     </article>
   );
 }
@@ -633,8 +602,8 @@ function Heart({ filled }: { filled: boolean }) {
       width="18"
       height="18"
       viewBox="0 0 24 24"
-      fill={filled ? "#A78BFA" : "none"}
-      stroke={filled ? "#A78BFA" : "white"}
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"

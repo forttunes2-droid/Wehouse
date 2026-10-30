@@ -1,3 +1,10 @@
+import CreatorCommissionRules from '@/components/CreatorCommissionRules';
+import CreatorRentCollection from '@/components/CreatorRentCollection';
+import {withTimeout} from '@/lib/withTimeout';
+import CreatorExperienceCommission from "@/components/CreatorExperienceCommission";
+import {CreatorExperienceDiscounts} from '@/components/ExperienceDiscountControls';
+import WeHouseLoadingState from "@/components/WeHouseLoadingState";
+import { currencySymbol } from "@/lib/regional";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -21,7 +28,6 @@ type Rules = {
     payment_hold_minutes: number;
     hold_hours: number;
     full_refund_hours: number;
-    installments_enabled: boolean;
     security_deposit_enabled: boolean;
   };
   commissions: {
@@ -39,7 +45,7 @@ type Rules = {
 const DEFAULTS: Rules = {
   short_let: {
     reservation_hold_minutes: 30,
-    full_refund_hours_before_check_in: 48,
+    full_refund_hours_before_check_in: 24,
     late_cancel_max_nights: 1,
     no_show_max_nights: 1,
     security_deposit_enabled: true,
@@ -53,7 +59,6 @@ const DEFAULTS: Rules = {
     payment_hold_minutes: 30,
     hold_hours: 72,
     full_refund_hours: 24,
-    installments_enabled: false,
     security_deposit_enabled: false,
   },
   commissions: {
@@ -75,6 +80,7 @@ type PolicyPayload = {
 };
 
 type PolicyResponse = {
+  etag?: string;
   active?: Record<string, PolicyPayload>;
   scheduled?: Record<string, PolicyPayload>;
 };
@@ -96,7 +102,6 @@ function readRules(response: PolicyResponse | null): Rules {
   const arrival = value("accommodation_arrival_issue_window");
   const longFee = value("long_let_reservation_fee");
   const longHold = value("long_let_reservation_hold");
-  const installments = value("future_long_let_installments");
   const workerRelease = value("worker_completion_release");
 
   return {
@@ -155,10 +160,6 @@ function readRules(response: PolicyResponse | null): Rules {
         longHold.full_refund_hours,
         DEFAULTS.long_let.full_refund_hours,
       ),
-      installments_enabled: booleanValue(
-        installments.enabled,
-        DEFAULTS.long_let.installments_enabled,
-      ),
       security_deposit_enabled: false,
     },
     commissions: {
@@ -192,7 +193,9 @@ function readRules(response: PolicyResponse | null): Rules {
   };
 }
 
-export default function CreatorBookingMoneyRules() {
+export default function CreatorBookingMoneyRules(){return <div className="space-y-6"><CreatorCommissionRules/><CreatorExperienceCommission/><CreatorExperienceDiscounts/><CreatorRentCollection/><ShortLetReserveDateRule/><section aria-label="Booking operating rules"><CreatorOperatingMoneyRules/></section></div>;}
+
+function CreatorOperatingMoneyRules() {
   const { requestElevation } = useCreatorAuth();
   const [rules, setRules] = useState<Rules>(DEFAULTS);
   const [saved, setSaved] = useState<Rules>(DEFAULTS);
@@ -200,9 +203,11 @@ export default function CreatorBookingMoneyRules() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const loadGeneration = useRef(0);
+  const publishLock=useRef(false);
   const [publishing, setPublishing] = useState(false);
   const [reason, setReason] = useState("");
   const [effectiveAt, setEffectiveAt] = useState("");
+
 
   const dirty = useMemo(
     () => JSON.stringify(rules) !== JSON.stringify(saved),
@@ -215,9 +220,9 @@ export default function CreatorBookingMoneyRules() {
     setLoadError("");
     setPolicy(null);
     try {
-      const { data, error } = await supabase.rpc("creator_get_booking_money_rules");
+      const { data, error } = await supabase.rpc("creator_get_booking_money_rules_v4");
       if (generation !== loadGeneration.current) return;
-      if (error || !isMoneyPolicyResponse(data)) throw new Error("Policy response is unavailable or incomplete");
+      if (error || !isMoneyPolicyResponse(data) || typeof data.etag!=="string" || !/^[a-f\d]{64}$/.test(data.etag)) throw new Error("Policy response is unavailable or incomplete");
       const next = readRules(data);
       setPolicy(data);
       setRules(next);
@@ -256,16 +261,6 @@ export default function CreatorBookingMoneyRules() {
     }));
   }
 
-  function setCommission<K extends keyof Rules["commissions"]>(
-    key: K,
-    value: Rules["commissions"][K],
-  ) {
-    setRules((current) => ({
-      ...current,
-      commissions: { ...current.commissions, [key]: value },
-    }));
-  }
-
   function setWorker<K extends keyof Rules["service_worker"]>(
     key: K,
     value: Rules["service_worker"][K],
@@ -277,34 +272,21 @@ export default function CreatorBookingMoneyRules() {
   }
 
   async function publish(elevationId: string) {
-    if (loading || loadError || !policy || publishing || !dirty) return;
-    if (reason.trim().length < 5)
-      return toast.error("Add a short reason for this policy change");
-
-    setPublishing(true);
-    const effective = effectiveAt
-      ? new Date(effectiveAt).toISOString()
-      : new Date().toISOString();
-    const { data, error } = await supabase.rpc(
-      "creator_publish_booking_money_rules",
-      {
-        p_creator_elevation_id: elevationId,
-        p_rules: rules,
-        p_effective_from: effective,
-        p_reason: reason.trim(),
-      },
-    );
-    setPublishing(false);
-    if (error) return toast.error(error.message);
-    const changed = Number((data as any)?.changed_policy_count || 0);
-    toast.success(
-      effectiveAt
-        ? `Booking & money rules scheduled · ${changed} policy changes`
-        : `Booking & money rules published · ${changed} policy changes`,
-    );
-    setReason("");
-    setEffectiveAt("");
-    await load();
+    if (publishLock.current || loading || loadError || !policy || publishing || !dirty) return;
+    if (reason.trim().length < 5) return toast.error("Add a short reason for this policy change");
+    publishLock.current=true;setPublishing(true);const generation=loadGeneration.current;
+    try{
+      const effective=effectiveAt?new Date(effectiveAt).toISOString():new Date().toISOString();
+      const {data,error}=await withTimeout(supabase.rpc('creator_publish_operating_money_rules',{
+        p_creator_elevation_id:elevationId,p_rules:rules,p_effective_from:effective,p_reason:reason.trim(),p_expected_digest:policy.etag,
+      }),20000,'Publication result is unknown. Reloading the saved rules.');
+      if(error)throw error;
+      if(!data||!Number.isInteger(data.changed_policy_count)||data.changed_policy_count<0||!data.published||typeof data.published!=='object'||Array.isArray(data.published))throw Error('Policy publication receipt could not be confirmed.');
+      if(generation!==loadGeneration.current)return;
+      toast.success(effectiveAt?`Booking & money rules scheduled · ${data.changed_policy_count} policy changes`:`Booking & money rules published · ${data.changed_policy_count} policy changes`);
+      setReason('');setEffectiveAt('');await load();
+    }catch(cause){if(generation===loadGeneration.current){toast.error((cause as {message?:string})?.message||'Publication was not confirmed. Reloading the saved rules.');await load();}}
+    finally{publishLock.current=false;setPublishing(false);}
   }
 
   function requestPublish() {
@@ -317,9 +299,7 @@ export default function CreatorBookingMoneyRules() {
 
   if (loading)
     return (
-      <div className="grid min-h-44 place-items-center">
-        <div className="h-7 w-7 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-      </div>
+      <WeHouseLoadingState compact label="Loading" />
     );
 
   if (loadError || !policy) return (
@@ -346,7 +326,7 @@ export default function CreatorBookingMoneyRules() {
             <h3 className="text-sm font-semibold">Booking & money rules</h3>
             <p className="mt-1 max-w-2xl text-[10px] leading-5 text-[var(--wh-text-muted)]">
               One versioned source of truth for reservations, cancellations,
-              deposits, commissions and protected-payment timing. Existing
+              deposits and protected-payment timing. Existing
               bookings keep the rules they accepted.
             </p>
           </div>
@@ -361,7 +341,7 @@ export default function CreatorBookingMoneyRules() {
         ) : null}
       </header>
 
-      <ShortLetReserveDateRule />
+      <fieldset disabled={publishing} className="min-w-0 space-y-5 border-0 p-0" aria-label="Booking and money policy fields">
       <RuleSection
         title="Short Let"
         note="Rules for the later stay payment, cancellation, no-show and refundable deposit. The Reserve date fee above is a separate stage."
@@ -386,22 +366,11 @@ export default function CreatorBookingMoneyRules() {
         title="Long Let"
         note="Reservation starts the housing process. Long Let does not use Short Let no-show or damage-deposit rules."
       >
-        <NumberRule label="Reservation payment" prefix="₦" value={rules.long_let.reservation_amount} min={1} max={10000000} step={1000} onChange={(value) => setLong("reservation_amount", value)} />
+        <NumberRule label="Reservation payment" prefix={currencySymbol()} value={rules.long_let.reservation_amount} min={1} max={10000000} step={1000} onChange={(value) => setLong("reservation_amount", value)} />
         <NumberRule label="Payment checkout hold" suffix="minutes" value={rules.long_let.payment_hold_minutes} min={5} max={120} onChange={(value) => setLong("payment_hold_minutes", value)} />
         <NumberRule label="Housing process hold" suffix="hours" value={rules.long_let.hold_hours} min={1} max={168} onChange={(value) => setLong("hold_hours", value)} />
         <NumberRule label="Early full-refund window" suffix="hours, if material process has not begun" value={rules.long_let.full_refund_hours} min={0} max={168} onChange={(value) => setLong("full_refund_hours", value)} />
         <LockedRule label="Security deposit" value="Off at launch" />
-        <LockedRule label="Installments" value="Off at launch" />
-      </RuleSection>
-
-      <RuleSection
-        title="Commissions"
-        note="Commission is calculated from eligible commercial value. Refundable Short Let security deposits are excluded."
-      >
-        <NumberRule label="Short Let" suffix="%" value={rules.commissions.short_let_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("short_let_percent", value)} />
-        <NumberRule label="Long Let" suffix="%" value={rules.commissions.long_let_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("long_let_percent", value)} />
-        <NumberRule label="Hotel" suffix="%" value={rules.commissions.hotel_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("hotel_percent", value)} />
-        <NumberRule label="Service Worker" suffix="%" value={rules.commissions.service_worker_percent} min={0} max={50} step={0.1} onChange={(value) => setCommission("service_worker_percent", value)} />
       </RuleSection>
 
       <RuleSection
@@ -455,6 +424,7 @@ export default function CreatorBookingMoneyRules() {
           </button>
         </div>
       </section>
+      </fieldset>
     </section>
   );
 }
@@ -468,11 +438,13 @@ function ShortLetReserveDateRule() {
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState('');
+  const reserveGeneration=useRef(0),reserveLock=useRef(false);
   const dirty=Boolean(rule&&draft&&(rule.amount!==draft.amount||rule.payment_hold_minutes!==draft.payment_hold_minutes||rule.balance_due_hours!==draft.balance_due_hours));
   async function loadReserveRule(){
-    setLoading(true);setError('');
-    const {data,error:readError}=await supabase.rpc('creator_get_short_let_reservation_rule');
-    setLoading(false);
+    const generation=++reserveGeneration.current;setLoading(true);setError('');
+    try {
+    const {data,error:readError}=await withTimeout(supabase.rpc('creator_get_short_let_reservation_rule'),15000,'Reserve date settings took too long to load.');
+    if(generation!==reserveGeneration.current)return;
     if(readError||!data?.value){
       setRule(null);setDraft(null);setError('Short Let Reserve date pricing could not be verified.');
       return;
@@ -484,30 +456,34 @@ function ShortLetReserveDateRule() {
       return;
     }
     setRule(next);setDraft({amount:next.amount,payment_hold_minutes:next.payment_hold_minutes,balance_due_hours:next.balance_due_hours});
+    } catch {if(generation===reserveGeneration.current){setRule(null);setDraft(null);setError('Short Let Reserve date pricing could not be verified. Try again.');}}
+    finally{if(generation===reserveGeneration.current)setLoading(false);}
   }
-  useEffect(()=>{void loadReserveRule()},[]);
+  useEffect(()=>{void loadReserveRule();return()=>{reserveGeneration.current++;}},[]);
   async function publish(elevationId:string){
-    if(!draft||!dirty||reason.trim().length<5)return;
-    setSaving(true);
-    const {data,error:saveError}=await supabase.rpc('creator_publish_short_let_reservation_rule',{
+    if(!draft||!dirty||reason.trim().length<5||reserveLock.current)return;
+    reserveLock.current=true;setSaving(true);
+    try {
+    const {data,error:saveError}=await withTimeout(supabase.rpc('creator_publish_short_let_reservation_rule',{
       p_creator_elevation_id:elevationId,
       p_amount:draft.amount,
       p_payment_hold_minutes:draft.payment_hold_minutes,
       p_balance_due_hours:draft.balance_due_hours,
       p_effective_from:effectiveAt?new Date(effectiveAt).toISOString():new Date().toISOString(),
       p_reason:reason.trim(),
-    });
-    setSaving(false);
+    }),20000,'Publication result is unknown. Refresh the saved rule before retrying.');
     if(saveError||!data?.success)return toast.error(saveError?.message||'Short Let rule could not be published');
     toast.success(effectiveAt?'Reserve date rule scheduled':'Reserve date rule published');
     setReason('');setEffectiveAt('');await loadReserveRule();
+    }catch{setError('Publication result could not be confirmed. Refresh the saved rule before retrying.');}
+    finally{reserveLock.current=false;setSaving(false);}
   }
   if(loading)return <section className="border-y border-[var(--wh-border-subtle)] py-5"><p className="text-sm text-[var(--wh-text-secondary)]">Loading Short Let Reserve date rule…</p></section>;
   if(error||!rule||!draft)return <section className="border-y border-[var(--wh-border-subtle)] py-5"><h4 className="text-xs font-semibold">Short Let · Reserve date</h4><p className="mt-2 text-sm text-amber-200">{error||'Reserve date rule unavailable.'}</p><button type="button" onClick={()=>void loadReserveRule()} className="mt-3 min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-xs font-semibold">Try again</button></section>;
   return <section className="border-y border-violet-500/15 py-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Short Let money</p><h4 className="mt-1 text-sm font-semibold">Reserve date</h4><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[var(--wh-text-secondary)]">This payment reserves the selected dates. Stay charge and any refundable security deposit are paid later and remain separate.</p></div><span className="rounded-full border border-[var(--wh-border-subtle)] px-2.5 py-1 text-[9px] text-[var(--wh-text-secondary)]">v{rule.version}</span></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-3">
-      <label className="text-[10px] text-[var(--wh-text-secondary)]">Reservation fee (₦)<input type="number" min={1} max={10000000} step={1000} value={draft.amount} onChange={e=>setDraft({...draft,amount:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
+      <label className="text-[10px] text-[var(--wh-text-secondary)]">Reservation fee ({currencySymbol()})<input type="number" min={1} max={10000000} step={1000} value={draft.amount} onChange={e=>setDraft({...draft,amount:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
       <label className="text-[10px] text-[var(--wh-text-secondary)]">Checkout time (minutes)<input type="number" min={5} max={120} value={draft.payment_hold_minutes} onChange={e=>setDraft({...draft,payment_hold_minutes:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
       <label className="text-[10px] text-[var(--wh-text-secondary)]">Stay balance due (hours)<input type="number" min={1} max={168} value={draft.balance_due_hours} onChange={e=>setDraft({...draft,balance_due_hours:Number(e.target.value)})} className="mt-1.5 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-sm"/></label>
     </div>
@@ -550,7 +526,7 @@ function NumberRule({
   disabled = false,
 }: {
   label: string;
-  value: number;
+  value: number|null;
   onChange: (value: number) => void;
   prefix?: string;
   suffix?: string;
@@ -572,7 +548,7 @@ function NumberRule({
           max={max}
           step={step}
           disabled={disabled}
-          value={value}
+          value={value??""}
           onChange={(event) => onChange(Number(event.target.value))}
           className="h-9 w-20 rounded-lg border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-2 text-right text-xs outline-none focus:border-violet-500/40 disabled:opacity-35"
         />

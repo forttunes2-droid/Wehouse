@@ -1,9 +1,12 @@
+import {checkAuthenticatorBoundary} from './lib/authenticator-probe.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
+import {checkFriendLiveDelivery} from './lib/friend-live-probe.mjs';
+import {checkMediaUploadReservations} from './lib/media-upload-probe.mjs';
 
 // Never accept a hosted URL or a caller-supplied target. This is disposable CI only.
 const status = JSON.parse(execFileSync('npx', ['--yes', 'supabase@2.114.0', 'status', '-o', 'json'], {
@@ -17,13 +20,15 @@ const serviceKey = status.SERVICE_ROLE_KEY || status.service_role_key;
 assert.ok(publicKey && serviceKey, 'Local Supabase keys are required');
 const admin = createClient(origin.href, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const makeClient = () => createClient(origin.href, publicKey, { auth: { persistSession: false, autoRefreshToken: false } });
+const authenticatorProof=await checkAuthenticatorBoundary(admin,makeClient);
+mkdirSync('test-results',{recursive:true});writeFileSync('test-results/authenticator-local.json',JSON.stringify(authenticatorProof,null,2));
 const today = new Date();
 const future = offset => new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + offset)).toISOString().slice(0, 10);
 const percentile = (values, fraction) => values.length ? Math.round(values[Math.ceil(values.length * fraction) - 1] * 10) / 10 : null;
 const actors = [];
 const suffix = randomBytes(6).toString('hex');
 
-async function booking(actor, sequence, stayOffset = 30 + Math.floor(sequence / 100) % 10) {
+async function booking(actor, sequence, stayOffset = 30 + Math.floor(sequence / 100) % 10, requestKey = randomUUID()) {
   const hotel = 1 + sequence % 50;
   const room = 1 + Math.floor(sequence / 50) % 2;
   const hotelId = -1000000 - hotel;
@@ -37,6 +42,7 @@ async function booking(actor, sequence, stayOffset = 30 + Math.floor(sequence / 
   });
   if (quote.error || quote.data?.available !== true) throw new Error(`quote: ${quote.error?.message || 'not available'}`);
   const result = await actor.client.rpc('create_my_hotel_booking_with_rate', {
+    p_request_key: requestKey,
     p_hotel_id: hotelId, p_room_id: roomId, p_rate_plan_id: planId,
     p_check_in: checkIn, p_check_out: checkOut, p_guest_count: 1,
     p_guest_name: 'Synthetic Guest', p_guest_phone: '08000000000', p_special_requests: null,
@@ -57,7 +63,14 @@ for (let i = 0; i < 10; i++) {
   const profile = await client.rpc('create_my_profile', { p_email: email, p_role: 'user' });
   if (profile.error || !profile.data?.user_id) throw new Error(`Synthetic profile failed: ${profile.error?.message}`);
   const actor = { client, email, password, authId: created.data.user.id, userId: profile.data.user_id };
-  actor.bookingId = await booking(actor, 20000 + i);
+  const device = await client.rpc('register_current_device_v2', {
+    p_device_id: `capacity-${suffix}-${i}`, p_device: 'Synthetic CI browser',
+    p_os: 'Linux', p_browser: 'Capacity runner', p_location: null, p_existing_session_id: null,
+  });
+  if (device.error || device.data?.trust_status !== 'trusted')
+    throw new Error(`Synthetic device registration failed: ${device.error?.message || 'first device not trusted'}`);
+  actor.checkoutKey=randomUUID();actor.checkoutSequence=20000+i;
+  actor.bookingId = await booking(actor, actor.checkoutSequence, undefined, actor.checkoutKey);
   const conversation = await client.rpc('create_my_support_case', {
     p_subject: 'Synthetic capacity conversation', p_category: 'general',
     p_source_type: 'general', p_source_id: null, p_source_snapshot: {}, p_priority: 'normal',
@@ -67,6 +80,8 @@ for (let i = 0; i < 10; i++) {
   actors.push(actor);
 }
 
+const mediaUploadProof=await checkMediaUploadReservations(origin.href,actors);
+mkdirSync('test-results',{recursive:true});writeFileSync('test-results/media-upload-local.json',JSON.stringify(mediaUploadProof,null,2));
 const journeys = [
   { name: 'browse', weight: 50, run: async (actor, i) => {
     const hotel = i % 2 === 0;
@@ -82,11 +97,17 @@ const journeys = [
     const result = await actor.client.auth.getUser();
     if (result.error || result.data.user?.id !== actor.authId) throw new Error(result.error?.message || 'wrong session');
   } },
-  { name: 'booking', weight: 15, run: async (actor, i) => { await booking(actor, i); } },
+  // An individual customer resumes their current room hold. New-booking writes
+  // occur in setup/contention, not unbounded pending holds per customer.
+  { name: 'checkout_resume', weight: 15, run: async actor => {
+    const id=await booking(actor,actor.checkoutSequence,undefined,actor.checkoutKey);
+    assert.equal(id,actor.bookingId,'Retry created another booking');
+  } },
   { name: 'message', weight: 10, run: async (actor, i) => {
-    const result = await actor.client.rpc('send_support_message', {
+    const result = await actor.client.rpc('send_support_message_v2', {
+      p_request_id: randomUUID(),
       p_conversation_id: actor.conversationId, p_content: `Synthetic message ${i}`,
-      p_attachments: [], p_attachment_types: [], p_action_type: null, p_action_metadata: {}, p_visibility: 'customer',
+      p_attachments: [], p_attachment_types: [], p_visibility: 'customer',
     });
     if (result.error || !result.data) throw new Error(result.error?.message || 'message not stored');
   } },
@@ -142,9 +163,29 @@ async function stage(rate, seconds, offset) {
     })) };
 }
 
-const report = { scope: 'Disposable local Supabase; 10 synthetic Auth users; HTTP RPCs; no Vercel, media, Realtime sockets or Paystack callback',
-  warning: 'Payment bootstrap creates a pending reference. No provider sandbox charge or verified webhook is exercised.',
+const report = { scope: 'Disposable local Supabase; 10 synthetic Auth users; HTTP RPCs plus a three-session Friend live-signal preflight; no Vercel, media or Paystack callback',
+  warning: 'Repeated checkouts resume the same owner-scoped hold; these timings do not measure fresh booking-write capacity. Setup/contention exercise new holds. Payment bootstrap creates a pending reference; no provider charge or verified webhook is exercised.',
   mix: Object.fromEntries(journeys.map(journey => [journey.name, journey.weight])), stages: [] };
+try{report.friend_live_delivery=await checkFriendLiveDelivery(actors);}
+catch(error){
+  report.friend_live_delivery={passed:false,error:String(error.message||error).slice(0,180),diagnostics:error.friendLiveDiagnostics};
+  // Aggregate disposable service evidence only: never output tokens or profiles.
+  try{
+    report.friend_live_delivery.database=JSON.parse(execFileSync('docker',['exec','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-At','-c',
+      "select jsonb_build_object('friend_message_count',(select count(*) from public.friend_messages),'broadcast_count',(select count(*) from realtime.messages where event='friend_chat_changed'),'broadcast_partitions',(select count(*) from pg_inherits where inhparent='realtime.messages'::regclass),'replication_slots',(select jsonb_agg(jsonb_build_object('plugin',plugin,'active',active,'wal_status',wal_status)) from pg_replication_slots))"],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+  }catch{report.friend_live_delivery.database={diagnostics_unavailable:true};}
+  try{
+    const logs=execFileSync('docker',['logs','--tail','600','supabase_realtime_wehouse'],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
+    report.friend_live_delivery.service_errors=logs.split('\n').filter(line=>/UnableToBroadcastChanges|RlsPolicyError|ErrorAuthorizing|Replication.*error/i.test(line)).slice(-12).map(line=>line
+      .replace(/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}/g,'[redacted-token]')
+      .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi,'[redacted-id]')
+      .replace(/[^\s"'<>]+@[^\s"'<>]+/g,'[redacted-email]').slice(0,280));
+  }catch{report.friend_live_delivery.service_errors=['Service log diagnostics unavailable'];}
+  console.error('Friend delivery diagnostics',JSON.stringify(report.friend_live_delivery));
+  mkdirSync('test-results',{recursive:true});
+  writeFileSync('test-results/mixed-journeys-local.json',JSON.stringify(report,null,2)+'\n');
+  throw error;
+}
 for (const [rate, seconds] of [[5, 30], [10, 30]]) {
   const result = await stage(rate, seconds, report.stages.reduce((sum, item) => sum + item.offered, 0));
   report.stages.push(result);
@@ -152,7 +193,7 @@ for (const [rate, seconds] of [[5, 30], [10, 30]]) {
 }
 // Twenty buyers contend for the same ten physical units on one future night.
 // A denied inventory request is expected here; any other error fails the check.
-const contention = await Promise.allSettled(Array.from({ length: 20 }, (_, i) => booking(actors[i % actors.length], 0, 400)));
+const contention = await Promise.allSettled(Array.from({ length: 20 }, (_, i) => booking(actors[i % actors.length], 0, 180)));
 const denials = contention.filter(row => row.status === 'rejected').map(row => String(row.reason?.message || row.reason));
 report.contention = { attempts: 20, capacity: 10,
   accepted: contention.length - denials.length, inventory_denied: denials.filter(reason => /unavailable|not available/i.test(reason)).length,

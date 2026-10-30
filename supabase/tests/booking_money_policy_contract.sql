@@ -20,6 +20,10 @@ insert into public.workspace_role_assignments(
 ) values(
   'creator-money-policy','creator','global','active'
 );
+insert into auth.sessions(id,user_id,created_at,updated_at) values
+ ('77777777-9999-4999-8999-000000000002','77777777-9999-4999-8999-000000000001',now(),now());
+insert into auth.mfa_factors(id,user_id,factor_type,status,created_at,updated_at) values
+ ('77777777-9999-4999-8999-000000000003','77777777-9999-4999-8999-000000000001','totp','verified',now(),now());
 insert into public.creator_elevation_grants(
   creator_elevation_id,creator_user_id,auth_user_id,auth_session_id,
   action_classes,issued_at,expires_at,verification_method
@@ -27,7 +31,7 @@ insert into public.creator_elevation_grants(
   '77777777-9999-4999-8999-000000000099',
   'creator-money-policy',
   '77777777-9999-4999-8999-000000000001',
-  'creator-money-policy-session',
+  '77777777-9999-4999-8999-000000000002',
   array['policy_publish']::text[],
   now(),now()+interval '10 minutes','password'
 );
@@ -35,7 +39,7 @@ set local session_replication_role=origin;
 
 select set_config(
   'request.jwt.claims',
-  '{"sub":"77777777-9999-4999-8999-000000000001","role":"authenticated","session_id":"creator-money-policy-session"}',
+  '{"sub":"77777777-9999-4999-8999-000000000001","role":"authenticated","aal":"aal2","session_id":"77777777-9999-4999-8999-000000000002"}',
   true
 );
 set local role authenticated;
@@ -196,7 +200,7 @@ set local session_replication_role=origin;
 
 select set_config(
   'request.jwt.claims',
-  '{"sub":"77777777-9999-4999-8999-000000000002","role":"authenticated","session_id":"ordinary-money-policy-session"}',
+  '{"sub":"77777777-9999-4999-8999-000000000002","role":"authenticated","aal":"aal2","session_id":"ordinary-money-policy-session"}',
   true
 );
 set local role authenticated;

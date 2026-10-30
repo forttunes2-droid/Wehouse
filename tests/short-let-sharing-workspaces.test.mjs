@@ -14,16 +14,61 @@ function load(name, mocks = {}, extra = {}) {
   const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   vm.runInNewContext(compiled, { exports, require: requested => {
     if (requested === '@/lib/chatMediaPolicy') return chatMediaPolicy;
+    if (requested === '@/lib/navigationRoute') return load('src/lib/navigationRoute.ts');
     if (requested in mocks) return mocks[requested];
+    if (requested === '@/lib/regional') return load('src/lib/regional.ts');
     if (!requested.startsWith('.')) throw Error(`Unexpected dependency ${requested}`);
     return load(path.resolve(path.dirname(filename), `${requested}.ts`));
-  }, Blob, File, URL, Date, Intl, Map, Set, Number, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, crypto: webcrypto, btoa, atob, setTimeout, clearTimeout, ...extra });
+  }, Blob, File, URL, URLSearchParams, Date, Intl, Map, Set, Number, Uint8Array, ArrayBuffer, TextEncoder, TextDecoder, crypto: webcrypto, btoa, atob, setTimeout, clearTimeout, ...extra });
   if (!Object.keys(mocks).length && !Object.keys(extra).length) cache.set(filename, exports);
   return exports;
 }
 const plain = data => JSON.parse(JSON.stringify(data));
 const quote = load('src/lib/shortLetQuote.ts');
 const sharing = load('src/lib/propertyShare.ts');
+const workerSharing = load('src/lib/workerShare.ts');
+test('activity shares are unambiguous public references using Services navigation',()=>{
+  const activity={kind:'experience',id:'91000000-0000-4000-8000-000000000001'};
+  const url=workerSharing.workerShareUrl(activity);
+  assert.equal(url,'https://wehouse.com.ng/#worker_discovery?experienceId='+activity.id);
+  assert.deepEqual(plain(workerSharing.parseWorkerShareMessage(workerSharing.workerShareMessage(activity,'Let us try this'))),{worker:activity,text:'Let us try this'});
+  assert.equal(workerSharing.workerMessagePreview(workerSharing.workerShareMessage(activity)),'Shared an activity');
+  for(const bad of [url+'&id='+activity.id,url+'&experienceId='+activity.id,url+'&payment=paid',url+'?payment=paid',url.replace('wehouse.com.ng','evil.invalid'),url.replace('experienceId','bookingId')])assert.equal(workerSharing.parseWorkerShareMessage(bad),null,bad);
+  const routes=load('src/lib/navigationRoute.ts');
+  assert.deepEqual(plain(routes.parseNavigationRoute(new URL(url).hash)),{page:'worker_discovery',params:{experienceId:activity.id}});
+  assert.equal(routes.identityEntryRoute(new URL(url).hash,'search').params.experienceId,activity.id);
+});
+test('activity drafts reuse account/conversation isolation, expiry and explicit cancellation',()=>{
+  const activity={kind:'experience',id:'91000000-0000-4000-8000-000000000001'};
+  workerSharing.queueWorkerShare('alice','conversation',activity,0);
+  assert.equal(workerSharing.pendingWorkerShare('bob','conversation',1),null);
+  assert.equal(workerSharing.pendingWorkerShare('alice','another-conversation',1),null);
+  assert.deepEqual(plain(workerSharing.pendingWorkerShare('alice','conversation',1)),activity);
+  assert.equal(workerSharing.pendingWorkerShare('alice','conversation',900001),null);
+  workerSharing.queueWorkerShare('alice','conversation',activity,0);
+  workerSharing.clearWorkerShare('alice','conversation');
+  assert.equal(workerSharing.pendingWorkerShare('alice','conversation',1),null);
+});
+test('guest activity return survives provider redirects without carrying private state',()=>{
+ const routes=load('src/lib/navigationRoute.ts'),id='91000000-0000-4000-8000-000000000001';
+ const saved=routes.guestActivityReturn(id,0);
+ assert.deepEqual(plain(routes.guestReturnDestination(saved,1)),{page:'worker_discovery',params:{experienceId:id}});
+ assert.equal(routes.guestReturnDestination(saved,600001),null);
+ assert.equal(routes.guestReturnDestination(saved,-1),null);
+ for(const input of ['bad',JSON.stringify({kind:'booking',id,expires:1000}),JSON.stringify({kind:'experience',id:'not-an-id',expires:1000})])assert.equal(routes.guestReturnDestination(input,1),null);
+ assert.deepEqual(plain(routes.guestReturnDestination('services')),{page:'worker_discovery',params:{}});
+});
+test('public sharing handles native cancellation without copying and never shares private routes',async()=>{
+ let calls=0,copies=0;
+ const native=load('src/lib/publicReferenceShare.ts',{}, {DOMException,navigator:{share:async()=>{calls++;throw new DOMException('Cancelled','AbortError');},clipboard:{writeText:async()=>{copies++;}}}});
+ const url='https://wehouse.com.ng/#worker_discovery?experienceId=91000000-0000-4000-8000-000000000001';
+ assert.equal(await native.sharePublicReference(url,'Public activity'),'cancelled');
+ assert.equal(calls,1);assert.equal(copies,0);
+ for(const bad of ['https://evil.invalid/#place/hotel/7','https://wehouse.com.ng/#security?token=secret','https://wehouse.com.ng/storage/private.jpg','https://wehouse.com.ng/?token=secret#place/hotel/7'])await assert.rejects(()=>native.sharePublicReference(bad,'Invalid reference'));
+ assert.equal(calls,1);
+ const fallback=load('src/lib/publicReferenceShare.ts',{}, {navigator:{clipboard:{writeText:async value=>{assert.equal(value,url);copies++;}}}});
+ assert.equal(await fallback.sharePublicReference(url,'Public activity'),'copied');assert.equal(copies,1);
+});
 const defaultStay = { checkIn: '2026-09-24', checkOut: '2026-09-26', today: '2026-09-23', lastDate: '2027-09-23', guests: 2, maxGuests: 2, minNights: 1, maxNights: 90, nightlyRate: 120000, refundableDeposit: 50000 };
 
 test('Short Let has no deposit-only or fabricated total before complete valid dates', () => {
@@ -35,30 +80,40 @@ test('Short Let has no deposit-only or fabricated total before complete valid da
 });
 test('Short Let capacity, stay rules and non-finite commercial values fail closed', () => {
   for (const change of [{ guests: 3 }, { guests: 0 }, { guests: 1.5 }, { maxGuests: 0 }, { minNights: 3 }, { maxNights: 1 }, { nightlyRate: NaN }, { nightlyRate: 0 }, { refundableDeposit: -1 }, { refundableDeposit: Infinity }]) assert.equal(quote.shortLetQuote({ ...defaultStay, ...change }).valid, false);
-  assert.equal(quote.nigeriaCalendarDate(new Date('2026-09-23T23:30:00Z')), '2026-09-24');
+  assert.equal(quote.platformCalendarDate(new Date('2026-09-23T23:30:00Z'), 'Africa/Lagos'), '2026-09-24');
   assert.equal(quote.calendarDay('2026-02-30'), null);
   assert.equal(quote.addCalendarDays('2026-09-30', 1), '2026-10-01');
 });
-test('Short Let Reserve date creates the dated booking and opens only its reservation-fee checkout', () => {
+test('Worker recommendations share only validated WeHouse profile routes', () => {
+  const worker = { id: '123e4567-e89b-42d3-a456-426614174000' };
+  const content = workerSharing.workerShareMessage(worker, 'I think this Worker could help you');
+  assert.deepEqual(plain(workerSharing.parseWorkerShareMessage(content)), { worker, text: 'I think this Worker could help you' });
+  assert.equal(workerSharing.workerMessagePreview(workerSharing.workerShareMessage(worker)), 'Recommended a Worker profile');
+  assert.equal(workerSharing.parseWorkerShareMessage('https://evil.example/#worker_discovery?id=123e4567-e89b-42d3-a456-426614174000'), null);
+  assert.equal(workerSharing.parseWorkerShareMessage('https://wehouse.com.ng/#worker_discovery?id=not-a-uuid'), null);
+});
+test('Short Let creates a dated hold, reviews it, and only opens checkout after confirmation', () => {
   const text = fs.readFileSync('src/pages/ListingDetailCore.tsx', 'utf8');
-  const action = text.slice(text.indexOf('async function reserveShortLet'), text.indexOf('async function openCheckout'));
-  assert.match(action, /createShortStayReservation\(listingId, shortCheckIn, shortCheckOut, shortGuests\)/);
-  assert.match(action, /!selection.valid/);
-  assert.match(action, /initializeReservationPayment/);
-  assert.match(action, /payment_reference/);
-  assert.match(action, /window\.location\.assign/);
-  assert.match(text, /Reserve date/);
+  const reserve = text.slice(text.indexOf('async function reserveShortLet'), text.indexOf('async function openCheckout'));
+  const payment = text.slice(text.indexOf('async function continueReservationPayment'), text.indexOf('async function editPaymentReview'));
+  assert.match(reserve, /createShortStayReservation\(listingId, shortCheckIn, shortCheckOut, shortGuests, requestKeyFor\(reserveSignature\)\)/);
+  assert.match(reserve, /!selection.valid/);
+  assert.match(reserve, /setPaymentReview\("short_let"\)/);
+  assert.doesNotMatch(reserve, /initializeReservationPayment|window\.location\.assign/);
+  assert.match(payment, /initializeReservationPayment\(String\(reservation\.payment_reference\)\)/);
+  assert.match(payment, /window\.location\.assign/);
+  assert.match(text, /Review dates · \$\{formatMoney\(/);
   assert.match(text, /short_let_reservation_fee/);
-  assert.doesNotMatch(action, /initializeShortStayPayment/);
+  assert.doesNotMatch(payment, /initializeShortStayPayment/);
 });
 test('Saved preserves public type, exact identifiers and rental units', () => {
   const routes = load('src/lib/publicPropertyDestination.ts');
   assert.equal(routes.publicPropertyDestination('hotel_detail', '7').kind, 'hotel');
   assert.equal(routes.publicPropertyDestination('detail', '7').kind, 'listing');
   assert.equal(routes.publicPropertyDestination('hotel_detail', 'javascript:7'), null);
-  const labels = load('src/lib/savedPlacePresentation.ts');
-  assert.equal(labels.savedHomePrice(120000, true), '₦120,000 / night');
-  assert.equal(labels.savedHomePrice(120000, false), '₦120,000 / year');
+  const labels = load('src/lib/savedPlacePresentation.ts', { '@/lib/regional': load('src/lib/regional.ts') });
+  assert.match(labels.savedHomePrice(120000, true), /120,000 \/ night$/);
+  assert.match(labels.savedHomePrice(120000, false), /120,000 \/ year$/);
   assert.equal(labels.savedHomePrice(undefined, true), 'View price and details');
 });
 test('property messages carry only canonical public references, never a financial command', () => {
@@ -126,8 +181,10 @@ test('Activity never infers the audience from a highest role and preserves inten
 test('Creator/Admin destinations preserve hotel, home and inspection identities without a public fallback', () => {
   const { internalActivityDestination: destination } = load('src/lib/internalActivityDestination.ts');
   for (const [route, kind] of [['hotel_detail','hotel'],['detail','listing'],['inspection','inspection']]) assert.deepEqual(plain(destination(route,'7')), { operation:'properties', id:`${kind}:7` });
-  assert.deepEqual(plain(destination('hotel_booking','42')), {operation:'bookings',id:'42'});
+  assert.deepEqual(plain(destination('hotel_booking','42')), {operation:'bookings',bookingKind:'hotels',id:'42'});
   assert.deepEqual(plain(destination('security_operations','case-1')), {operation:'security',id:'case-1'});
+  assert.deepEqual(plain(destination('service_booking','job-42')), {operation:'bookings',bookingKind:'services',id:'job-42'});
+  assert.deepEqual(plain(destination('reservation','home-42')), {operation:'bookings',id:'home-42'});
   assert.equal(destination('invented_other_dashboard','7'), null);
 });
 test('hotel daily totals and their destination filters agree and exclude cancelled arrivals', () => {
@@ -192,4 +249,16 @@ test('a property share uses real encryption and only the intended second identit
   }
   const outsider=load('src/lib/e2ee.ts',{'@/lib/supabase':{supabase:client('outsider')}},{sessionStorage:storage()});
   await outsider.createEncryptionIdentity('777777');await assert.rejects(()=>outsider.decryptPrivateMessage('roommate','accepted-1','alice',stored[0].p_ciphertext,stored[0].p_encryption_iv),/access denied/);
+});
+
+
+test('Homes and Hotels connect accepted Friends to encrypted chat drafts and actionable cards',()=>{
+ const dialog=fs.readFileSync('src/components/PropertyShareDialog.tsx','utf8');
+ assert.match(dialog,/listMyFriends\(\)/);assert.match(dialog,/friend.status === 'accepted'/);assert.match(dialog,/onFriendConversation\?\.\(person.conversationId\)/);
+ const chat=fs.readFileSync('src/components/FriendChat.tsx','utf8');
+ assert.match(chat,/pendingPropertyShare\(myUserId, friend.friend_id\)/);
+ assert.match(chat,/propertyShareMessage\(propertyDraft, text\)/);
+ assert.match(chat,/onOpenProperty=\{\(page, id\) => \{onClose\(\);onNavigate\(page,id\);\}\}/);
+ assert.match(chat,/typeof id !== 'string'/);
+ for(const kind of ['listing','hotel']){const property={kind,id:kind==='hotel'?'42':'home-one'};sharing.queuePropertyShare('me','friend-one',property,1000);assert.deepEqual(plain(sharing.pendingPropertyShare('me','friend-one',1001)),property);assert.equal(sharing.pendingPropertyShare('me','other-friend',1001),null);sharing.clearPropertyShare('me','friend-one');}
 });

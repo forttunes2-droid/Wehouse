@@ -1,7 +1,7 @@
 import { isNative } from '@/lib/native';
 import { NATIVE_OAUTH_REDIRECT } from '@/lib/nativeOAuthRedirect';
 
-export type GoogleVerificationContext = "signup" | "password_recovery" | "new_device";
+export type GoogleVerificationContext = "signup" | "password_recovery";
 export type GoogleVerificationRole = "user" | "worker" | "property_partner";
 
 export type GoogleVerificationTransaction = {
@@ -11,11 +11,6 @@ export type GoogleVerificationTransaction = {
   identifier?: string;
   recoveryAttemptId?: string;
   role?: GoogleVerificationRole;
-  pendingDeviceSessionId?: string;
-  device?: string;
-  os?: string;
-  browser?: string;
-  location?: string;
   createdAt: number;
 };
 
@@ -30,7 +25,7 @@ function maximumAge(context: GoogleVerificationContext) {
 }
 
 function isContext(value: unknown): value is GoogleVerificationContext {
-  return value === "signup" || value === "password_recovery" || value === "new_device";
+  return value === "signup" || value === "password_recovery";
 }
 
 export function saveGoogleVerification(

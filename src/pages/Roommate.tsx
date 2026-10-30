@@ -1,5 +1,6 @@
+import { propertyTimeZone, getRegionalDefaults } from "@/lib/regional";
 import { roommatePreferenceForm, roommatePreferenceError, roommateScoreLabel } from "@/lib/roommatePreferences";
-import { nigeriaCalendarDate } from "@/lib/shortLetQuote";
+import { platformCalendarDate } from "@/lib/shortLetQuote";
 import { withTimeout } from "@/lib/withTimeout";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ import type { RoommatePreferenceForm } from "@/components/RoommatePreferencesPan
 import DiscoveryShell from "@/components/DiscoveryShell";
 import RoommatePublicProfile from "@/components/RoommatePublicProfile";
 import type { Profile, RoommatePreferences } from "@/types";
+import { formatMoney } from "@/lib/regional";
 
 type Props = {
   profile: Profile;
@@ -37,6 +39,7 @@ type Props = {
 type Form = RoommatePreferenceForm;
 const EMPTY: Form = roommatePreferenceForm();
 const MATCH_PAGE_SIZE = 24;
+const MAX_ACTIVE_ROOMMATE_CONNECTIONS = 5;
 type RoommateSnapshot = {
   prefs: RoommatePreferences | null;
   matches: RoommateMatchResult[];
@@ -220,7 +223,7 @@ export default function RoommateWorkspace({
       return toast.error(
         "Turn on Roommate discovery and profile visibility in Privacy first",
       );
-    const validationError = roommatePreferenceError(form,nigeriaCalendarDate());
+    const validationError = roommatePreferenceError(form,platformCalendarDate(new Date(), propertyTimeZone()));
     if (validationError) return toast.error(validationError);
     setBusy(true);
     const { prefs: p, error } = await saveRoommatePreferences({
@@ -470,7 +473,7 @@ export default function RoommateWorkspace({
                 </span>
               </div>
               <p className="mt-2 text-base font-semibold">
-                ₦{Number(prefs.budget_min).toLocaleString()} – ₦{Number(prefs.budget_max).toLocaleString()}
+                {formatMoney(Number(prefs.budget_min))} – {formatMoney(Number(prefs.budget_max))}
               </p>
               {prefs.school_match && <p className="mt-1 text-xs text-violet-300">Same school · {prefs.school_name}</p>}
               <div className="mt-3 flex flex-wrap gap-2">
@@ -597,12 +600,19 @@ function Matches({
   const [openProfileId, setOpenProfileId] = useState<string | null>(null);
   const openProfile = rows.find((row) => row.id === openProfileId) || null;
   const established = rows.filter((row) => isEstablishedMatch(row) || acceptedIncomingIds.has(row.matched_user_id));
+  const connectionLimitReached = established.length >= MAX_ACTIVE_ROOMMATE_CONNECTIONS;
   const discoverable = discoveryActive
     ? rows.filter((row) => !isEstablishedMatch(row) && !acceptedIncomingIds.has(row.matched_user_id) && row.status !== "accepted" && !receivedUserIds.has(row.matched_user_id))
     : [];
 
   return (
     <>
+      {connectionLimitReached ? (
+        <section className="mb-3 rounded-2xl border border-amber-500/20 bg-amber-500/[.05] p-3 text-sm leading-6 text-[var(--wh-text-secondary)]">
+          <p className="font-semibold text-amber-200">Connection limit reached</p>
+          <p className="mt-1">You have {established.length} active roommate connections. Cancel or pause one to make room for a new connection without losing your history.</p>
+        </section>
+      ) : null}
       {established.length > 0 ? (
         <section>
           <div className="mb-3 flex items-end justify-between gap-3">
@@ -628,7 +638,7 @@ function Matches({
               {discoverable.length} new
             </span>
           </div>
-          {discoverable.length > 0 ? <MatchRail items={discoverable} focusedId={focusedId} busyId={busyId} schoolFilter={schoolFilter} onOpenProfile={setOpenProfileId} onChat={onChat} onInterest={onInterest} /> : (
+          {discoverable.length > 0 ? <MatchRail items={discoverable} focusedId={focusedId} busyId={busyId} schoolFilter={schoolFilter} onOpenProfile={setOpenProfileId} onChat={onChat} onInterest={onInterest} connectionLimitReached={connectionLimitReached} /> : (
             <div className="border-y border-[var(--wh-border-subtle)] px-3 py-10 text-center">
               <p className="text-sm font-semibold">No new matches yet</p>
               <p className="mt-1 text-sm text-[var(--wh-text-muted)]">Refresh when more compatible people become available.</p>
@@ -649,11 +659,12 @@ function Matches({
 }
 
 function sameSchool(filter:string, candidate?:string|null){return Boolean(filter.trim()&&candidate?.trim()&&filter.trim().toLocaleLowerCase()===candidate.trim().toLocaleLowerCase())}
-function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onInterest}:{items:RoommateMatchResult[];focusedId:string|null;busyId:string|null;schoolFilter:string;onOpenProfile:(id:string)=>void;onChat?:(row:RoommateMatchResult)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"viewed")=>void}) {
+function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onInterest,connectionLimitReached}:{items:RoommateMatchResult[];focusedId:string|null;busyId:string|null;schoolFilter:string;onOpenProfile:(id:string)=>void;onChat?:(row:RoommateMatchResult)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"viewed")=>void;connectionLimitReached?:boolean}) {
   return <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">{items.map((row)=>{
     const p=row.matched_profile,score=row.match_score,connected=Boolean(row.mutual_accepted||row.conversation_id),sent=row.status==="accepted";
     const name=p.full_name||`@${p.username||"user"}`;
     const contextIds=[row.id,row.conversation_id].filter(Boolean).join(" "),focused=[row.id,row.conversation_id].filter(Boolean).some(id=>String(id)===focusedId);
+    const connectDisabled = connectionLimitReached && !connected;
     return <article key={row.id} tabIndex={-1} data-activity-context={contextIds} className={`rounded-2xl px-2 py-4 outline-none transition ${focused?"bg-violet-500/[.08] ring-1 ring-violet-400/35":""}`}>
       <div className="flex items-center gap-3">
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="shrink-0 rounded-full" aria-label={`View ${name} profile`}>
@@ -661,12 +672,15 @@ function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onI
         </button>
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="min-w-0 flex-1 text-left">
           <div className="flex items-center justify-between gap-3"><h3 className="truncate text-sm font-semibold">{name}</h3><span className="shrink-0 text-sm font-bold text-violet-300">{Number.isFinite(score) ? `${score}%` : "—"}</span></div>
-          <p className="mt-1 truncate text-sm text-[var(--wh-text-muted)]">{[p.city,p.state].filter(Boolean).join(", ")||"Nigeria"}{sameSchool(schoolFilter,p.school)?` · ${p.school}`:""}</p>
-          <p className={`mt-1 text-sm font-semibold ${connected?"text-emerald-300":sent?"text-violet-200":"text-[var(--wh-text-secondary)]"}`}>{connected?"Matched":sent?"Request pending":roommateScoreLabel(score,p.compared_answers)}</p>
+          <p className="mt-1 truncate text-sm text-[var(--wh-text-muted)]">{[p.city,p.state].filter(Boolean).join(", ")||"Location not added"}{sameSchool(schoolFilter,p.school)?` · ${p.school}`:""}</p>
+          <p className={`mt-1 text-sm font-semibold ${connected?"text-emerald-300":sent?"text-violet-200":"text-[var(--wh-text-secondary)]"}`}>{connected?"Connected":sent?"Request pending":roommateScoreLabel(score,p.compared_answers)}</p>
         </button>
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="grid h-10 w-8 shrink-0 place-items-center text-lg text-[var(--wh-text-muted)]" aria-label={`Open ${name} profile`}>›</button>
       </div>
-      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected?<button type="button" disabled={busyId===row.id} onClick={()=>void onChat?.(row)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-45">{busyId===row.id?"Opening…":"Message"}</button>:sent?<button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 flex-1 rounded-xl border border-violet-400/25 px-4 text-sm font-semibold text-violet-200 disabled:opacity-45">{busyId===row.id?"Cancelling…":"Cancel request"}</button>:<><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40">{busyId===row.id?"Sending…":"Connect"}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold disabled:opacity-40">Skip</button></>}</div>
+      <div className="mt-3 flex gap-2 pl-[4.25rem]">{connected ? <>
+        <button type="button" disabled={busyId===row.id} onClick={()=>void onChat?.(row)} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-45">{busyId===row.id?"Opening…":"Message"}</button>
+        <button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-[var(--wh-text)] disabled:opacity-40">{busyId===row.id?"Pausing…":"Pause connection"}</button>
+      </> : sent ? <button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 flex-1 rounded-xl border border-violet-400/25 px-4 text-sm font-semibold text-violet-200 disabled:opacity-45">{busyId===row.id?"Cancelling…":"Cancel request"}</button> : <><button type="button" disabled={busyId===row.id || connectDisabled} onClick={()=>void onInterest(row,"accepted")} className="min-h-10 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-40">{connectDisabled ? "Connection limit" : (busyId===row.id?"Sending…":"Connect")}</button><button type="button" disabled={busyId===row.id} onClick={()=>void onInterest(row,"viewed")} className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold disabled:opacity-40">Skip</button></>}</div>
     </article>;
   })}</div>;
 }
@@ -675,7 +689,7 @@ function RoommateProfileSheet({row,schoolFilter,busy,onClose,onChat,onInterest}:
   const p=row.matched_profile,score=row.match_score;
   const connected=Boolean(row.mutual_accepted||row.conversation_id),sent=row.status==="accepted";
   const highlights=p.match_highlights || [];
-  return <RoommatePublicProfile context="discovery" person={{name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||'Nigeria',bio:p.bio,school:sameSchool(schoolFilter,p.school)?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score ?? undefined} matchLabel={roommateScoreLabel(score,p.compared_answers)} highlights={highlights} discuss={p.discuss_before_deciding} comparedAnswers={p.compared_answers} primaryAction={connected?<button type="button" disabled={busy} onClick={()=>void onChat?.(row)} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Opening…":"Message"}</button>:sent?<button type="button" disabled={busy} onClick={()=>void onInterest(row,"viewed")} className="h-12 w-full rounded-2xl border border-violet-400/25 text-xs font-semibold text-violet-200 disabled:opacity-45">{busy?"Cancelling…":"Cancel request"}</button>:<button type="button" disabled={busy} onClick={()=>void onInterest(row,"accepted")} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Sending…":"Connect"}</button>}/>;
+  return <RoommatePublicProfile context="discovery" person={{userId:p.user_id,name:p.full_name||`@${p.username||'user'}`,username:p.username,avatar:p.avatar_url,location:[p.city,p.state].filter(Boolean).join(', ')||getRegionalDefaults().countryName,bio:p.bio,school:sameSchool(schoolFilter,p.school)?p.school:null,preferredArea:p.area_preference||'Flexible'}} onClose={onClose} score={score ?? undefined} matchLabel={roommateScoreLabel(score,p.compared_answers)} highlights={highlights} discuss={p.discuss_before_deciding} comparedAnswers={p.compared_answers} primaryAction={connected?<button type="button" disabled={busy} onClick={()=>void onChat?.(row)} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Opening…":"Message"}</button>:sent?<button type="button" disabled={busy} onClick={()=>void onInterest(row,"viewed")} className="h-12 w-full rounded-2xl border border-violet-400/25 text-xs font-semibold text-violet-200 disabled:opacity-45">{busy?"Cancelling…":"Cancel request"}</button>:<button type="button" disabled={busy} onClick={()=>void onInterest(row,"accepted")} className="h-12 w-full rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-45">{busy?"Sending…":"Connect"}</button>}/>;
 }
 
 function ReceivedInterests({
@@ -738,7 +752,7 @@ function ReceivedInterests({
               </p>
               <p className="mt-1 truncate text-sm text-[var(--wh-text-muted)]">
                 {Number.isFinite(row.match_score) ? `${row.match_score}% preference similarity · ` : "Compare your plans · "}
-                {[row.city, row.state].filter(Boolean).join(", ") || "Nigeria"}
+                {[row.city, row.state].filter(Boolean).join(", ") || getRegionalDefaults().countryName}
                 {sameSchool(schoolFilter, row.school) ? ` · ${row.school}` : ""}
               </p>
             </button>
@@ -761,6 +775,6 @@ function ReceivedInterests({
           </article>
         ))}
       </div>
-    </section>{openProfile ? <RoommatePublicProfile context="discovery" person={{name:openProfile.full_name||`@${openProfile.username||"user"}`,username:openProfile.username,avatar:openProfile.avatar_url,location:[openProfile.city,openProfile.state].filter(Boolean).join(", ")||"Nigeria",bio:openProfile.bio,school:sameSchool(schoolFilter,openProfile.school)?openProfile.school:null}} score={openProfile.match_score ?? undefined} matchLabel="How your plans compare" highlights={openProfile.match_highlights || []} discuss={openProfile.discuss_before_deciding || []} comparedAnswers={openProfile.compared_answers} onClose={()=>setOpenProfileId(null)} primaryAction={<div className="grid grid-cols-2 gap-2"><button type="button" disabled={busyId===openProfile.interest_id} onClick={()=>void onRespond(openProfile,"declined")} className="h-12 rounded-2xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-40">Pass</button><button type="button" disabled={busyId===openProfile.interest_id} onClick={()=>void onRespond(openProfile,"accepted")} className="h-12 rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-40">Accept</button></div>}/> : null}</>
+    </section>{openProfile ? <RoommatePublicProfile context="discovery" person={{userId:openProfile.sender_user_id,name:openProfile.full_name||`@${openProfile.username||"user"}`,username:openProfile.username,avatar:openProfile.avatar_url,location:[openProfile.city,openProfile.state].filter(Boolean).join(", ")||"Location not added",bio:openProfile.bio,school:sameSchool(schoolFilter,openProfile.school)?openProfile.school:null}} score={openProfile.match_score ?? undefined} matchLabel="How your plans compare" highlights={openProfile.match_highlights || []} discuss={openProfile.discuss_before_deciding || []} comparedAnswers={openProfile.compared_answers} onClose={()=>setOpenProfileId(null)} primaryAction={<div className="grid grid-cols-2 gap-2"><button type="button" disabled={busyId===openProfile.interest_id} onClick={()=>void onRespond(openProfile,"declined")} className="h-12 rounded-2xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-40">Pass</button><button type="button" disabled={busyId===openProfile.interest_id} onClick={()=>void onRespond(openProfile,"accepted")} className="h-12 rounded-2xl bg-violet-500 text-xs font-semibold disabled:opacity-40">Accept</button></div>}/> : null}</>
   );
 }

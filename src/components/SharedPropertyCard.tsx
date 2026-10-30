@@ -33,7 +33,7 @@ function LoadedPropertyCard({ property, onOpen, compact = false }: Props) {
           const result = await withTimeout(getListing(ref.id), 12000, 'Property preview took too long.');
           if (result.error) throw result.error;
           const listing = result.listing;
-          if (listing && String(listing.id) === ref.id) next = { title: listingDisplayTitle(listing), area: locationLabel(undefined, listing.city, listing.state), image: publicPropertyImages(listing.images)[0] || null, label: listing.sub_type === 'short_let' ? 'Short Let' : 'Long Let' };
+          if (listing && (String(listing.id) === ref.id || listing.listing_id === ref.id)) next = { title: listingDisplayTitle(listing), area: locationLabel(undefined, listing.city, listing.state), image: publicPropertyImages(listing.images)[0] || null, label: listing.sub_type === 'short_let' ? 'Short Let' : 'Long Let' };
         } else {
           const result = await withTimeout(getHotelById(Number(ref.id)), 12000, 'Property preview took too long.');
           if (result.error) throw result.error;

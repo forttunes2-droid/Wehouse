@@ -1,4 +1,7 @@
 const OPERATIONS = ['property_operations', 'field_operations', 'worker_operations', 'finance_operations', 'security_operations', 'support'];
+export function isInternalActivityWorkspace(workspace: string): boolean {
+  return ['creator', 'admin', 'staff', ...OPERATIONS].includes(workspace);
+}
 /** Mirrors the server's workspace aliases. Never infer delivery from a person's
  * highest role: a Creator or Partner also has an independent Personal feed. */
 export function activityWorkspaceMatches(requested: string, delivered: unknown): boolean {

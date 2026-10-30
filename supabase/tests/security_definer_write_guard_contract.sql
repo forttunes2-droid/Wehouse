@@ -9,6 +9,39 @@ do $$
 declare
   bad text;
 begin
+  -- Some endpoints delegate their caller check to a canonical helper. Accept
+  -- only these reviewed paths, after checking the helper's own guard and ACL.
+  -- A function-name exception alone must never waive the authorization audit.
+  with reviewed_helpers(signature,call_name,required_checks) as (values
+   ('private.shared_long_let_actor(uuid,boolean)','private.shared_long_let_actor',
+    array['current_profile_user_id','_property_document_session_active','user_has_active_workspace','shared_housing_members','m.user_id=actor','g.created_by=actor','raise exception']),
+   ('private.experience_host_actor()','private.experience_host_actor',
+    array['current_profile_user_id','_property_document_session_active','user_has_active_workspace','raise exception']),
+   ('private.experience_customer_actor()','private.experience_customer_actor',
+    array['current_profile_user_id','_property_document_session_active','deleted','suspended','banned','raise exception']),
+   ('private.experience_creator_actor()','private.experience_creator_actor',
+    array['current_profile_user_id','_property_document_session_active','current_actor_has_workspace','creator_has_elevation','raise exception']),
+   ('public._property_document_reviewer(uuid)','public._property_document_reviewer',
+    array['_current_team_actor','can_access_property_documents','r.owner_id=a.user_id','raise exception']),
+   ('public._partner_operating_cost_actor()','public._partner_operating_cost_actor',
+    array['auth.uid','current_actor_has_workspace','partner_pro_is_active','raise exception']),
+   ('public._property_arrival_actor(text,text)','public._property_arrival_actor',
+    array['current_profile_user_id','_property_document_session_active','partner_pro_owns_asset','raise exception']),
+   ('private.private_call_actor()','private.private_call_actor',
+    array['_current_comm_actor','_property_document_session_active','user_has_active_workspace','raise exception']),
+   ('private.hotel_checkout_actor()','private.hotel_checkout_actor',
+    array['current_profile_user_id','_property_document_session_active','current_actor_has_personal_workspace','raise exception']),
+   ('private.presence_actor()','private.presence_actor',
+    array['current_profile_user_id','_property_document_session_active','raise exception'])
+  ), validated_helpers as (
+   select h.call_name from reviewed_helpers h
+   join pg_proc guard on guard.oid=to_regprocedure(h.signature)
+   where guard.prosecdef
+    and not has_function_privilege('anon',guard.oid,'EXECUTE')
+    and not has_function_privilege('authenticated',guard.oid,'EXECUTE')
+    and not exists(select 1 from unnest(h.required_checks) needle
+     where position(needle in lower(pg_get_functiondef(guard.oid)))=0)
+  )
   select string_agg(p.oid::regprocedure::text, ', ' order by p.oid::regprocedure::text)
   into bad
   from pg_proc p
@@ -33,7 +66,9 @@ begin
     and position('_admin_dashboard_actor' in lower(pg_get_functiondef(p.oid)))=0
     and position('can_access_' in lower(pg_get_functiondef(p.oid)))=0
     and position('can_current_actor' in lower(pg_get_functiondef(p.oid)))=0
-    and position('require_' in lower(pg_get_functiondef(p.oid)))=0;
+    and position('require_' in lower(pg_get_functiondef(p.oid)))=0
+    and not exists(select 1 from validated_helpers h
+      where position(h.call_name||'(' in lower(pg_get_functiondef(p.oid)))>0);
 
   if bad is not null then
     raise exception 'Write-capable SECURITY DEFINER RPC lacks visible authorization path: %',bad;
@@ -88,6 +123,7 @@ declare
     'activity_event_audiences',
     'wallets',
     'withdrawals'
+    ,'operational_cases','operational_case_events'
   ];
 begin
   foreach relation_name in array protected_relations loop

@@ -1,0 +1,267 @@
+environment,recorded_in,version,name,status,possible_same_name_version,disposition
+Test,repository,20260926191820,page_partner_hotels,UNRESOLVED_NAME_MATCH_CANDIDATE,20260926192102,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260926191012,guard_sponsored_partner_authority,UNRESOLVED_NAME_MATCH_CANDIDATE,20260926191032,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260926151722,harden_resource_invitations_hosting_help_capacity,UNRESOLVED_NAME_MATCH_CANDIDATE,20260926153003,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260926192500,guard_privileged_accommodation_detail,UNRESOLVED_NAME_MATCH_CANDIDATE,20260926193912,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260926204631,sponsored_paid_placement,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260926221500,index_marketplace_ownership_foreign_keys,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260927000000,sponsored_native_store,UNRESOLVED_NAME_MATCH_CANDIDATE,20260926223604,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260930080000,partner_pro_occupancy_arrival,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260929100000,restore_duration_aware_video_quality,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260928114645,choose_management_before_publication,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260930070000,worker_pro_business_tools,UNRESOLVED_NAME_MATCH_CANDIDATE,20260930055613,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260928114038,bound_public_video_objects,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260929215000,partner_pro_provider_reviews,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929212711,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260928110428,hotel_guest_presence_confirmation,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260929214000,worker_pro_export_and_showcase_edit,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260927160000,replan_bounded_home_search,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927140330,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260929213500,sponsored_public_accommodation_discovery,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260927154500,operational_subject_state,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927140320,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260929213000,partner_pro_prepaid_membership,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260927143000,bounded_discovery_distances,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927121510,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260929210000,worker_showcase_comment_pages,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929143832,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260927140000,bounded_public_hotel_search,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927121502,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260927101830,bounded_public_home_search,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927103742,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260927072525,guard_open_withdrawals,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260927001000,worker_pro_native_sales_controls,UNRESOLVED_NAME_MATCH_CANDIDATE,20260926224407,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260929121747,notify_sponsored_campaign_status,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929121950,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260929121437,repair_creator_multi_workspace_profile,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929121948,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260929190000,decouple_worker_marketplace_from_review_register,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929134057,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260929200000,property_partner_pro_workspace,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929141848,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20260929191000,separate_sponsored_from_worker_pro,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929134804,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20261001133000,capacity_hotel_price_lookup,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261001130000,capacity_public_read_query_plans,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261001110000,partner_recurring_task_authority,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261001103000,hotel_cancellation_deadline_guard,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261001100000,hotel_refund_receipts,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261001093000,hotel_paid_cancellation,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261001090000,pro_costs_and_recurring_tasks,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260930221000,worker_pro_review_revocation,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260930220000,worker_pro_schedule_query,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260930213000,worker_pro_provider_review_and_consent,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260930100000,worker_pro_featured_profile,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20260930090000,worker_customer_consent,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261006180000,roommate_refresh_scale_hardening,UNRESOLVED_NAME_MATCH_CANDIDATE,20261006180058,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20261006153000,notify_customer_when_reservation_expires,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261003123000,roommate_request_match_details,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261003010000,roommate_request_match_context,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261003000000,add_sponsored_store_fk_indexes,UNRESOLVED_NAME_MATCH_CANDIDATE,20261003021614,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20261001140000,profile_email_lookup_index,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007194500,production_schema_policy_alignment,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007193000,production_schema_security_and_triggers,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007190000,production_schema_reconciliation,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007180000,chat_documents_and_picker_backend,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007182449,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20261007200100,hotel_team_recipient_lookup,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007200000,align_worker_pro_job_cost_rpc,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007201000,align_worker_pro_read_rpc,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261018110000,rent_instalments_require_protection,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261018100000,shared_groups_expire_when_unpaid,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261017191000,wallet_grants_hardening,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261017190000,per_user_action_rate_limits,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261015110000,creator_announcement_workspace_audience,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261012113424,creator_worker_marketplace_control_seed,UNRESOLVED_NAME_MATCH_CANDIDATE,20261012113554,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20261010160000,reassert_resource_invitation_activity_workspace,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261010150000,fix_resource_invitation_response_workspace_scope,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261010140000,roommate_interest_withdrawal_and_activity_cleanup,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261010133000,restore_notification_activity_mirror,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261010130000,revoke_browser_grants_without_rls_policies,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261010120000,restore_live_property_management_handoff_guard,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261009125500,restore_capacity_hotel_price_lookup,UNRESOLVED_NAME_MATCH_CANDIDATE,20261010073426,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20261009124500,optimize_public_hotel_city_feed,UNRESOLVED_NAME_MATCH_CANDIDATE,20261010072332,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20261009124200,remove_partner_pro_confirmation_overload,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261009124000,optimize_public_home_city_feed,UNRESOLVED_NAME_MATCH_CANDIDATE,20261010072323,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20261009123500,remove_partner_pro_payment_overload,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261009123000,fix_worker_pro_review_guard,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261009122500,fix_worker_pro_cost_column_contract,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261009122000,fix_partner_pro_recurring_task_projection,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261009121500,optimize_public_home_city_feed,UNRESOLVED_NAME_MATCH_CANDIDATE,20261010072323,Compare migration SQL and resulting schema before determining equivalence.
+Test,repository,20261009121000,fix_legacy_short_let_rate_guard,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007215000,reassert_hotel_refund_projection,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007214000,reassert_hotel_quote_cancellation_terms,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007213000,reassert_hotel_cancellation_deadline_guard,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007212000,align_hotel_refund_outbox_constraint,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007210000,roommate_candidate_ranking,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007205000,finalize_hotel_paid_cancellation,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007204000,match_location_constraint_definition,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007203100,restore_apartment_commission_policy_resolver,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007203000,align_production_constraints,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,repository,20261007202000,match_test_column_defaults,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Test,remote,20260921102054,dedupe_admin_workspace_people_and_counts,UNRESOLVED_NAME_MATCH_CANDIDATE,20260921102000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260921102603,worker_operations_forward_alignment,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260921163041,admin_stats_listing_city_fix,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260926153003,harden_resource_invitations_hosting_help_capacity,UNRESOLVED_NAME_MATCH_CANDIDATE,20260926151722,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260926190741,guard_null_partner_asset_workspace,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260926191032,guard_sponsored_partner_authority,UNRESOLVED_NAME_MATCH_CANDIDATE,20260926191012,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260926191122,correct_sponsored_listing_location,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260926192102,page_partner_hotels,UNRESOLVED_NAME_MATCH_CANDIDATE,20260926191820,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260926193912,guard_privileged_accommodation_detail,UNRESOLVED_NAME_MATCH_CANDIDATE,20260926192500,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260926205352,sponsored_paid_placement_test,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260926205617,sponsored_paid_placement_refinement_test,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260926210127,sponsored_creator_delivery_test,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260926210345,sponsored_refund_replay_test,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260926211139,sponsored_authenticated_discovery_test,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260926220527,index_marketplace_ownership_foreign_keys_test,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260926223604,sponsored_native_store,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927000000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260926224407,worker_pro_native_sales_controls,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927001000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260927103742,bounded_public_home_search,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927101830,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260927121502,bounded_public_hotel_search,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927140000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260927121510,bounded_discovery_distances,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927143000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260927140320,operational_subject_state,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927154500,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260927140330,replan_bounded_home_search,UNRESOLVED_NAME_MATCH_CANDIDATE,20260927160000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260929121948,repair_creator_multi_workspace_profile,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929121437,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260929121950,notify_sponsored_campaign_status,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929121747,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260929134057,decouple_worker_marketplace_from_review_register,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929190000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260929134804,separate_sponsored_from_worker_pro,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929191000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260929141848,property_partner_pro_workspace,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929200000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260929143832,worker_showcase_comment_pages,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929210000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260929204130,partner_pro_prepaid_membership_test,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260929204137,sponsored_public_accommodation_discovery_test,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260929204139,worker_pro_export_showcase_edit_test,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260929212711,partner_pro_provider_reviews,UNRESOLVED_NAME_MATCH_CANDIDATE,20260929215000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260930055613,worker_pro_business_tools,UNRESOLVED_NAME_MATCH_CANDIDATE,20260930070000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20260930055629,worker_pro_business_tools_20260930,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930055647,partner_pro_occupancy_arrival_20260930,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930060354,worker_customer_consent_20260930,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930060902,worker_pro_featured_profile_20260930,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930061430,partner_arrival_booking_id_fix_20260930,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930061739,worker_business_qualified_schedule_20260930,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930062509,worker_featured_visibility_fix_20260930,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930074003,worker_pro_job_profit,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930074007,partner_pro_opt_in_renewal,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930074706,stay_party_pet_policy,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930075307,home_pet_policy_list,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930075748,public_stay_pet_policy,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930080016,preserve_booked_pet_party,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930080359,partner_renewal_event_order,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930114555,management_commission_and_property_revisions_test,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930123135,property_change_request_resubmission,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930161124,stay_party_pet_policy,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930161216,home_pet_policy_list,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930161219,public_stay_pet_policy,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930161221,preserve_booked_pet_party,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930161304,partner_renewal_event_order,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930161306,verified_stay_rates_and_reviews,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930161359,versioned_accommodation_rates_and_no_show,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20260930183506,secure_no_show_evidence_and_workspaces,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20261003021614,add_sponsored_store_fk_indexes,UNRESOLVED_NAME_MATCH_CANDIDATE,20261003000000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20261006180058,roommate_refresh_scale_hardening,UNRESOLVED_NAME_MATCH_CANDIDATE,20261006180000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20261007175903,hotel_team_recipient_lookup_verify_v2,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20261007182449,chat_documents_and_picker_backend,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007180000,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20261007191748,restore_apartment_commission_policy_resolver_20261007203000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Test,remote,20261010072323,optimize_public_home_city_feed,UNRESOLVED_NAME_MATCH_CANDIDATE,20261009124000;20261009121500,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20261010072332,optimize_public_hotel_city_feed,UNRESOLVED_NAME_MATCH_CANDIDATE,20261009124500,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20261010073426,restore_capacity_hotel_price_lookup,UNRESOLVED_NAME_MATCH_CANDIDATE,20261009125500,Compare migration SQL and resulting schema before determining equivalence.
+Test,remote,20261012113554,creator_worker_marketplace_control_seed,UNRESOLVED_NAME_MATCH_CANDIDATE,20261012113424,Compare migration SQL and resulting schema before determining equivalence.
+Production,repository,20261007194500,production_schema_policy_alignment,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007075201;20261007080937;20261007083721,Compare migration SQL and resulting schema before determining equivalence.
+Production,repository,20261007193000,production_schema_security_and_triggers,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007075051;20261007083717,Compare migration SQL and resulting schema before determining equivalence.
+Production,repository,20261007190000,production_schema_reconciliation,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007075004;20261007083711,Compare migration SQL and resulting schema before determining equivalence.
+Production,repository,20261007180000,chat_documents_and_picker_backend,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261007200100,hotel_team_recipient_lookup,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261007200000,align_worker_pro_job_cost_rpc,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007075241;20261007080941;20261007083725,Compare migration SQL and resulting schema before determining equivalence.
+Production,repository,20261007201000,align_worker_pro_read_rpc,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007075302;20261007080944;20261007083729,Compare migration SQL and resulting schema before determining equivalence.
+Production,repository,20261018110000,rent_instalments_require_protection,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261018100000,shared_groups_expire_when_unpaid,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261017191000,wallet_grants_hardening,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261017190000,per_user_action_rate_limits,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261015110000,creator_announcement_workspace_audience,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261014163939,saved_service_providers,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261013100000,creator_only_worker_refund_reviews,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012500000,country_settings,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012490000,hotel_wehouse_discounts,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012480000,hotel_discounts,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012470000,email_change_verified_identity,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012460000,short_let_guest_cancellation,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012450000,creator_get_worker_refund_rules,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012440000,withdrawal_recent_login,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012430000,email_change_sync,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012420000,friend_message_idempotency,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012410000,worker_refund_rules,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012400000,withdrawal_controls,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012390000,creator_fixed_fee,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012380000,message_pins_and_discount_breakdown,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012370000,long_let_discounts,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012360000,friend_chat_media_reactions_delete,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012350000,friend_unblock_restores,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012340000,friend_block_unblock,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012330000,companion_request_limits,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012320000,discount_ceiling_not_public,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012310000,idempotent_booking_requests,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012300000,wehouse_discount_follows_commission,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012290000,discount_partner_payout_protection,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012280000,wehouse_discount_commission_cap,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012270000,creator_wehouse_discount_list,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012260000,listing_discount_pricing,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012250000,listing_discounts,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012240000,roommate_cancel_notice,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012230000,reports_lga_scope,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012220000,report_hotel_chat,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012210000,report_worker_chat_membership,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012200000,roommate_cancel_wait,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012190000,close_hotel_base_table_privileges,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012180000,companion_chat_key_exchange,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012170000,shared_content_reports,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012160000,long_let_split_roommate_or_companion,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012150000,companion_bucket_and_chat,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012141000,short_let_split_with_companions,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012140000,companion_relationship_and_payer_cap,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261012113424,creator_worker_marketplace_control_seed,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261010160000,reassert_resource_invitation_activity_workspace,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261010150000,fix_resource_invitation_response_workspace_scope,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261010140000,roommate_interest_withdrawal_and_activity_cleanup,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261010133000,restore_notification_activity_mirror,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261010130000,revoke_browser_grants_without_rls_policies,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261010120000,restore_live_property_management_handoff_guard,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261009125500,restore_capacity_hotel_price_lookup,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261009124500,optimize_public_hotel_city_feed,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261009124200,remove_partner_pro_confirmation_overload,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261009124000,optimize_public_home_city_feed,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261009123500,remove_partner_pro_payment_overload,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261009123000,fix_worker_pro_review_guard,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261009122500,fix_worker_pro_cost_column_contract,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261009122000,fix_partner_pro_recurring_task_projection,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261009121500,optimize_public_home_city_feed,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261009121000,fix_legacy_short_let_rate_guard,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261007215000,reassert_hotel_refund_projection,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261007214000,reassert_hotel_quote_cancellation_terms,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261007213000,reassert_hotel_cancellation_deadline_guard,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261007212000,align_hotel_refund_outbox_constraint,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261007210000,roommate_candidate_ranking,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261007205000,finalize_hotel_paid_cancellation,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261007204000,match_location_constraint_definition,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007075458;20261007083738,Compare migration SQL and resulting schema before determining equivalence.
+Production,repository,20261007203100,restore_apartment_commission_policy_resolver,UNRESOLVED_NO_NAME_MATCH,,"Determine whether unapplied, represented elsewhere, or reconciled by another change."
+Production,repository,20261007203000,align_production_constraints,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007075442;20261007080950;20261007083735,Compare migration SQL and resulting schema before determining equivalence.
+Production,repository,20261007202000,match_test_column_defaults,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007075331;20261007080947;20261007083732,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007075004,20261007190000_production_schema_reconciliation,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007190000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007075051,20261007193000_production_schema_security_and_triggers,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007193000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007075201,20261007194500_production_schema_policy_alignment,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007194500,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007075241,20261007200000_align_worker_pro_job_cost_rpc,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007200000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007075302,20261007201000_align_worker_pro_read_rpc,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007201000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007075331,20261007202000_match_test_column_defaults,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007202000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007075442,20261007203000_align_production_constraints,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007203000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007075458,20261007204000_match_location_constraint_definition,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007204000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007080810,production_schema_reconciliation_20261007190000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007080930,production_schema_security_and_triggers_20261007193000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007080937,20261007194500_production_schema_policy_alignment,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007194500,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007080941,20261007200000_align_worker_pro_job_cost_rpc,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007200000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007080944,20261007201000_align_worker_pro_read_rpc,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007201000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007080947,20261007202000_match_test_column_defaults,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007202000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007080950,20261007203000_align_production_constraints,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007203000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007081009,match_location_constraint_definition_20261007204000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007083711,20261007190000_production_schema_reconciliation,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007190000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007083717,20261007193000_production_schema_security_and_triggers,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007193000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007083721,20261007194500_production_schema_policy_alignment,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007194500,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007083725,20261007200000_align_worker_pro_job_cost_rpc,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007200000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007083729,20261007201000_align_worker_pro_read_rpc,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007201000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007083732,20261007202000_match_test_column_defaults,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007202000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007083735,20261007203000_align_production_constraints,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007203000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007083738,20261007204000_match_location_constraint_definition,UNRESOLVED_NAME_MATCH_CANDIDATE,20261007204000,Compare migration SQL and resulting schema before determining equivalence.
+Production,remote,20261007095906,finalize_hotel_paid_cancellation_20261007205000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007110702,roommate_candidate_ranking_20261007210000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007112716,align_hotel_refund_outbox_constraint_20261007212000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007115658,reassert_hotel_cancellation_deadline_guard_20261007213000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007144721,reassert_hotel_quote_cancellation_terms_20261007214000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007150555,reassert_hotel_refund_projection_20261007215000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007151242,reassert_hotel_refund_receipt_terms_20261007216000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007162715,align_listing_detail_lookup_index_20261007170002,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261007191746,restore_apartment_commission_policy_resolver_20261007203000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.
+Production,remote,20261010065655,restore_live_property_management_handoff_guard_20261010120000,UNRESOLVED_NO_NAME_MATCH,,Identify the historical source or manual change; do not infer equivalence.

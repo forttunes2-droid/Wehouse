@@ -44,6 +44,7 @@ export default function MediaViewer(props: MediaViewerProps) {
   const paging = useMediaSwipe({ identity: `${index}:${src}`, onPrevious: previous, onNext: next });
   const [ready, setReady] = useState(kind === "video");
   const [failed, setFailed] = useState(!src);
+  const [retry, setRetry] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   // A photo preview needs an immediately usable close action. Mixed galleries keep
@@ -91,15 +92,15 @@ export default function MediaViewer(props: MediaViewerProps) {
         onClick={(event) => { if (!(event.target as HTMLElement).closest("button")) setChromeVisible(value => !value); }}
         className="wh-media-stage relative flex min-h-0 flex-1 touch-pan-y items-center justify-center overflow-hidden bg-black"
         style={{ ...paging.style, touchAction: "pan-y pinch-zoom" }}>
-        {!ready && !failed ? <div className="absolute h-8 w-8 animate-spin rounded-full border-2 border-white/60 border-t-transparent" role="status" aria-label="Loading media" /> : null}
+        {!ready && !failed ? <div className="absolute h-8 w-8 animate-spin motion-reduce:animate-none rounded-full border-2 border-white/60 border-t-transparent" role="status" aria-label="Loading media" /> : null}
         {failed ? (
-          <div className="px-6 text-center"><p className="text-sm font-semibold">This media could not be loaded</p><p className="mt-2 text-sm text-white/55">Close the viewer and try again.</p></div>
+          <div className="px-6 text-center"><p className="text-sm font-semibold">This media could not be loaded</p><button type="button" onClick={() => { setFailed(false); setReady(false); setRetry(value => value + 1); }} className="mt-4 min-h-11 rounded-xl border border-white/30 px-5 text-sm font-semibold text-white">Try again</button></div>
         ) : kind === "video" ? (
-          <VideoPlayer key={`${index}:${src}`} src={src} autoPlay viewerMode onTime={setCurrentTime}
+          <VideoPlayer key={`${index}:${src}:${retry}`} src={src} autoPlay viewerMode onTime={setCurrentTime}
             onDuration={value => { setDuration(value); setReady(true); }}
             onPlaybackError={() => setFailed(true)} containerClassName="h-full w-full bg-black" className="h-full w-full object-contain" />
         ) : (
-          <ZoomablePhoto key={`${index}:${src}`} src={src} title={title} onReady={() => setReady(true)} onError={() => setFailed(true)}
+          <ZoomablePhoto key={`${index}:${src}:${retry}`} src={src} title={title} onReady={() => setReady(true)} onError={() => setFailed(true)}
             onPrevious={previous} onNext={next} />
         )}
         {items.length > 1 ? <MediaPagingActions onPrevious={previous} onNext={next} /> : null}

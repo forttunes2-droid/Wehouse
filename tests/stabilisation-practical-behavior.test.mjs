@@ -39,7 +39,7 @@ test('non-negotiable room and both smoking answers are explicit; school only req
   assert.match(prefs.roommatePreferenceError({...valid(),smoking_preference:''},'2026-09-23'),/two smoking/);
   assert.match(prefs.roommatePreferenceError({...valid(),school_match:true,school_name:' '},'2026-09-23'),/school/);
 });
-for(const members of [2,3,4,5,6,7,8,9,10,11,12]) test(`equal split for ${members} people reconciles every kobo and both components`,()=>{
+for(const members of [2,3]) test(`equal booking shares for ${members} people reconcile every kobo and both components`,()=>{
   for(const [rent,deposit] of [[800000,0],[1000.01,500.02],[120000,50000],[0.01,0.01]]) {
     const amounts=plain(split.sharedAmounts(rent,deposit,members));
     assert.equal(amounts.length,members);
@@ -51,7 +51,7 @@ for(const members of [2,3,4,5,6,7,8,9,10,11,12]) test(`equal split for ${members
   }
 });
 test('split estimates reject invalid prices and number of payers',()=>{
-  for(const args of [[0,0,2],[-1,0,2],[1,-1,2],[Infinity,1,2],[1,1,1],[1,1,2.5],[1,1,13],[Number.MAX_SAFE_INTEGER,1,2]]) assert.equal(split.sharedAmounts(...args),null);
+  for(const args of [[0,0,2],[-1,0,2],[1,-1,2],[Infinity,1,2],[1,1,1],[1,1,2.5],[1,1,4],[1,1,13],[Number.MAX_SAFE_INTEGER,1,2]]) assert.equal(split.sharedAmounts(...args),null);
 });
 test('expired invitation is history rather than an actionable request to pay',()=>{
   const g={status:'ready',expires_at:'2026-09-23T09:00:00Z',members:[{user_id:'a',invitation_status:'invited'}]};
@@ -71,7 +71,7 @@ test('live session checker rejects stale, mismatched, absent and malformed sessi
 test('live session checks exact verified Auth user and exact session on privileged server RPC',async()=>{
   const calls=[];
   assert.equal(await session.hasLiveSession({rpc:async(name,params)=>{calls.push({name,params:plain(params)});return{data:true,error:null}}},auth,token()),true);
-  assert.deepEqual(calls,[{name:'auth_session_is_active',params:{p_auth_id:auth,p_session_id:sid}}]);
+  assert.deepEqual(calls,[{name:'auth_session_security_satisfied',params:{p_auth_id:auth,p_session_id:sid,p_aal:'aal1'}}]);
 });
 test('cleanup never reports success merely because signout returned without throwing',async()=>{
   let signs=0,finishes=0;const delays=[];
@@ -96,4 +96,13 @@ test('sensitive professional actions use active grants and fail closed on denied
   assert.deepEqual(calls,[{name:'user_has_active_workspace',args:{p_user_id:'personal-with-worker-access',p_workspace_role:'worker'}}]);
   for(const result of [{data:false,error:null},{data:'true',error:null},{data:true,error:{message:'denied'}}])assert.equal(await session.hasActiveWorkspace({rpc:async()=>result},'a','worker'),false);
   assert.equal(await session.hasActiveWorkspace({rpc:async()=>{throw Error('unavailable');}},'a','creator'),false);
+});
+
+
+test('verified second-factor assurance reaches the service session boundary',async()=>{
+ const claims={sub:auth,session_id:sid,aal:'aal2'};
+ const bearer=`header.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.verified`;
+ let params;
+ assert.equal(await session.hasLiveSession({rpc:async(_name,args)=>{params=plain(args);return{data:true,error:null}}},auth,bearer),true);
+ assert.equal(params.p_aal,'aal2');
 });

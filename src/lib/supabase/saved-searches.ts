@@ -32,6 +32,10 @@ export async function getMySavedSearches() {
     .from("saved_searches")
     .select("id,user_id,name,search_kind,criteria,notifications_enabled,last_notified_at,created_at,updated_at")
     .order("updated_at", { ascending: false });
+  if(data!==null&&(!Array.isArray(data)||data.some(row=>!row||typeof row.id!=='string'||typeof row.user_id!=='string'
+    ||typeof row.name!=='string'||!['homes','hotels'].includes(row.search_kind)||typeof row.notifications_enabled!=='boolean'
+    ||!row.criteria||typeof row.criteria!=='object'||Array.isArray(row.criteria))))
+    return {searches:[] as SavedSearch[],error:error||{message:'Followed searches returned an invalid response. Try again.'}};
   return { searches: (data || []) as SavedSearch[], error };
 }
 
@@ -45,14 +49,14 @@ export async function followPropertySearch(name: string, kind: "homes" | "hotels
 }
 
 export async function setSavedSearchAlerts(id: string, enabled: boolean) {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("saved_searches")
     .update({ notifications_enabled: enabled, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  return { error };
+    .eq("id", id).select('id,notifications_enabled').maybeSingle();
+  return { error: error || (data?.id===id&&data.notifications_enabled===enabled?null:{message:'The saved alert preference could not be confirmed. Refresh before retrying.'}) };
 }
 
 export async function removeSavedSearch(id: string) {
-  const { error } = await supabase.from("saved_searches").delete().eq("id", id);
-  return { error };
+  const { data, error } = await supabase.from("saved_searches").delete().eq("id", id).select('id').maybeSingle();
+  return { error: error || (data?.id===id?null:{message:'Removal could not be confirmed. Refresh followed searches before retrying.'}) };
 }
