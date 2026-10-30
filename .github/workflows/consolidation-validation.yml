@@ -239,7 +239,7 @@ jobs:
       - name: Friend private live delivery and reaction isolation
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: |
-          docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_chat_live_contract.sql
+          docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/friend_chat_live_contract.sql
       - name: Long Let shared booking cost with Roommate or Friend
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_split_roommate_or_friend_contract.sql

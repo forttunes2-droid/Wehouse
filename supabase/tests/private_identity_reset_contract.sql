@@ -74,6 +74,10 @@ select set_config('request.jwt.claims','{"sub":"99600000-0000-4000-8000-00000000
 set local role authenticated;
 do $$begin
  if public.can_observe_private_identity_key('cipher-2') then raise exception 'Revoked device can observe private key changes';end if;
+ begin perform public.get_friend_encrypted_messages_page('99600000-1000-4000-8000-000000000001');raise exception 'FAIL: revoked device read Friend ciphertext';exception when insufficient_privilege then null;end;
+ begin perform public.get_private_encrypted_messages('roommate','99600000-1000-4000-8000-000000000001');raise exception 'FAIL: revoked device reached private message reads';exception when insufficient_privilege then null;end;
+ begin perform public.get_private_chat_peer_public_key('friend','99600000-1000-4000-8000-000000000001','cipher-2');raise exception 'FAIL: revoked device read peer keys';exception when insufficient_privilege then null;end;
+ begin perform public.set_private_message_reaction('roommate','99600000-1000-4000-8000-000000000001','99600000-2000-4000-8000-000000000001','👍');raise exception 'FAIL: revoked device reached private reactions';exception when insufficient_privilege then null;end;
  if exists(select 1 from public.user_encryption_identities) or exists(select 1 from public.conversation_key_envelopes) then raise exception 'Revoked device read encryption material';end if;
  update public.user_encryption_identities set backup_iv=repeat('C',16) where user_id='cipher-1';
  if found then raise exception 'Revoked device changed the encrypted backup';end if;

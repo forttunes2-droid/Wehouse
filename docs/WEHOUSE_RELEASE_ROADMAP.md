@@ -87,7 +87,8 @@ Friend-command retries. Test rollback contracts pass for reset, scoped key
 signals, ended-session denial, stale sends, unrelated-key/ciphertext preservation
 and the existing Friend/Roommate/Service context/media boundaries. The new
 WebCrypto fixture runs only in a network-disabled, credential-free CI sandbox;
-its result remains pending until CI reports it. One empty Test subscription
+it passed at `739832ba`, alongside fresh replay, all migration contracts and the
+existing-account upgrade. One empty Test subscription
 initialized Supabase's managed Broadcast partitions; no managed schema was
 manually altered, and the subscription closed after connecting.
 Direct key reads/backup updates and new key exchange now require the same
@@ -96,10 +97,17 @@ envelopes directly; guarded setup locks both identities before the conversation.
 The trusted-owner backup update, direct-rotation denial and revoked-device
 read/update/setup denials pass on Test. Forward migrations `20261030183653`
 and `20261030184149` preserve the already-applied history. The full source suite
-passes 870 tests, production build and focused lint pass. CI exposed a missing
-glibc loader in the isolated toolchain and stale synthetic probe/label assumptions;
-those checks are being repaired, not waived. Existing-account upgrade and fresh
-schema replay passed at `a960e453`; that does not close actual Production parity.
+passes 870 tests, production build and focused lint pass. The isolated toolchain's
+loader/library aliases and stale synthetic probe/label assumptions were corrected;
+the checks were not waived. Further Test review found that an ended device could
+still call older ciphertext readers with an unexpired token. Forward migration
+`20261030191912` adds the same trusted-session check to private reads, peer keys,
+Friend access/reactions and message-table policies, preserving the existing DTOs.
+Test revoked-read/reaction denials and actual Friend signal isolation pass. Its
+exact-candidate CI remains pending. Roommate/Service full-history retrieval and
+automatic media loading still need the WR-13/19 paging/resource follow-up; the
+Friend reader already has a 50-message page. These checks do not close actual
+Production parity or certify all chat lifecycles.
 Friend/Roommate/Service messages and files use client encryption. Hotel and
 WeHouse Support conversations remain available to their authorised teams;
 the source review does not certify all chat surfaces or physical devices.
