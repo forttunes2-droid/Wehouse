@@ -232,6 +232,9 @@ jobs:
       - name: Long Let shared booking cost with Roommate or Friend
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/long_let_split_roommate_or_friend_contract.sql
+      - name: Shared rent schedules reconcile payer, annual and Partner amounts
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shared_rent_allocation_contract.sql
       - name: Wallet withdrawal receipts and payout destination isolation
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/wallet_withdrawal_receipt_contract.sql

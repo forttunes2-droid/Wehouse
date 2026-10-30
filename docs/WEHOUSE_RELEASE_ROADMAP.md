@@ -8,6 +8,25 @@ and history; they do not reopen settled rules or create additional workstreams.
 
 ## Current engineering checkpoints
 
+### Shared rent allocation and Provider document check — 30 October
+
+Test migration `20261030040814` adds private, server-only minor-unit allocation
+for the accepted two/three-payer rental agreement. The existing whole-tenancy
+schedule remains the source. Each payment conserves customer cash, actual
+WeHouse fee, Partner net and funded promotion; each person's eight later-year
+contributions fund exactly their recorded annual share. The applied rollback
+contract covers supported full/monthly terms, zero/tiny/fractional commission,
+two/three payers, and promotion-funded Partner earnings. No numeric Creator rate
+is activated and this private calculation alone does not reopen shared rent.
+
+The failed browser workflow on `1ede23b6` imported a live Supabase client into
+the isolated Provider-document fixture through the new billing adapter. Its
+client boundary now covers that relative import, and the build fails if a live
+client enters this bundle. All 36 document/browser journeys pass, including Pro
+lapse, failed/malformed reads, identity changes and costs/documents. No production
+client, permission or document assertion was removed. Exact-commit CI follows
+the next push; the other six workflows passed on that previous commit.
+
 ### Shared payer capacity and eligibility — 30 October
 
 Test migration `20261030035521` separates the number of paying participants from
