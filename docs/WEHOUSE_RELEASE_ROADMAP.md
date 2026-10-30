@@ -90,6 +90,16 @@ WebCrypto fixture runs only in a network-disabled, credential-free CI sandbox;
 its result remains pending until CI reports it. One empty Test subscription
 initialized Supabase's managed Broadcast partitions; no managed schema was
 manually altered, and the subscription closed after connecting.
+Direct key reads/backup updates and new key exchange now require the same
+trusted session. Browser roles cannot rotate identity/version fields or insert
+envelopes directly; guarded setup locks both identities before the conversation.
+The trusted-owner backup update, direct-rotation denial and revoked-device
+read/update/setup denials pass on Test. Forward migrations `20261030183653`
+and `20261030184149` preserve the already-applied history. The full source suite
+passes 870 tests, production build and focused lint pass. CI exposed a missing
+glibc loader in the isolated toolchain and stale synthetic probe/label assumptions;
+those checks are being repaired, not waived. Existing-account upgrade and fresh
+schema replay passed at `a960e453`; that does not close actual Production parity.
 Friend/Roommate/Service messages and files use client encryption. Hotel and
 WeHouse Support conversations remain available to their authorised teams;
 the source review does not certify all chat surfaces or physical devices.

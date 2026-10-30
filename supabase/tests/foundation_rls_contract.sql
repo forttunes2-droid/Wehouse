@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 
 begin;
+\ir private_message_fixture_helpers.sql
 
 -- A hosted restore must not inherit broad Supabase function defaults. These
 -- anonymous SECURITY DEFINER endpoints are the explicit public API surface.
@@ -179,7 +180,9 @@ values(
   'cccccccc-1111-4111-8111-cccccccccccc','rls-victim-a','offer','{"sdp":"secret"}'::jsonb
 );
 
+select pg_temp.prepare_private_message_fixture(array['22222222']);
 set local session_replication_role=origin;
+select set_config('request.jwt.claims','{"sub":"22222222-2222-4222-8222-222222222222","session_id":"22222222-2222-4222-8222-222222222222","role":"authenticated"}',true);
 select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',true);
 select set_config('request.jwt.claim.role','authenticated',true);
 set local role authenticated;
@@ -211,6 +214,9 @@ begin
   end if;
   if exists(select 1 from public.bank_accounts where user_id='rls-victim-a') then
     raise exception 'RLS leak: unrelated user can read another bank account';
+  end if;
+  if not exists(select 1 from public.user_encryption_identities where user_id='rls-attacker') then
+    raise exception 'Positive control: trusted owner could not read their own encrypted backup';
   end if;
   if exists(select 1 from public.user_encryption_identities where user_id='rls-victim-a') then
     raise exception 'RLS leak: unrelated user can read another encrypted private-key backup';

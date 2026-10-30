@@ -64,16 +64,9 @@ jobs:
       - name: Verify private key lifecycle without network, credentials or database access
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: python scripts/run-isolated-crypto-check.py
-      - name: Prepare the existing app client for one Realtime readiness check
-        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
-        run: npm ci --ignore-scripts
       - name: Initialise managed Broadcast partitions with one empty local subscription
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
-        shell: bash
-        run: |
-          export WEHOUSE_TEST_SUPABASE_URL=http://127.0.0.1:54321
-          export WEHOUSE_TEST_PUBLISHABLE_KEY="$(supabase status -o json | python -c 'import json,sys; print(json.load(sys.stdin)["ANON_KEY"])')"
-          node scripts/check-realtime-readiness.mjs
+        run: node scripts/prime-local-realtime.mjs
       # Contracts use separate connections/rollback fixtures. Collect all failures
       # in one run after a successful fresh replay; preserve the failed job result.
       - name: Verify authenticator API and table boundaries
@@ -242,11 +235,10 @@ jobs:
         run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/friend_request_limits_contract.sql
       - name: Friend chat key exchange
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
-        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_chat_key_exchange_contract.sql
+        run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/friend_chat_key_exchange_contract.sql
       - name: Friend private live delivery and reaction isolation
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: |
-          node scripts/prime-local-realtime.mjs
           docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/friend_chat_live_contract.sql
       - name: Long Let shared booking cost with Roommate or Friend
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
@@ -376,7 +368,7 @@ jobs:
         run: node scripts/verify-signup-legal-hook.mjs
       - name: Exercise cross-user RLS foundation contract
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
-        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/foundation_rls_contract.sql
+        run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/foundation_rls_contract.sql
       - name: Exercise invitations, Hosting Help and Worker market capacity
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/marketplace_controls_contract.sql

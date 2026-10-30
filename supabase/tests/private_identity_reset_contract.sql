@@ -36,7 +36,15 @@ do $$declare next_version integer;begin
  if not public.can_observe_private_identity_key('cipher-2') or public.can_observe_private_identity_key('cipher-3') or public.can_observe_private_identity_key('cipher-4') then raise exception 'Key-change observer crossed an accepted conversation boundary';end if;
  if has_function_privilege('anon','public.reset_my_encryption_identity(jsonb,text,text,text,integer)','execute')
  or has_function_privilege('authenticated','private.reset_identity_before_friend_support(jsonb,text,text,text,integer)','execute')
+ or has_function_privilege('authenticated','private.establish_key_before_recovery_lock(text,uuid,jsonb)','execute')
+ or has_column_privilege('authenticated','public.user_encryption_identities','key_version','update')
+ or has_column_privilege('authenticated','public.user_encryption_identities','public_key_jwk','update')
+ or has_table_privilege('authenticated','public.conversation_key_envelopes','insert')
+ or has_table_privilege('anon','public.user_encryption_identities','select')
  or has_function_privilege('anon','public.can_observe_private_identity_key(text)','execute') then raise exception 'Key-reset authority exposed';end if;
+ update public.user_encryption_identities set backup_iv=repeat('B',16) where user_id='cipher-1';
+ if not found then raise exception 'Trusted owner could not update the encrypted backup';end if;
+ begin update public.user_encryption_identities set key_version=7 where user_id='cipher-1';raise exception 'FAIL: direct identity rotation accepted';exception when insufficient_privilege then null;end;
  begin perform public.reset_my_encryption_identity('{}',repeat('A',64),repeat('A',16),repeat('A',24),1);raise exception 'FAIL: invalid key reset accepted';exception when raise_exception then if sqlerrm not in('Unsupported key derivation settings','Invalid encryption public key') then raise;end if;end;
  next_version:=public.reset_my_encryption_identity('{"kty":"EC","crv":"P-256","x":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB","y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"}',repeat('B',64),repeat('B',16),repeat('B',24),600000);
  if next_version<>2 then raise exception 'Identity reset did not return a new key version';end if;
@@ -66,6 +74,10 @@ select set_config('request.jwt.claims','{"sub":"99600000-0000-4000-8000-00000000
 set local role authenticated;
 do $$begin
  if public.can_observe_private_identity_key('cipher-2') then raise exception 'Revoked device can observe private key changes';end if;
+ if exists(select 1 from public.user_encryption_identities) or exists(select 1 from public.conversation_key_envelopes) then raise exception 'Revoked device read encryption material';end if;
+ update public.user_encryption_identities set backup_iv=repeat('C',16) where user_id='cipher-1';
+ if found then raise exception 'Revoked device changed the encrypted backup';end if;
+ begin perform public.establish_private_conversation_key('friend','99600000-1000-4000-8000-000000000001',pg_temp.envelopes('cipher-1','cipher-2',2,1));raise exception 'FAIL: revoked device changed conversation keys';exception when insufficient_privilege then null;end;
  begin perform public.reset_my_encryption_identity('{"kty":"EC","crv":"P-256","x":"x","y":"y"}',repeat('A',64),repeat('A',16),repeat('A',24),600000);raise exception 'FAIL: revoked device reset identity';exception when insufficient_privilege then null;end;
 end $$;
 reset role;
