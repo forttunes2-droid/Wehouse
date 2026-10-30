@@ -7,6 +7,10 @@ begin execute statement; return false; exception when others then return true; e
 grant execute on function pg_temp.rejects(text) to authenticated,anon,service_role;
 
 set local session_replication_role=replica;
+insert into auth.users(id,email) values('97000000-0000-4000-8000-000000000001','ll-a@example.invalid');
+insert into auth.sessions(id,user_id,created_at,updated_at) values('97000000-0000-4000-8000-000000000001','97000000-0000-4000-8000-000000000001',now(),now());
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+values('ll-a','97000000-0000-4000-8000-000000000001','97000000-0000-4000-8000-000000000001','long-let-shared-fixture','Synthetic trusted browser',true,'trusted');
 insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_kind,full_name,state,city,local_government) values
 ('97000000-0000-4000-8000-000000000001','ll-a@example.invalid','ll-a','user',true,'consumer','A','Lagos','Ikeja','Ikeja'),
 ('97000000-0000-4000-8000-000000000002','ll-b@example.invalid','ll-b','user',true,'consumer','B','Lagos','Ikeja','Ikeja'),
@@ -67,5 +71,35 @@ set local role authenticated;
 select pg_temp.expect(pg_temp.rejects($$select public.create_my_shared_long_let('97000000-0000-4000-8000-000000000021'::uuid,array['97000000-0000-4000-8000-000000000031'::uuid],array['ll-c','ll-d'])$$),'no more than 3 payers');
 reset role;
 
+-- Two payers in a six-occupant property use the actual constructors, not a
+-- hand-written group whose capacity accidentally equals its payer count.
+select set_config('request.jwt.claims','{"sub":"97000000-0000-4000-8000-000000000001","session_id":"97000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select set_config('test.long_shared_group',public.create_my_shared_long_let('97000000-0000-4000-8000-000000000021','{}'::uuid[],array['ll-c'])->>'id',true);
+select pg_temp.expect(pg_temp.rejects($$select public.create_my_shared_housing_payment(current_setting('test.long_shared_group')::uuid)$$),'no checkout before the other payer consents');
+select set_config('request.jwt.claims','{"sub":"97000000-0000-4000-8000-000000000003","role":"authenticated"}',true);
+select public.respond_to_shared_housing_invite(current_setting('test.long_shared_group')::uuid,true);
+select set_config('request.jwt.claims','{"sub":"97000000-0000-4000-8000-000000000001","session_id":"97000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+select set_config('test.long_shared_reference',public.create_my_shared_housing_payment(current_setting('test.long_shared_group')::uuid)->>'reference',true);
+select pg_temp.expect(public.create_my_shared_housing_payment(current_setting('test.long_shared_group')::uuid)->>'reference'=current_setting('test.long_shared_reference'),'retry reuses the same real checkout');
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+select pg_temp.expect((public.validate_shared_housing_checkout((select id from public.booking_payments where paystack_reference=current_setting('test.long_shared_reference')),'ll-a')->>'valid')::boolean,'two actual payers can complete checkout in a larger property');
+reset role;
+savepoint restricted_payer;
+update public.profiles set suspended=true where user_id='ll-c';
+select pg_temp.expect(not (public.validate_shared_housing_checkout((select id from public.booking_payments where paystack_reference=current_setting('test.long_shared_reference')),'ll-a')->>'valid')::boolean,'a newly suspended participant prevents a new provider checkout');
+select set_config('request.jwt.claims','{"sub":"97000000-0000-4000-8000-000000000001","session_id":"97000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select pg_temp.expect(pg_temp.rejects($$select public.create_my_shared_housing_payment(current_setting('test.long_shared_group')::uuid)$$),'constructor also rejects an ineligible participant');
+reset role;
+rollback to savepoint restricted_payer;
+release savepoint restricted_payer;
+update public.user_sessions set is_active=false where user_id='ll-a';
+select set_config('request.jwt.claims','{"sub":"97000000-0000-4000-8000-000000000001","session_id":"97000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
+set local role authenticated;
+select pg_temp.expect(pg_temp.rejects($$select public.create_my_shared_housing_payment(current_setting('test.long_shared_group')::uuid)$$),'a revoked device cannot create or reuse a payment reference');
+reset role;
 select 'long_let_split_roommate_or_friend_contract_ok' as result;
 rollback;

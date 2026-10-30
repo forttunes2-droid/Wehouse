@@ -46,6 +46,7 @@ do $$declare original jsonb;patch jsonb;begin
   '{"legacy_shared_member_id":"invalid-uuid"}'::jsonb,
   '{"legacy_shared_member_id":"99710000-3000-4000-8000-000000000002"}'::jsonb,
   '{"canonical_shared_payment_member_id":"99710000-3000-4000-8000-000000000004"}'::jsonb,
+  '{"canonical_product_type":"long_let"}'::jsonb,
   '{"checkout_attempt":2}'::jsonb,'{"payment_phase":"contract_rent"}'::jsonb
  ] loop
   update public.booking_payments set metadata=original||patch where id=current_setting('test.shared_payment_id')::uuid;

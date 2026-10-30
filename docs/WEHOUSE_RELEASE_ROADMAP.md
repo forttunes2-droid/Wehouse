@@ -8,6 +8,26 @@ and history; they do not reopen settled rules or create additional workstreams.
 
 ## Current engineering checkpoints
 
+### Shared payer capacity and eligibility — 30 October
+
+Test migration `20261030035521` separates the number of paying participants from
+the property's occupant capacity. A real two-payer Long Let on a six-occupant
+property passes the existing constructor, invitation, payment-reference retry and
+service validator; more than three payers still fail. Checkout also requires
+consistent listing, product and compatibility links, active Personal access for
+every participant and a trusted, unrevoked paying device. Long Let contract rent
+stays unavailable until its accepted agreement and per-payer protection are
+implemented; this repair does not bypass that boundary.
+
+Both applied-Test shared-payment contracts and the privileged-write audit pass.
+All 859 source tests pass outside the Windows sandbox; its directory-rename
+restriction caused the first local replay-helper failures. No application or
+test assertion was weakened to handle that environment restriction.
+
+The owner has approved each participant paying their own accepted share of
+later-year rent, with separate history/debit consent and a combined Partner view.
+That belongs to the existing shared rent agreement/collection workstream below.
+
 ### Real shared-checkout identity repair — 30 October
 
 Tracing the approved Hotel shared-cost workstream exposed an existing Home

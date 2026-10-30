@@ -232,6 +232,8 @@ supported option or no feature.
 
 - Later-year rent tracking must show gross verified rent by target contract year, complete months funded, partial-month credit, the amount needed to complete the next month, and remaining annual rent. One of eight equal contributions funds 1.5 months, not one month. Round cumulative month boundaries in minor currency units, not an approximate rounded monthly price. Pending/failed charges and platform fees do not reduce or create rent credit. Contact the Partner to resolve the balance or agree an early exit; no automatic eviction, refund promise, or waiver of mandatory rights. Do not relabel advance rent credit as current occupancy before its target year.
 
+- Owner confirmation, 30 October: in an accepted shared multi-year Long Let, each person pays their own agreed share of later-year rent, with their own payment history and optional automatic-debit consent. The Partner can see the combined verified rent and each outstanding share. A missed payment must not silently charge another payer or change their accepted obligation. Reuse the existing rent plans, contributions, provider settlement and history; do not create a second rent collection system.
+
 ### Owner clarification — 29 October 2026
 
 Every Experience is guided by its host. A guided garden visit belongs to Outdoor
