@@ -1,6 +1,6 @@
 # WeHouse documentation index
 
-If two documents disagree, the one **higher in this list wins**. Anyone writing
+If accepted product rules disagree, the one **higher in this list wins**. Implementation status lives only in the current release roadmap; dated status sentences elsewhere are evidence, not instructions to rebuild completed work. Anyone writing
 code should start here. Anything not listed below is not authoritative; if it is
 found elsewhere (old reports, dated notes), delete it or move it to git history.
 
@@ -16,13 +16,14 @@ found elsewhere (old reports, dated notes), delete it or move it to git history.
 
 Accepted decisions with their own record: [D-002 hotel capability](./DECISION_D002_HOTEL_CAPABILITY_AUTHORITY_2026-09-12.md), [D-010 money authority](./DECISION_D010_MONEY_AUTHORITY_2026-09-12.md), [D-014 post-publication edits](./DECISION_D014_POST_PUBLICATION_EDIT_BOUNDARY_2026-09-12.md).
 
-Product exploration that is **not yet an accepted product rule**: [Friends and Experiences proposal](./FRIENDS_AND_EXPERIENCES_PRODUCT_PROPOSAL.md). The two-person encrypted plan card is implemented in the working tree; public event discovery remains a proposal requiring owner approval and validation.
+Historical product exploration: [Friends and Experiences proposal](./FRIENDS_AND_EXPERIENCES_PRODUCT_PROPOSAL.md). Accepted provider-led activities follow C-058 and current roadmap WR-14; shows/parties/nightlife are excluded. One-to-one Friend plans remain in scope; groups are deferred by C-066. Do not revive the superseded public-event directory proposal.
 
 ## 2. What is left to do (release authority)
 
 | Document | Use it for |
 |---|---|
-| [WEHOUSE_RELEASE_ROADMAP.md](./WEHOUSE_RELEASE_ROADMAP.md) | What "finished" means, stages, owners, evidence. **The plan to follow** |
+| [WEHOUSE_RELEASE_ROADMAP.md](./WEHOUSE_RELEASE_ROADMAP.md) | Stable current work IDs, completion tests, owners and release gates. **The only plan to follow** |
+| [WEHOUSE_RELEASE_HISTORY_2026-10-30.md](./WEHOUSE_RELEASE_HISTORY_2026-10-30.md) | Preserved historical checkpoints and original-row evidence. Not an execution plan; old pending/next-push claims do not reopen work. |
 | [WEHOUSE_OPERATING_MODEL_R1_R11.md](./WEHOUSE_OPERATING_MODEL_R1_R11.md) | The R1–R11 checklist and operating rules |
 | [WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md](./WEHOUSE_PRODUCT_COHERENCE_AUDIT_20261012.md) | Dated findings and follow-through evidence; current task status is in the roadmap |
 | [KNOWN_INCONSISTENCIES.md](./KNOWN_INCONSISTENCIES.md) | Historical defect references (High/Medium/Low); check roadmap disposition before reopening |
