@@ -139,6 +139,7 @@ reset role;
 -- These are server-confirmation fixtures, not real Paystack transactions.
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 set local role service_role;
+select pg_temp.expect((public.validate_shared_housing_checkout((select id from public.booking_payments where paystack_reference=:'chika_payment'),'short-split-c')->>'valid')::boolean,'Real three-payer constructor reaches validated checkout before provider confirmation');
 select public.confirm_shared_housing_payment(:'chika_payment','synthetic-chika',500);
 reset role;
 select pg_temp.expect((select status='reserved' and reservation_fee_status='paid' and rent_payment_status='not_started' from public.reservations where id=:'reservation'),'One paid share never confirms the whole stay or changes Reserve date');

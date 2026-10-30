@@ -109,13 +109,8 @@ serve(async(req)=>{
   }
 
   if(payment.purpose==='shared_housing_share'){
-   const groupId=String(meta.shared_group_id||'').trim(),memberId=String(meta.shared_member_id||'').trim();
-   if(!groupId||!memberId)return json({success:false,error:'Shared-home payment link is incomplete'},409);
-   const{data:member,error:memberError}=await db.from('shared_housing_members').select('id,group_id,user_id,share_amount,payment_status,payment_reference').eq('id',memberId).maybeSingle();
-   if(memberError)return json({success:false,error:memberError.message},500);
-   if(!member||member.group_id!==groupId||member.user_id!==profile.user_id)return json({success:false,error:'Shared-home payment does not belong to this account'},403);
-   if(member.payment_status!=='pending'||member.payment_reference!==reference)return json({success:false,error:'This roommate share is no longer awaiting payment'},409);
-   if(!sameMoney(member.share_amount,amount))return json({success:false,error:'Roommate share amount mismatch'},409);
+   const{data:valid,error:validationError}=await db.rpc('validate_shared_housing_checkout',{p_payment_id:payment.id,p_customer_user_id:profile.user_id});
+   if(validationError||valid?.valid!==true)return json({success:false,error:'This shared checkout no longer matches the accepted group, payment attempt or deadline. Refresh before paying.'},409);
   }
 
   if(payment.purpose==='hotel_booking'){

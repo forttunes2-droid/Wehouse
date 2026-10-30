@@ -8,6 +8,33 @@ and history; they do not reopen settled rules or create additional workstreams.
 
 ## Current engineering checkpoints
 
+### Real shared-checkout identity repair — 30 October
+
+Tracing the approved Hotel shared-cost workstream exposed an existing Home
+checkout defect first: `create_my_shared_housing_payment` saves a compound
+member:phase:attempt subject and a separate UUID, while payment-init queried that
+compound value as the member UUID. Test migrations `20261030032855` and
+`20261030033236` add and qualify one indexed service validator over the existing
+payment, group and member authorities. It checks the authenticated payer, both
+linked representations, exact reference/amount/phase/attempt, all payer consent,
+the existing capacity cap and both deadlines. Two payers in a three-guest booking
+remain valid. No payment or protection record is replaced or deleted.
+
+The applied-Test rollback contract invokes the actual payment constructor and
+passes compound-key/idempotency, wrong-payer, malformed/mismatched UUID, changed
+phase/attempt, missing-consent and expired-hold checks. The complete Short Let
+contract also exercises the validator before verified confirmation. Payment-init
+version 14 now uses this command before a new or saved provider session; JWT
+verification remains enabled. All 859 source tests and the frozen Edge check pass.
+No provider charge was initiated. Fresh replay follows the next push.
+
+The same trace confirms `start_my_shared_contract_split` currently raises a
+temporary-unavailability error because shared Long Let rent lacks its canonical
+protection components. Only the shared reservation-fee phase is implemented;
+the decision/open register now says so. Completing that phase and Hotel sharing
+belongs to the existing accommodation/shared-cost workstream, with original-payer
+refunds, deadline recovery, protection and operator permissions verified together.
+
 ### Existing paid-plan billing through workspace restrictions — 30 October
 
 Account → Billing & subscriptions projects the person's existing Worker
@@ -3931,7 +3958,7 @@ event or scoped read projection is not another editable source of truth.
 | Pricing | Creator WeHouse-funded discount control | Built and commission-capped in current migration; docs still conflict on whether the campaign cap is 15% or commission-only—reconcile before campaigns |
 | Pricing | Long Let discount (host 5-50% + WeHouse share capped by Long Let commission, Year 1 rent only, partner payout protected, migration `20261012370000`, DB test) | Built |
 | Pricing | Hotel discount/rate-plan pipeline | Rate-plan/discount source exists; verify current display, checkout, Partner earnings and refund behavior against the approved rule. No second price authority; hosted evidence pending |
-| Payments | Hotel shared booking cost with accepted Friend | Product rule confirmed 19 Oct; implementation and complete Paystack Test charge/verify/refund/reconciliation flow remain open |
+| Payments | Shared accommodation booking costs | Short Let flow exists; constructor-to-Edge identity defect repaired and contract-tested on Test. Shared Long Let reservation fees exist, but contract rent is explicitly disabled pending canonical protection components. Hotel sharing with accepted Friends remains approved/unimplemented. Complete these phases in the existing canonical group/member/protection/outbox model, with original-payer refund, expiry/late receipt, fulfillment and Paystack reconciliation evidence |
 | Long Let | Partner-approved terms and optional later-year monthly rent | Manual collection/history implemented on Test and PR #118: accepted terms, full protected Year 1, handover-anchored later-year schedule, explicit no-new-hold acceptance, frozen per-payment fee/net, verified provider split and settlement, paged gross rent credit, target-year receipts and payment Help. Eight later-year payments fund twelve months; one-year/shorter contracts remain fully upfront. The latest owner decision supersedes the historical requirement to protect every contribution. Separately consented automatic payment now uses a private verified reusable card, one canonical obligation and durable dispatch/recovery controls. Arrears/exit operations remain here; the Money reconciliation row owns actual provider card/debit/settlement verification. See the current checkpoint and `PRODUCT_RULES.md` |
 | Property supply | Submission authority and evidence completeness for apartments and Hotels | **Implemented/Test verified for private documents and new publication; wider supply work remains open.** Existing request/operations records now own accepted requirements, private uploads, incomplete-upload recovery, corrections, versioned replacement, independent scoped decisions, expiry and publication enforcement. Canonical Inbox carries actionable review/correction/outcome records and resolves superseded work. Actual apartment/Hotel publish contracts pass using additive Admin/Creator grants; owner self-approval is denied. Test operating-choice column/commands and 13 MB media limits were restored after contracts exposed missing parity. Open: live person KYC, structured guest/tenancy term capture and booking snapshots, already-live-property recertification, advance expiry reminders, appeal/retention/deletion operations and hosted real-role/file journeys. Worker credential enforcement is implemented in the 20 October checkpoint above; live recertification and hosted journey proof remain open. Local legal forms and provider approvals remain external. Access footage is not ownership proof |
 | Property supply | Buildings and bookable spaces across Short Let and Long Let | Shared property/space identity, room/whole-unit disclosure, per-space listing terms, Partner management, occupancy exclusions, grouped public offers and grouped operating schedule are implemented in the 22–23 October migrations. Their named source/SQL/browser checks pass. Remaining work is the complete mixed-inventory concurrency/availability/calendar and customer/Partner recovery verification, including the exact deployed configuration; do not keep describing the entire hierarchy as unbuilt. |

@@ -74,6 +74,7 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
     rpc: async (name, params) => {
       if(name==='creator_set_worker_pro_setting')return{data:extraRows.savedPlanReceipt??true,error:null};
       if(name==='begin_my_sponsored_checkout')return {data:{reference},error:null};
+      if(name==='validate_shared_housing_checkout'){assert.equal(params.p_customer_user_id,'fixture-worker');return{data:{valid:!extraRows.sharedInvalid},error:null};}
       if (name === 'user_has_active_workspace') {
         assert.equal(params.p_user_id, 'fixture-worker');
         assert.ok(['worker','property_partner','creator'].includes(params.p_workspace_role));
@@ -289,6 +290,11 @@ test('checkout requires throttling and a persisted pending session before succes
 });
 test('checkout rejects provider initialization belonging to another reference',async()=>{
  const checkout=await checkoutHarness('payment-init',{},true,{...hotelRows(),providerInitialization:{reference:'another-payment'}});assert.equal((await checkout.request()).status,400);assert.equal(checkout.initialized.length,1);
+});
+test('shared checkout uses the service-owned linked identity rather than treating its compound subject as a UUID',async()=>{
+ const payment={id:'fixture-payment',user_id:'fixture-worker',payer_user_id:'fixture-worker',status:'pending',amount_total:42,currency:'NGN',purpose:'shared_housing_share',metadata:{shared_member_id:'member:short_stay:1',legacy_shared_member_id:'member'}};
+ const valid=await checkoutHarness('payment-init',{},true,{booking_payments:payment});assert.equal((await valid.request()).status,200);assert.equal(valid.initialized.length,1);
+ const expired=await checkoutHarness('payment-init',{},true,{booking_payments:payment,sharedInvalid:true});assert.equal((await expired.request()).status,409);assert.equal(expired.initialized.length,0);
 });
 test('checkout refuses an invalid saved destination without creating another provider session',async()=>{
  const fixture=hotelRows();
