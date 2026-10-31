@@ -73,6 +73,21 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 ## Latest scoped evidence — 31 October
 
+WR-09/11/12/17: the additional confirmed Support-file deletion finding is
+repaired on Test in `20261031055618`. Conversation membership no longer grants
+cleanup authority: only a trusted uploader can clean an unreferenced file,
+including an expired unsent draft. Sent references in the existing message
+store protect both customer and team evidence against deletion/replacement.
+Message insertion holds object row locks, and Storage's final metadata mutation
+rechecks the reference independently of its earlier permission probes. The
+installed rollback contract passes requester/team/outsider, own/foreign/sent/
+unsent, draft retry/expiry, replacement and revoked-session cases. No history or
+valid evidence was removed. The existing media contract now records genuine
+synthetic uploader ownership; its former ownerless fixtures are not an app
+exception. A bounded real Storage/Auth/RPC probe is included in isolated CI,
+with three concurrent send/delete cases and actual byte verification. This
+does not complete reviewed erasure; WR-12 remains its single owner.
+
 WR-08/09/17: Test migrations `20261031042052` and `20261031044320`
 are applied. Installed rollback contracts pass for ended/revoked Auth sessions
 at the common protected Data API boundary, and for temporary-email rejection

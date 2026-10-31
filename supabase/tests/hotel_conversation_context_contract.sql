@@ -146,8 +146,8 @@ do $$ declare r jsonb; begin
  perform set_config('wh.media.support',(r->>'conversation_id'),true);
  perform set_config('wh.media.draft',public.create_my_support_message_draft()::text,true);
 end $$;
-insert into storage.objects(bucket_id,name,metadata)
-select bucket, prefix||suffix, jsonb_build_object('mimetype',mime,'size',size)
+insert into storage.objects(bucket_id,name,metadata,owner_id)
+select bucket, prefix||suffix, jsonb_build_object('mimetype',mime,'size',size),'88999999-0000-4000-8000-000000000002'
 from (values
  ('hotel-chat-files','88999999-1000-4000-8000-000000000001/media-guest/'),
  ('support-files',current_setting('wh.media.support')||'/')
@@ -155,8 +155,8 @@ from (values
 cross join (values ('valid.png','image/png',70),('clip.mp4','video/mp4',200),('voice.webm','audio/webm',100),
  ('document.pdf','application/pdf',200),('fake.png','application/pdf',200),('empty.png','image/png',0),('large.png','image/png',26214401)
 ) media(suffix,mime,size);
-insert into storage.objects(bucket_id,name,metadata) values
-('support-files','drafts/media-guest/'||current_setting('wh.media.draft')||'/photo.png','{"mimetype":"image/png","size":70}');
+insert into storage.objects(bucket_id,name,metadata,owner_id) values
+('support-files','drafts/media-guest/'||current_setting('wh.media.draft')||'/photo.png','{"mimetype":"image/png","size":70}','88999999-0000-4000-8000-000000000002');
 set local session_replication_role=replica;
 insert into public.partner_support_messages(id,conversation_id,sender_id,content,attachments,attachment_types) values
 ('88999999-2000-4000-8000-000000000002',current_setting('wh.media.support')::uuid,'media-guest','Legacy document',array['legacy.pdf'],array['application/pdf']);

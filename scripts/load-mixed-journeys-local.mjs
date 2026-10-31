@@ -7,6 +7,7 @@ import { performance } from 'node:perf_hooks';
 import { createClient } from '@supabase/supabase-js';
 import {checkFriendLiveDelivery} from './lib/friend-live-probe.mjs';
 import {checkMediaUploadReservations} from './lib/media-upload-probe.mjs';
+import {checkSupportFileAuthority} from './lib/support-file-probe.mjs';
 
 // Never accept a hosted URL or a caller-supplied target. This is disposable CI only.
 const status = JSON.parse(execFileSync('npx', ['--yes', 'supabase@2.114.0', 'status', '-o', 'json'], {
@@ -231,5 +232,7 @@ report.provisional_gate = report.stages.every(stage =>
   Object.values(report.invariants).every(Boolean) &&
   report.contention.accepted === 10 && report.contention.inventory_denied === 10 && report.contention.unexpected_errors.length === 0;
 mkdirSync('test-results', { recursive: true });
+const supportFileProof=await checkSupportFileAuthority(origin.href,actors);
+writeFileSync('test-results/support-attachment-local.json',JSON.stringify(supportFileProof,null,2)+'\n');
 writeFileSync('test-results/mixed-journeys-local.json', JSON.stringify(report, null, 2) + '\n');
 if (!report.provisional_gate) process.exitCode = 1;

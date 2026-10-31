@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createHmac,randomBytes,randomUUID} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 
-function totp(secret){
+export function totp(secret){
  const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';let bits='';
  for(const char of secret.toUpperCase().replace(/=+$/,'')){const n=alphabet.indexOf(char);assert.ok(n>=0);bits+=n.toString(2).padStart(5,'0');}
  const key=Buffer.from(bits.match(/.{8}/g).map(b=>parseInt(b,2)));const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(Math.floor(Date.now()/30000)));

@@ -342,6 +342,9 @@ jobs:
       - name: Reject revoked sessions at the protected API entry point
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/api_session_revocation_contract.sql
+      - name: Protect sent Support evidence and permit owner-only unsent cleanup
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_attachment_authority_contract.sql
       - name: Verify seeded Services availability and deliberate operational pauses
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/service_availability_default_contract.sql
