@@ -73,6 +73,41 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 ## Latest scoped evidence — 31 October
 
+WR-09/11/19: four additional review findings have forward fixes on Test in
+`20261031064345` and `20261031064817`. Hotel revocation withdraws the tracked
+direct invitation; both response APIs reject revoked/stale access while a fresh
+owner invitation remains possible. Admin listing-media INSERT/UPDATE/DELETE
+now checks the resource's actual state/branch, including publication and Field
+paths, and refreshes the existing upload-authority projection. Friend blocking
+keeps two independent timestamps on the existing relationship; neither person
+can withdraw the peer's block. The owner approved three simultaneous live unpaid
+home checkouts per person. The database enforces that shared Long/Short Let
+budget with an indexed count and per-person transaction lock; retries, expiry
+and paid bookings retain their stated behavior. Creator changes use the existing
+settings/elevation/audit systems, stale-update checks and a control inside
+Booking & money rules. The new isolated SQL contracts are pending CI; successful
+Test apply alone is not authorization/concurrency proof.
+
+WR-16/21: the owner's latest browsing requirement applies to Roommates,
+Services, Experiences and Homes: repeated bounded horizontal rows down the
+page, preserving result identity, filters and pagination without duplicated
+cards or invented categories. Services mean work performed for a customer;
+Experiences mean host-guided participation. Both retain one Provider identity
+and workspace. Scoped existing team conversations and property pause/removal
+must be traced before adding another communication system or changing records.
+
+WR-17: read-only verification on 31 October confirmed both `wehouse.com.ng`
+and `www.wehouse.com.ng` still on `dpl_8BjJisMWjXqUT4ii74KzKcjMjaUr`, source
+`f990fc4a8d6b508badb232de0b071f13109e615b`. The #118 main merge did not switch
+those domains or deploy the matching backend. Production has 712 recorded
+migrations through actual version `20261010065655`, with historical markers,
+repeated timestamp aliases and a later repaired reconciliation snapshot. Its
+history is not the September baseline exercised by the existing upgrade job.
+Read-only disposition is in progress; no history rows are rewritten or aliases
+blindly replayed. Test's `b2e9dd50` manifest identifies its correct backend and
+`20261031055618`, and all seven workflows passed for that commit, including real
+Support Storage races. That is Test evidence, not a public rollout receipt.
+
 WR-09/11/12/17: the additional confirmed Support-file deletion finding is
 repaired on Test in `20261031055618`. Conversation membership no longer grants
 cleanup authority: only a trusted uploader can clean an unreferenced file,

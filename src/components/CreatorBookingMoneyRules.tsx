@@ -1,4 +1,5 @@
 import CreatorCommissionRules from '@/components/CreatorCommissionRules';
+import CreatorBookingHoldLimit from '@/components/CreatorBookingHoldLimit';
 import CreatorRentCollection from '@/components/CreatorRentCollection';
 import {withTimeout} from '@/lib/withTimeout';
 import CreatorExperienceCommission from "@/components/CreatorExperienceCommission";
@@ -425,6 +426,7 @@ function CreatorOperatingMoneyRules() {
         </div>
       </section>
       </fieldset>
+      <CreatorBookingHoldLimit />
     </section>
   );
 }

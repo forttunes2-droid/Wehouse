@@ -345,6 +345,12 @@ jobs:
       - name: Protect sent Support evidence and permit owner-only unsent cleanup
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/support_attachment_authority_contract.sql
+      - name: Reject revoked Hotel invitations, cross-region media writes and peer unblock
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/invitation_media_friend_authority_contract.sql
+      - name: Enforce the approved unpaid home hold limit and Creator authority
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/unpaid_home_hold_limit_contract.sql
       - name: Verify seeded Services availability and deliberate operational pauses
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/service_availability_default_contract.sql
