@@ -1,5 +1,6 @@
 import { supabase } from './client';
 import { getRegionalDefaults } from '../regional';
+import {isEndedSessionReceipt} from '../authSessionReceipt';
 
 export type DeviceRegistration = {
   sessionId: string | null;
@@ -54,7 +55,7 @@ const DEVICE_STORAGE_KEY='wehouse_trusted_device_id';
 export function getStoredSessionId(){try{return localStorage.getItem(SESSION_STORAGE_KEY)}catch{return null}}
 export function clearStoredSessionId(){try{localStorage.removeItem(SESSION_STORAGE_KEY)}catch{}}
 export function getDeviceId(){try{let value=localStorage.getItem(DEVICE_STORAGE_KEY);if(value)return value;value=typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;localStorage.setItem(DEVICE_STORAGE_KEY,value);return value}catch{return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`}}
-export async function getUserSessionState(sessionId:string,userId:string,authId:string):Promise<{state:'active'|'pending'|'inactive'|'missing'|'foreign'|'error';error:any}>{const{data,error}=await supabase.from('user_sessions').select('id,user_id,auth_id,is_active,is_current,trust_status').eq('id',sessionId).maybeSingle();if(error)return{state:'error',error};if(!data)return{state:'missing',error:null};if(data.user_id!==userId||data.auth_id!==authId)return{state:'foreign',error:null};if(data.trust_status==='pending')return{state:'pending',error:null};return{state:data.is_active&&data.trust_status!=='rejected'?'active':'inactive',error:null}}
+export async function getUserSessionState(sessionId:string,userId:string,authId:string):Promise<{state:'active'|'pending'|'inactive'|'missing'|'foreign'|'error';error:any}>{const{data,error}=await supabase.from('user_sessions').select('id,user_id,auth_id,is_active,is_current,trust_status').eq('id',sessionId).maybeSingle();if(error)return{state:isEndedSessionReceipt(error)?'inactive':'error',error};if(!data)return{state:'missing',error:null};if(data.user_id!==userId||data.auth_id!==authId)return{state:'foreign',error:null};if(data.trust_status==='pending')return{state:'pending',error:null};return{state:data.is_active&&data.trust_status!=='rejected'?'active':'inactive',error:null}}
 
 export async function registerUserSession(_userId:string,_authId:string):Promise<DeviceRegistration>{
   if(!_userId||!_authId)throw new Error("An active account is required to register this device");

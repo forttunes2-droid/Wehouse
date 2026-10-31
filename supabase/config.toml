@@ -8,6 +8,14 @@ verify_jwt = false
 [auth]
 enable_manual_linking = true
 
+# Explicit provider defaults for local/CI parity. Hosted settings must be
+# read back during rollout; this file does not configure a hosted project.
+# These are temporary per-IP limits, not a per-account password lockout.
+[auth.rate_limit]
+sign_in_sign_ups = 30
+token_refresh = 150
+token_verifications = 30
+
 [auth.hook.before_user_created]
 enabled = true
 uri = "pg-functions://postgres/public/require_reviewed_legal_signup"

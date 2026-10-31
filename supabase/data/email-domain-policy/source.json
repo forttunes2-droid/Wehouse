@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/disposable-email-domains/disposable-email-domains",
+  "path": "disposable_email_blocklist.conf",
+  "git_blob_sha": "08f19eb4b2028e014a6cca572a267f2bdc66a6a6",
+  "retrieved_on": "2026-10-31",
+  "license": "CC0-1.0",
+  "domains": 10083
+}

@@ -7,7 +7,7 @@ import autoprefixer from 'autoprefixer';
 const out='test-results/attachment-offline';fs.mkdirSync(out,{recursive:true});
 const client=path.resolve('tests/browser/attachmentClientFixture.ts');
 await build({entryPoints:['tests/browser/attachments.tsx'],bundle:true,format:'iife',jsx:'automatic',outfile:out+'/fixture.js',plugins:[{name:'attachment-offline-client',setup(api){api.onResolve({filter:/.*/},args=>{
- if(['@/lib/supabase','@/lib/supabase/client'].includes(args.path)||(args.path==='./client'&&args.importer.includes('/src/lib/supabase/')))return {path:client};
+ if(['@/lib/supabase','@/lib/supabase/client'].includes(args.path)||(args.path==='./client'&&args.importer.replaceAll('\\','/').includes('/src/lib/supabase/')))return {path:client};
  if(args.path.startsWith('@/'))return api.resolve(path.resolve('src',args.path.slice(2)),{resolveDir:process.cwd(),kind:args.kind});
 })}}],define:{'import.meta.env.DEV':'false','import.meta.env.PROD':'false'}});
 const componentCss=fs.existsSync(out+'/fixture.css')?fs.readFileSync(out+'/fixture.css','utf8'):'';

@@ -82,6 +82,7 @@ export async function createPasskeyBackup(person:string,version:number,jwk:JsonW
       if(registrationError||!registered)throw registrationError||new Error('Passkey registration could not be confirmed. Refresh Passkeys before trying again.');
       authId=registered.id;credentialId=url64(credential.rawId);
       try{secret=privatePrfResult(credential);}catch{
+        if((credential.getClientExtensionResults() as PrfOutput).prf?.enabled===false)throw new Error('Your sign-in passkey was added, but it does not support chat backup. No backup has been saved. Try a compatible passkey or password manager.');
         throw new Error('Your sign-in passkey was added. To finish chat backup, choose “Use existing passkey”; no backup has been saved yet.');
       }
     }

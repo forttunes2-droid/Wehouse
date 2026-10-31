@@ -16,3 +16,4 @@ export const supabase={rpc:async(name:string,args:any={})=>{
 (window as any).__attachmentTransport=control;
 
 export const uploadStorageObjectWithProgress = async () => { throw new Error("Uploads are disabled in this fixture"); };
+export const isWebPasskeyEnabled=false;

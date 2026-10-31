@@ -1,6 +1,6 @@
 # WeHouse release roadmap
 
-**Status date:** 30 October 2026. **Register review baseline:** `75463b316965e733bf602097d0f0d6fbe6eacbbb` (PR #118).
+**Status date:** 31 October 2026. **Register review baseline:** `75463b316965e733bf602097d0f0d6fbe6eacbbb` (PR #118).
 
 PR #118 merged into `main` at `ddbfd616ee1601a64aaeaef0d151008707e87365`
 on 30 October. The merge contains the exact tested `ff2bd347` source tree;
@@ -71,7 +71,53 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 | WR-22 | **Legal publication and operating integration**. Account/operations; legal/owner EX-01. | **Engineering verification pending; approvals external.** Approved legal content and local commercial/retention decisions are external; publication and actual operating paths are engineering. | Verify current document version publication, accessible reading, versioned consent and stale-version handling against approved bodies. Exercise required queue/runbook/escalation/support handoff and response ownership, including Creator-only operation. Link actual data-rights evidence to WR-12. Record commercial/legal/provider approval gaps individually in the existing Nigeria legal register; do not publish the draft or claim legal approval. The accepted post-engineering lawyer-review PDF is LG-01, not a circular prerequisite to finishing this row. |
 | WR-23 | **Reviewed web release candidate**. Release engineering; WR-01–22. | **Complete-candidate evidence pending.** Baseline PR #118 merged at `ddbfd616`; the complete agreed scope remains open. Passing CI is limited to its exact commit; a ready older preview cannot close a newer candidate. | Record the candidate SHA, required build/lint/source/browser/fresh-upgrade results, matching Test preview and hosted role smoke evidence. Resolve known release-blocking defects and affected regressions, link WR-17/20 rollout/rollback evidence, and identify external residuals. Do not merge/promote until separate explicit approval; RL-01 tracks those actions, not another implementation checklist. |
 
-## Latest scoped evidence — 30 October
+## Latest scoped evidence — 31 October
+
+WR-08/09/17: Test migrations `20261031042052` and `20261031044320`
+are applied. Installed rollback contracts pass for ended/revoked Auth sessions
+at the common protected Data API boundary, and for temporary-email rejection
+in the existing pre-signup Auth hook. There is no second signup authority.
+The reviewed CC0 blocklist contains 10,083 domains; its upstream Git blob and
+licence are vendored for reproducibility. Indexed exact/suffix lookup occurs
+locally at signup, with no external email lookup and no list in the browser.
+Hotmail, custom addresses, plus addressing and the tested privacy relays remain
+accepted. Existing identities are not suspended by this signup rule. Direct
+Auth HTTP rejection before identity creation is included in disposable CI.
+Test now has 961 migration history rows, latest `20261031044320`; this still
+does not justify replaying aliases or treating Production as current.
+
+Password controls are distinguished explicitly: the username bridge has its
+existing 12-attempt/15-minute network throttle; direct Supabase Auth has its
+provider rate limits. Both now preserve a real 429 as a cooldown rather than
+misreporting a wrong password. Local configuration declares provider defaults,
+and a bounded loopback CI case exercises direct password-endpoint rejection
+and recovery. Hosted Auth settings still need read-back in WR-17. A global
+per-account password-attempt hook is **not active or claimed**: Supabase
+documents it as Teams/Enterprise, while this launch uses Free. No permanent
+target-account ban or browser-only lock was introduced. The Test username Edge
+function is deployed at version 4; Production was not changed.
+
+WR-09/18/23: inspection of 3,060 tracked text files and 161 emitted build
+files found no actual embedded privileged credentials. Three scanner matches
+were classified as a placeholder and synthetic-test PEM construction.
+Only `.env.example` is tracked. Public Supabase publishable keys are expected;
+server service-role/payment/mail keys remain server environment inputs.
+The main build now checks **all** exposed `VITE_` variables after Vite loads
+them, and rejects recognised private credentials in emitted assets before
+publication. Three functional cases cover public/anon keys, private values
+under misleading names, unused fallbacks and secret-free error messages.
+This complements RLS/endpoint permissions; it is not a complete history or
+provider-infrastructure secret audit.
+
+WR-16/23: the previous browser workflow failures were reproduced in its
+synthetic fixtures. Missing optional-passkey exports, an obsolete PIN-era
+heading and Windows path matching are repaired. Local stabilisation (48 cases),
+message attachments (44), Wallet/Pro (87), Friend history (both themes) and
+automatic private-chat setup/recovery (10) pass. The source suite passed 876
+checks before the three additional build-boundary cases. Exact combined-head
+CI, including fresh/upgrade migrations, real Auth HTTP and the isolated crypto
+fixture, must establish the new candidate result; these fixture counts do not
+close all 23 outcomes.
 
 WR-17/23: PR #119 continues as one candidate. A real provenance defect was fixed:
 GitHub's synthetic PR merge SHA could label a build checked out at the reviewed
@@ -91,11 +137,14 @@ Vercel build had not proved startup. Three public configuration overrides are
 now scoped only to this candidate's Preview branch, all for Test
 `qoobnkedfyosnizrlttt`. Shared Production records are unchanged. Preview builds
 also run the existing environment-isolation validator before publication.
-A new deployment must prove the corrected manifest and actual startup/catalog.
+At `d9e25aad`, the served manifest identifies Test `qoobnkedfyosnizrlttt`,
+private-chat protocol 2 and that build's expected migration. Bounded actual
+Homes and Hotels catalog requests return 200. The new candidate must recheck
+its own manifest/catalog; these checks do not prove every browser route.
 
 The stable existing Test branch alias is
 `wehouse-git-codex-production-r-5d2746-forttunes2-6534s-projects.vercel.app`.
-It resolved to the `eb0d4fa2` preview when inspected; always verify its current
+It resolved to the `d9e25aad` preview when inspected; always verify its current
 manifest before treating it as evidence for a newer head. Random deployment
 hostnames have separate device-key storage origins. Optional backup activation
 requires a stable Test RP distinct from Production, as recorded in

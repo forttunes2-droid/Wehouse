@@ -339,6 +339,9 @@ jobs:
       - name: Reject self-trusted devices and recover abandoned media safely
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/device_authority_and_upload_recovery_contract.sql
+      - name: Reject revoked sessions at the protected API entry point
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/api_session_revocation_contract.sql
       - name: Verify seeded Services availability and deliberate operational pauses
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/service_availability_default_contract.sql
@@ -369,6 +372,9 @@ jobs:
       - name: Verify signup hook through Supabase Auth
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: node scripts/verify-signup-legal-hook.mjs
+      - name: Verify disposable-email policy and legitimate privacy relays
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/signup_email_domain_contract.sql
       - name: Exercise cross-user RLS foundation contract
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/foundation_rls_contract.sql

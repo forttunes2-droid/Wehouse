@@ -7,6 +7,7 @@ import { defineConfig,type Plugin } from "vite"
 import {bundledLicences} from './scripts/lib/bundled-licences'
 import {sourceReleaseVersion} from './scripts/lib/release-version'
 import {resolveSupabaseEnvironment} from './src/lib/supabase/environment'
+import {assertPublicBuildEnvironment,assertPublicAsset} from './scripts/lib/public-build-env'
 
 // Vercel PR previews may not have project-scoped environment variables yet.
 // This public Test-project key provides an isolated preview by default. A
@@ -141,10 +142,25 @@ function libraryNotices():Plugin {
   }
 }
 
+function publicCredentialBoundary():Plugin {
+ return {
+  name:'wehouse-public-credential-boundary',
+  enforce:'post',
+  configResolved(config){assertPublicBuildEnvironment(config.env)},
+  generateBundle(_options,bundle){
+   for(const [name,item] of Object.entries(bundle)){
+    const source=item.type==='chunk'?item.code:item.source;
+    assertPublicAsset(name,typeof source==='string'?source:Buffer.from(source).toString('utf8'));
+   }
+  },
+ };
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: './',
   plugins: [
+    publicCredentialBoundary(),
     react(),
     releaseAssets(),
     libraryNotices(),

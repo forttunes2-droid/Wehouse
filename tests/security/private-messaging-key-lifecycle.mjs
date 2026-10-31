@@ -33,7 +33,7 @@ function device(db,actor,{storage=new Map(),localKeys=new Map(),authContext=acto
    assert.equal(this.table,'conversation_key_envelopes');controls.envelopeReads++;
    return {data:[...db.envelopes.values()].find(row=>Object.entries(this.filters).every(([k,v])=>row[k]===v))??null,error:null};}
  }
- const credential=id=>({id,type:'public-key',rawId:Uint8Array.from(atob(id),c=>c.charCodeAt(0)).buffer,response:{clientDataJSON:new Uint8Array([1]).buffer,attestationObject:new Uint8Array([2]).buffer,getTransports:()=>['internal']},getClientExtensionResults:()=>controls.prf?{credProps:{rk:true},prf:{enabled:true,results:{first:new Uint8Array(32).fill(7).buffer}}}:{prf:{}}});
+ const credential=id=>({id,type:'public-key',rawId:Uint8Array.from(atob(id),c=>c.charCodeAt(0)).buffer,response:{clientDataJSON:new Uint8Array([1]).buffer,attestationObject:new Uint8Array([2]).buffer,getTransports:()=>['internal']},getClientExtensionResults:()=>controls.prf?{credProps:{rk:true},prf:{enabled:true,results:{first:new Uint8Array(32).fill(7).buffer}}}:{prf:{enabled:false}}});
  const credentials={async create(){if(controls.cancel)throw new DOMException('cancelled','NotAllowedError');const id=btoa('synthetic-passkey').replace(/=+$/,'');controls.passkeys.push(id);return credential(id);},async get(options){if(controls.cancel)throw new DOMException('cancelled','NotAllowedError');return credential(btoa(String.fromCharCode(...new Uint8Array(options.publicKey.allowCredentials[0].id))));}};
  const supabase={from:t=>new Query(t),storage:{from:()=>({createSignedUrl:async path=>({data:{signedUrl:'https://fixture.invalid/'+path},error:null})})},auth:{passkey:{
   startRegistration:async()=>({data:{challenge_id:'synthetic-challenge',options:{rp:{id:'fixture.invalid',name:'Synthetic'},user:{id:'dXNlcg',name:'Synthetic',displayName:'Synthetic'},challenge:'Y2hhbGxlbmdl',pubKeyCredParams:[{type:'public-key',alg:-7}],excludeCredentials:controls.passkeys.map(id=>({id,type:'public-key'}))}},error:null}),
@@ -99,7 +99,7 @@ test('automatic private chats, recovery and bounded media with real WebCrypto',a
  });
  await t.test('cancelled or unsupported passkeys never replace the current recovery method',async()=>{
   a.controls.cancel=true;await assert.rejects(a.e2ee.savePrivateChatPasskeyBackup(true),/not completed/);a.controls.cancel=false;
-  a.controls.prf=false;await assert.rejects(a.e2ee.savePrivateChatPasskeyBackup(true),/no backup has been saved/);assert.equal(db.identities.get('alice').backup_scheme,'device_only');a.controls.prf=true;
+  a.controls.prf=false;await assert.rejects(a.e2ee.savePrivateChatPasskeyBackup(true),/No backup has been saved/);assert.equal(db.identities.get('alice').backup_scheme,'device_only');a.controls.prf=true;
  });
  await t.test('passkey backup encrypts locally, strips PRF output from Auth and restores the same public identity',async()=>{
   await a.e2ee.savePrivateChatPasskeyBackup();const identity=db.identities.get('alice');assert.equal(identity.backup_scheme,'passkey_prf_v1');assert.ok(!JSON.stringify(a.controls.registered).includes('prf'));

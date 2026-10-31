@@ -49,9 +49,14 @@ export async function signInWithIdentifier(identifier: string, password: string)
     body: { identifier: clean, password },
   });
   if (result.error || !result.data?.access_token || !result.data?.refresh_token) {
+    // FunctionsHttpError keeps a non-2xx response in context, not data. Preserve
+    // a real server cooldown instead of telling a throttled person their
+    // password is wrong. Do not trust arbitrary provider/transport prose.
+    const response = result.error?.context;
+    const throttled = response?.status === 429;
     return {
       data: { user: null, session: null },
-      error: { message: result.data?.error || 'Invalid username, email or password' },
+      error: { message: throttled ? 'Too many sign-in attempts. Wait briefly and try again.' : result.data?.error || 'Invalid username, email or password' },
     };
   }
   return supabase.auth.setSession({

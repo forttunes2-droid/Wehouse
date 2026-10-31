@@ -216,7 +216,7 @@ async def main():
      await dialog.get_by_role('button',name=re.compile('Ada Example')).click()
      assert await page.evaluate('window.__conversation')=='chat-ada'
      assert await page.evaluate('window.__draftAtOpen')=={'kind':'listing','id':'short-home'}
-     await expect(page.get_by_role('heading',name='Encrypted chat is locked',exact=True)).to_be_visible()
+     await expect(page.get_by_role('heading',name='Private chat access',exact=True)).to_be_visible()
      assert not any(name in ['send_message','send_roommate_message','create_shared_housing_group'] for name,_ in scenario.calls)
      # Backend-returned Personal records must not appear in Partner Activity.
      await page.goto(BASE+'/tests/browser/property-experience.html?mode=activity')
