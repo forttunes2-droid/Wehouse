@@ -20,7 +20,7 @@ async def main():
     def hold(key):return {'booking_id':77,'hotel_id':7,'room_id':12,'rate_plan_id':13,'rate_plan_name':'Room only','user_id':'hold-guest','request_key':key,'check_in':checkin,'check_out':checkout,'guest_count':1,'total_nights':2,'total_price':40000,'guest_name':'Sample Guest','guest_phone':'08000000000','special_requests':None,'status':'pending','payment_status':'unpaid','payment_expires_at':iso(datetime.now(timezone.utc)+timedelta(minutes=30)),'cancellation_snapshot':{'refundable':True,'deadline':deadline,'timezone':'Africa/Lagos','refund_amount_ngn':40000}}
     if mode.startswith('shared-arrival'):
      saved=hold('arrival-fixture');saved['guest_count']=2;shared=make_shared(saved,checkin,checkout)
-     shared.update(status='paid',booking_status='checked_in',hotel_arrival={'booking_code':'ROOM-77','address':'Reception, fixture address'})
+     shared.update(status='paid',booking_status='checked_in',hotel_arrival={'booking_id':77,'booking_code':'ROOM-77','address':'Reception, fixture address','check_in_time':'14:00','check_out_time':'12:00','timezone':'Africa/Lagos'})
      for member in shared['members']:member.update(invitation_status='accepted',payment_status='paid',payment_reference='own-fixture-'+member['user_id'])
      protection={'subject_type':'hotel','subject_id':'77','protection_state':'protected','amount_total':20000,'checked_in_at':iso(datetime.now(timezone.utc)),
       'arrival_issue_deadline_at':iso(datetime.now(timezone.utc)+timedelta(hours=2)),'can_report_arrival_issue':True,'arrival_issue_case_id':None}
