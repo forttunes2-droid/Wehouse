@@ -794,7 +794,7 @@ export function PropertyDetails({
                       </p>
                     ) : null}
                   </div>
-                  <span className="rounded-full bg-emerald-500/[.08] px-2 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${["Stay paid","Rent paid"].includes(partnerPaymentLabel(stay)) ? "bg-emerald-500/[.08] text-emerald-700 dark:text-emerald-300" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}>
                     {partnerPaymentLabel(stay)}
                   </span>
                 </div>
@@ -833,7 +833,7 @@ export function PropertyDetails({
                       value={
                         stay.tenancy_end_date
                           ? partnerDate(stay.tenancy_end_date)
-                          : "Starts after handover"
+                          : ["cancelled","expired","refunded"].includes(stay.status) ? "Not started" : "Starts after handover"
                       }
                     />
                     <Info compact label="Occupants" value={String(stay.occupant_count || 1)} />
@@ -959,12 +959,16 @@ function partnerPropertyStateMessage(property: any, hostManaged = false, managem
     : "Published and available for a new reservation.";
 }
 function partnerStayMessage(stay: any) {
+  if (["cancelled","expired","refunded"].includes(stay.status))
+    return "This booking is no longer active. Payments and any refund remain recorded; cancellation does not by itself confirm a refund.";
+  if (stay.status === "payment_conflict")
+    return "Payment needs review. Arrival cannot be confirmed until the payment issue is resolved.";
   const hostManaged = stay.management_mode_snapshot === "host";
   if (stay.stay_type === "short_let") {
     if (stay.status === "occupied")
       return hostManaged ? `Guest checked in ${partnerDate(stay.check_in)} · manage stay issues from Inbox.` : `Guest checked in ${partnerDate(stay.check_in)} · WeHouse Operations is handling the stay.`;
     if (stay.status === "completed")
-      return `Stay completed ${partnerDate(stay.check_out)} · final payment and deposit checks are in progress.`;
+      return `Stay completed ${partnerDate(stay.check_out)} · payments and any deposit follow the saved booking terms.`;
     if (stay.status === "ready_for_move_in")
       return hostManaged ? `Guest expected ${partnerDate(stay.check_in)} · confirm arrival with the booking code.` : `Guest expected ${partnerDate(stay.check_in)} · WeHouse Operations will confirm arrival.`;
     if (stay.reservation_fee_status === "paid")
@@ -987,11 +991,15 @@ function partnerStayMessage(stay: any) {
 }
 
 function partnerStayStage(stay: any) {
+  if (stay.status === "cancelled") return "Booking cancelled";
+  if (stay.status === "expired") return "Reservation expired";
+  if (stay.status === "refunded") return "Booking refunded";
+  if (stay.status === "payment_conflict") return "Payment needs review";
   if (stay.stay_type === "short_let") {
     if (stay.status === "occupied") return "Guest checked in";
     if (stay.status === "completed") return "Guest checked out";
     if (stay.status === "ready_for_move_in") return "Guest expected";
-    return "Short Let booked";
+    return ["paid","upfront_paid","completed"].includes(stay.payment_status) ? "Short Let booked" : "Reservation in progress";
   }
   if (stay.status === "occupied") return "Occupant moved in";
   if (stay.status === "completed") return "Tenancy ended";
@@ -999,15 +1007,16 @@ function partnerStayStage(stay: any) {
     return stay.requested_move_in_at
       ? "Move-in scheduled"
       : "Waiting for move-in time";
-  return "Tenant found";
+  return ["paid","upfront_paid","completed"].includes(stay.payment_status) ? "Waiting for move-in" : "Reservation in progress";
 }
 function partnerPaymentLabel(stay: any) {
-  const paid = ["paid", "upfront_paid", "completed"].includes(
-    String(stay.payment_status || stay.manual_payment_status || ""),
-  );
+  if(stay.status==="refunded"||stay.payment_status==="refunded")return "Refund recorded";
+  if(stay.status==="payment_conflict"||stay.payment_status==="payment_conflict")return "Payment review";
+  const paid = ["paid", "upfront_paid", "completed"].includes(String(stay.payment_status || ""));
+  if(!paid&&(stay.reservation_fee_status==="paid"||["paid","completed"].includes(stay.manual_payment_status)))return "Reservation fee paid";
   if (stay.stay_type === "short_let")
     return paid ? "Stay paid" : "Payment pending";
-  return paid ? "Rent confirmed" : "Rent processing";
+  return paid ? "Rent paid" : "Rent processing";
 }
 function friendly(value: any) {
   return String(value || "")

@@ -221,7 +221,7 @@ try {
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);assert.deepEqual(errors,[]);await page.screenshot({path:output+'/'+mode+'-'+theme+'-'+width+'.png',fullPage:true});results.push(mode+' '+theme+' '+width+'px');await page.close();
     }
   }else if(process.argv.includes('--partner-history-only')){
-    for(const theme of ['light','dark'])for(const width of [320,1440])for(const mode of ['partner-stays-history','partner-stays-history-error','partner-stays-history-linked']){
+    for(const theme of ['light','dark'])for(const width of [320,1440])for(const mode of ['partner-stays-history','partner-stays-history-error','partner-stays-history-linked','partner-stays-history-cancelled','partner-stays-history-expired','partner-stays-history-refunded','partner-stays-history-payment_conflict','partner-stays-history-fee-only']){
       const page=await browser.newPage({viewport:{width,height:1000}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
       await page.goto(base+'/?mode='+mode);await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
       await page.getByText(mode.endsWith('linked')?'51 loaded':'50 loaded',{exact:true}).waitFor();
@@ -236,11 +236,16 @@ try {
       const sharedStay=page.locator('#partner-stay-old-stay');
       await sharedStay.getByText('Amina Yusuf',{exact:true}).waitFor();await sharedStay.getByText('Shared costs · 2 payers',{exact:true}).waitFor();
       await sharedStay.getByText(mode.endsWith('linked')?'Guests':'Occupants',{exact:true}).waitFor();await sharedStay.getByText('3',{exact:true}).waitFor();
+      const expectedStage=mode.endsWith('cancelled')?'Booking cancelled':mode.endsWith('expired')?'Reservation expired':mode.endsWith('refunded')?'Booking refunded':mode.endsWith('payment_conflict')?'Payment needs review':null;
+      if(expectedStage){await sharedStay.getByText(expectedStage,{exact:true}).waitFor();assert.equal(await sharedStay.getByRole('button',{name:'Confirm',exact:true}).count(),0);}
+      if(mode.endsWith('refunded')){await sharedStay.getByText('Refund recorded',{exact:true}).waitFor();assert.equal(await sharedStay.getByText('Rent paid',{exact:true}).count(),0);}
+      if(mode.endsWith('fee-only')){await sharedStay.getByText('Reservation in progress',{exact:true}).waitFor();await sharedStay.getByText('Reservation fee paid',{exact:true}).waitFor();assert.equal(await sharedStay.getByText('Rent paid',{exact:true}).count(),0);}
+      assert.equal(await sharedStay.getByText(/final payment and deposit checks are in progress/).count(),0);
       const dates=await sharedStay.locator('.grid > div > p:last-child').evaluateAll(nodes=>nodes.filter(node=>/\d{4}/.test(node.textContent||'')).map(node=>{
         const text=node.firstChild;const match=(text?.textContent||'').match(/\d{4}/);if(!text||!match)return false;
         const range=document.createRange();range.setStart(text,match.index);range.setEnd(text,match.index+4);
         return range.getClientRects().length===1&&node.getBoundingClientRect().height<=parseFloat(getComputedStyle(node).lineHeight)*2;
-      }));assert.deepEqual(dates,[true,true],'Arrival dates must retain an intact year and fit two lines on narrow Host cards');
+      }));assert.deepEqual(dates,mode.endsWith('fee-only')?[]:[true,true],'Arrival dates must retain an intact year and fit two lines on narrow Host cards');
       assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.filter(call=>call.args.p_before_id).every(call=>call.args.p_before_id==='stay-2'&&call.args.p_before_created_at==='2026-01-01T10:00:00.123456+00:00')),true);
       await sharedStay.scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);assert.deepEqual(errors,[]);await page.screenshot({path:output+'/'+mode+'-'+theme+'-'+width+'.png'});
       results.push(mode+' '+theme+' '+width+'px');await page.close();

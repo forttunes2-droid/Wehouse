@@ -129,6 +129,12 @@ screenshots then exposed split date years inside the standard padded facts cells
 Arrival facts now use compact cells and named months, with explicit narrow-screen
 checks that years remain intact and dates fit two lines in both themes. The
 ordinary property-facts cells retain their existing spacing and use theme text.
+The same history review found terminal bookings falling through to active-tenant
+labels and reservation-fee/refunded records appearing as confirmed rent. These
+states now remain separate in the Host summary; completed stays refer to saved
+terms rather than inventing a pending deposit/payment check or granting Finance access.
+Browser cases cover cancellation, expiry, refund, payment conflict and fee-only
+history in both themes, including the absence of a closed-booking arrival action.
 
 WR-01/05/06: Hotel sharing is limited to accepted Friends joining the stay,
 with two/three payers and the room's declared guest limit still enforced (owner
