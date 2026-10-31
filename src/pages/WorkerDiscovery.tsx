@@ -1,3 +1,6 @@
+import DiscoveryRows from '@/components/DiscoveryRows';
+import {useServicePhotoUrls} from '@/hooks/useServicePhotoUrls';
+import type {ServiceProvider} from '@/lib/supabase/workers-public';
 import SponsoredPlacement from "@/components/SponsoredPlacement";
 import {matchesDiscoveryText} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
@@ -256,6 +259,18 @@ export default function WorkerDiscovery({
   );
 
   const filterCount = [category, specialty, state, city].filter(Boolean).length;
+  // A Sponsored provider lookup has no search context. Never show a cover for
+  // another service when the customer selected a particular service/category.
+  function shownOffer(worker:Profile){
+    const matches=(name:string)=>!specialty||name.trim().toLowerCase()===specialty.trim().toLowerCase();
+    const inCategory=(name:string)=>!category||!categoryServices.length||categoryServices.some(item=>item.trim().toLowerCase()===name.trim().toLowerCase());
+    const offer=(worker as ServiceProvider).service_offer;
+    if(offer&&matches(offer.name)&&inCategory(offer.name))return offer;
+    const services=(worker as Profile&{services?:{name:string;price:number;price_type:string}[]}).services;
+    const selected=Array.isArray(services)?services.find(item=>typeof item.name==='string'&&matches(item.name)&&inCategory(item.name)&&Number.isSafeInteger(item.price)&&item.price>=0):null;
+    return selected?{name:selected.name,price:selected.price,price_type:selected.price_type,cover:null}:null;
+  }
+  const servicePhotos=useServicePhotoUrls(offering==='services'?[...shown,...visibleFeaturedWorkers.map(item=>item.worker)].flatMap(worker=>{const cover=shownOffer(worker)?.cover;return cover?[cover.preview]:[];}):[],profile?.user_id);
   function clear() {
     setSearch("");
     setCategory("");
@@ -369,7 +384,7 @@ export default function WorkerDiscovery({
       </>
     );
     }
-  if(offering==='experiences')return <DiscoveryShell active="services" onNavigate={onNavigate}><main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8"><OfferingChoice value={offering} onChange={setOffering}/><Suspense fallback={<p role="status">Loading Experiences...</p>}><ExperienceDiscovery viewerId={profile?.user_id} onNavigate={onNavigate} initialActivityId={initialExperienceId} onInitialActivityOpened={onInitialExperienceOpened} onBooking={id=>onNavigate('my_reservations',id?`experience:${id}`:undefined)}/></Suspense></main></DiscoveryShell>;
+  if(offering==='experiences')return <DiscoveryShell active="services" onNavigate={onNavigate}><main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8"><OfferingChoice value={offering} onChange={setOffering}/><Suspense fallback={<p role="status">Loading Activities...</p>}><ExperienceDiscovery viewerId={profile?.user_id} onNavigate={onNavigate} initialActivityId={initialExperienceId} onInitialActivityOpened={onInitialExperienceOpened} onBooking={id=>onNavigate('my_reservations',id?`experience:${id}`:undefined)}/></Suspense></main></DiscoveryShell>;
   return (
     <DiscoveryShell
       active="services"
@@ -405,6 +420,7 @@ export default function WorkerDiscovery({
               {visibleFeaturedWorkers.map(({ worker, campaignId }) => (
                 <SponsoredPlacement key={campaignId} campaignId={campaignId} context="worker_discovery"><WorkerCard
                   worker={worker}
+                  offer={shownOffer(worker)} coverUrl={servicePhotos.urls[shownOffer(worker)?.cover?.preview||'']}
                   serviceArea={locationLabel(city,state)}
                   active={active.has(worker.user_id)}
                   bookable={worker.user_id !== profile?.user_id}
@@ -462,11 +478,12 @@ export default function WorkerDiscovery({
             text="Try a broader service or location."
           />
         ) : (
-          <div className="divide-y divide-[var(--wh-border-subtle)] border-y border-[var(--wh-border-subtle)]">
+          <DiscoveryRows title="Services near you" moreTitle="More services" itemLabel="providers">
             {shown.map((worker) => (
               <WorkerCard
                 key={worker.user_id}
                 worker={worker}
+                offer={shownOffer(worker)} coverUrl={servicePhotos.urls[shownOffer(worker)?.cover?.preview||'']}
                   serviceArea={locationLabel(city,state)}
                 active={active.has(worker.user_id)}
                 bookable={worker.user_id !== profile?.user_id}
@@ -479,9 +496,10 @@ export default function WorkerDiscovery({
                 onOpen={() => onNavigate("my_reservations")}
               />
             ))}
-          </div>
+          </DiscoveryRows>
         )}
         {!loading&&workers.length>0&&loadError&&<p role="alert" className="text-sm text-[var(--wh-text-secondary)]">{loadError}</p>}
+        {servicePhotos.error&&<p role="status" className="text-sm text-[var(--wh-text-secondary)]">{servicePhotos.error} <button type="button" className="min-h-11 underline" onClick={servicePhotos.retry}>Refresh photos</button></p>}
         {!loading&&hasMore&&<button type="button" disabled={paging} onClick={()=>void moreProviders()} className="min-h-11 rounded-xl border border-[var(--wh-border)] bg-[var(--wh-surface)] px-5 text-sm font-semibold disabled:opacity-50">{paging?'Loading more Providers...':'Show more Providers'}</button>}
       </main>
       {filtersOpen && (
@@ -545,6 +563,8 @@ function WorkerCard({
   onBook,
   onOpen,
   sponsored = false,
+  offer,
+  coverUrl,
 }: {
   worker: Profile;
   serviceArea?: string;
@@ -554,13 +574,17 @@ function WorkerCard({
   onBook: () => void;
   onOpen: () => void;
   sponsored?: boolean;
+  offer?: Pick<NonNullable<ServiceProvider['service_offer']>,'name'|'price'|'price_type'|'cover'>|null;
+  coverUrl?: string;
 }) {
   const occupation = workerRoleLabel(worker),
     displayName = workerDisplayName(worker),
     avatarUrl = workerAvatarUrl(worker),
     skills = workerServiceNames(worker);
   return (
-    <article className="py-4">
+    <article className="flex h-full flex-col rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
+      {offer?.cover&&<button type="button" onClick={onProfile} aria-label={`View ${offer.name} by ${displayName}`} className="mb-4 overflow-hidden rounded-xl bg-[var(--wh-elevated)]">{coverUrl?<img src={coverUrl} loading="lazy" decoding="async" alt={offer.cover.caption} className="aspect-[4/3] w-full object-cover"/>:<div className="grid aspect-[4/3] place-items-center p-4 text-sm text-[var(--wh-text-secondary)]">Service photo unavailable</div>}</button>}
+      {offer&&<h2 className="mb-3 text-base font-semibold">{offer.name}</h2>}
       {sponsored && (
         <p className="mb-2 text-[8px] font-bold uppercase tracking-[.16em] text-amber-300">
           Sponsored
@@ -585,9 +609,9 @@ function WorkerCard({
         </button>
         <button onClick={onProfile} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
-            <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
+            <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">
               {displayName}
-            </h2>
+            </h3>
             <WorkerTrustBadge />
             {worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}
           </div>
@@ -612,10 +636,10 @@ function WorkerCard({
           {skills.length > 4 ? ` · +${skills.length - 4}` : ""}
         </p>
       )}
-      <div className="mt-4 flex items-center justify-between gap-3">
+      <div className="mt-auto flex items-center justify-between gap-3 pt-4">
         <p className="text-[10px] font-semibold text-[var(--wh-text)]">
-          {worker.worker_price
-            ? `From ${formatRecordedMoney(Number(worker.worker_price))}`
+          {(offer?.price??worker.worker_price)
+            ? `${offer?.price_type==='fixed'?'':'From '}${formatRecordedMoney(Number(offer?.price??worker.worker_price))}`
             : "Discuss price"}
         </p>
         {active && bookable ? (

@@ -47,7 +47,7 @@ test('activity approval confirms the reviewed content, identity of the activity 
  }
 });
 
-test('Experience commission distinguishes unconfigured from an explicit zero and rejects malformed receipts',()=>{
+test('Activity commission distinguishes unconfigured from an explicit zero and rejects malformed receipts',()=>{
  const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/components/CreatorExperienceCommission.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,require:()=>({})});
  const parse=exports.experienceCommissionReceipt;
  assert.equal(parse({configured:false,policy:null}).configured,false);

@@ -25,6 +25,10 @@ async function probe(name, path, body, expected) {
 }
 const settings = await probe('Auth settings reachable', '/auth/v1/settings', undefined,
   (response, data) => response.ok && typeof data?.external === 'object');
+await probe('Address lookup rejects anonymous coordinates before provider access', '/functions/v1/reverse-geocode', {latitude:8.5,longitude:8.5}, response=>response.status===401);
+await probe('Address lookup rejects oversized streamed details', '/functions/v1/reverse-geocode', {latitude:8.5,longitude:8.5,extra:'a'.repeat(3000)}, response=>response.status===413);
+await probe('Payment verification rejects anonymous references before provider access', '/functions/v1/paystack-verify', {reference:'WEHOUSE_BOUNDARY_NO_PAYMENT'}, response=>response.status===401);
+await probe('Payment verification rejects oversized streamed details', '/functions/v1/paystack-verify', {reference:'WEHOUSE_BOUNDARY_NO_PAYMENT',extra:'a'.repeat(9000)}, response=>response.status===413);
 await probe('Anonymous discovery available', '/rest/v1/rpc/search_discoverable_homes', { p_limit: 1 },
   (response, data) => response.ok && Array.isArray(data?.items));
 for (const [rpc, body] of [

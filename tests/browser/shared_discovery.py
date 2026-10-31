@@ -54,7 +54,7 @@ SCRIPT="""s=>{
  };
 }"""
 async def main():
- subprocess.run(['node','tests/browser/build-shared-discovery.mjs'],check=True);OUT.mkdir(parents=True,exist_ok=True);results=[]
+ subprocess.run(['node','tests/browser/build-shared-discovery.mjs'],check=True,timeout=120);OUT.mkdir(parents=True,exist_ok=True);results=[]
  async with async_playwright() as p:
   options={'headless':True,'args':['--no-sandbox']}
   if os.getenv('CHROMIUM_PATH'):options['executable_path']=os.environ['CHROMIUM_PATH']
@@ -145,11 +145,11 @@ async def main():
     await expect(page.locator('[data-home-card]').first).to_contain_text('₦18,000,000')
     shelf=page.get_by_role('group',name='Homes to explore listings',exact=True)
     await expect(shelf).to_be_visible()
-    await expect(shelf.locator('[data-home-card]')).to_have_count(6)
-    await expect(shelf.get_by_text('Short Let',exact=True)).to_have_count(3)
-    await expect(shelf.get_by_text('Long Let',exact=True)).to_have_count(3)
-    grid=page.get_by_role('region',name='More homes',exact=True)
-    await expect(grid.locator('[data-home-card]')).to_have_count(2)
+    await expect(shelf.locator('[data-home-card]')).to_have_count(8)
+    await expect(shelf.get_by_text('Short Let',exact=True)).to_have_count(4)
+    await expect(shelf.get_by_text('Long Let',exact=True)).to_have_count(4)
+    grid=page.get_by_role('group',name='More homes listings',exact=True)
+    await expect(grid).to_have_count(0)
     requests=await page.evaluate('window.__browse.gatewayRequests.length')
     next_homes=page.get_by_role('button',name='Next Homes to explore',exact=True)
     await expect(next_homes).to_be_enabled();await next_homes.click()
@@ -158,14 +158,14 @@ async def main():
     assert await page.evaluate('window.__browse.gatewayRequests.length')==requests,'Rail browsing fetched the catalog again'
     await page.get_by_role('button',name='Show more homes',exact=True).click()
     await expect(page.locator('[data-home-card]')).to_have_count(10)
-    await expect(shelf.locator('[data-home-card]')).to_have_count(6)
-    await expect(grid.locator('[data-home-card]')).to_have_count(4)
+    await expect(shelf.locator('[data-home-card]')).to_have_count(8)
+    await expect(grid.locator('[data-home-card]')).to_have_count(2)
     titles=await page.locator('[data-home-card] h3').all_text_contents()
     assert len(titles)==len(set(titles)),titles
     await grid.locator('[data-home-card]').first.get_by_role('button',name='Save home',exact=True).click()
-    assert await page.evaluate('window.__browse.savedId')=='public-home-7'
-    await grid.get_by_role('button',name='View Courtyard apartment 7',exact=True).click()
-    assert await page.evaluate('window.__browse.destination')=={'page':'detail','id':'public-home-7'}
+    assert await page.evaluate('window.__browse.savedId')=='public-home-9'
+    await grid.get_by_role('button',name='View Courtyard apartment 9',exact=True).click()
+    assert await page.evaluate('window.__browse.destination')=={'page':'detail','id':'public-home-9'}
     assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth')
     await page.evaluate('window.scrollTo(0,0)')
     await page.screenshot(path=str(OUT/f'homes-rail-grid-{width}-{theme}.png'),full_page=True)
@@ -301,9 +301,9 @@ async def main():
     await page.evaluate('window.__browse.hotelCount=8;window.__switchBrowseMode("public");window.__browse.calls=[]')
     await page.get_by_role('button',name='Hotels',exact=True).click()
     hotels_shelf=page.get_by_role('group',name='Hotels to explore listings',exact=True)
-    await expect(hotels_shelf.locator('[data-hotel-card]')).to_have_count(6)
-    hotels_grid=page.get_by_role('region',name='More hotels',exact=True)
-    await expect(hotels_grid.locator('[data-hotel-card]')).to_have_count(2)
+    await expect(hotels_shelf.locator('[data-hotel-card]')).to_have_count(8)
+    hotels_grid=page.get_by_role('group',name='More hotels listings',exact=True)
+    await expect(hotels_grid).to_have_count(0)
     first_hotel=hotels_shelf.locator('[data-hotel-card]').first
     await expect(first_hotel.get_by_text('Photos not available',exact=True)).to_be_visible()
     await expect(first_hotel.locator('[data-media-state="loading"]')).to_have_count(0)
@@ -313,7 +313,7 @@ async def main():
     assert await page.evaluate('window.__browse.calls.filter(c=>c.name==="getHotels").length')==hotel_reads
     await page.get_by_role('button',name='Show more hotels',exact=True).click()
     await expect(page.locator('[data-hotel-card]')).to_have_count(10)
-    await expect(hotels_grid.locator('[data-hotel-card]')).to_have_count(4)
+    await expect(hotels_grid.locator('[data-hotel-card]')).to_have_count(2)
     names=await page.locator('[data-hotel-card] h3').all_text_contents()
     assert len(names)==len(set(names))
     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')

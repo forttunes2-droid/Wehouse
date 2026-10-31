@@ -1,6 +1,7 @@
 import { validateMessageMedia, normaliseChatMediaType } from "@/lib/chatMediaPolicy";
 import { supabase } from "@/lib/supabase";
 import { ByteCache } from './byteCache';
+import {assertPrivateMessageText} from './privateMessageText';
 import {keepPrivateDeviceJwk, preparePrivateDeviceIdentity, readPrivateDeviceJwk, validatePrivateJwk} from './privateDeviceKeys';
 import {createPasskeyBackup, openPasskeyBackup, type PasskeyBackup} from './privatePasskeyBackup';
 import {assertPrivateMessagingSession,invalidatePrivateMessagingSession,onPrivateMessagingSessionInvalidated,privateMessagingSessionVersion,PrivateMessagingSessionChanged,storedPrivateMessagingKeyVersion} from './privateMessagingSession';
@@ -428,6 +429,7 @@ export function invalidatePrivateConversationKey(kind:PrivateConversationKind,co
 }
 
 export async function encryptPrivateMessage(kind: PrivateConversationKind, conversationId: string, peerUserId: string, content: string) {
+  assertPrivateMessageText(content);
   const version=privateMessagingSessionVersion();
   const {key,token,keyId} = await conversationKey(kind, conversationId, peerUserId);
   const iv = crypto.getRandomValues(new Uint8Array(12));

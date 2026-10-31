@@ -51,6 +51,9 @@ begin
  alter table public.experience_bookings enable trigger guard_experience_booking_contract;
  perform pg_temp.expect((public.get_my_experience_review(bid)->>'eligible')::boolean,'paid confirmed attendance and completion earns a review');
  r:=public.submit_my_experience_review(bid,4,'Useful orientation with clear instructions.');old_stamp:=r.updated_at;
+ perform pg_temp.expect((public.get_worker_marketplace_trust(hid)->>'completed_activity_sessions')::integer=1,'Provider history counts a fulfilled activity session');
+ perform pg_temp.expect((public.get_worker_marketplace_trust(hid)->>'review_count')::integer=1 and (public.get_worker_marketplace_trust(hid)->>'rating')::numeric=4,'Provider rating uses the earned customer review');
+ perform pg_temp.expect((public.get_published_experience(aid)->'host_summary'->>'completed_activity_sessions')::integer=1,'activity details include host totals without another request');
  perform pg_temp.expect(public.submit_my_experience_review(bid,4,'Useful orientation with clear instructions.')=r,'uncertain submission retries reuse the same review');
  r:=public.submit_my_experience_review(bid,5,'Updated after considering the full activity.',old_stamp);
  perform pg_temp.expect(pg_temp.rejects(format('select public.submit_my_experience_review(%L,3,%L,%L)',bid,'Stale competing edit',old_stamp)),'stale review edit rejected');
@@ -66,6 +69,7 @@ begin
  perform pg_temp.expect(pg_temp.rejects(format('select public.admin_resolve_content_report(%L,%L,%L)',receipt,'actioned','False removal receipt')),'generic report closure cannot pretend review removal');
  result:=public.moderate_provider_review(receipt,true,'Contains information requiring a privacy review.',r.updated_at,gen_random_uuid());
  perform pg_temp.expect(result->'review'->>'hidden_at' is not null,'atomic moderation hides review');
+ perform pg_temp.expect((public.get_worker_marketplace_trust(hid)->>'review_count')::integer=0 and (public.get_worker_marketplace_trust(hid)->>'completed_activity_sessions')::integer=1,'hidden feedback stops affecting rating without erasing fulfilled work');
  perform set_config('request.jwt.claims',jsonb_build_object('sub',s,'session_id',ss,'role','authenticated')::text,true);
  perform pg_temp.expect((public.get_public_experience_reviews(aid)->'summary'->>'count')::integer=0,'hidden feedback removed from activity score');
  perform pg_temp.expect(exists(select 1 from public.notifications where recipient_id=sid and source_id=bid::text and destination_route='experience_booking' and type='provider_review_moderation'),'reviewer decision reaches exact booking');

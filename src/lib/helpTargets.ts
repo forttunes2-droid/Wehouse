@@ -67,7 +67,7 @@ export function helpRecordStatus(target: HelpTarget): string {
   return labels[status] || (target.status || target.detail || "").replace(/_/g, " ");
 }
 export function helpRecordType(target: HelpTarget): string {
-  const types: Record<string, string> = { apartment_reservation: target.stay_type === "short_let" ? "Short Let" : "Long Let", hotel_booking: "Hotel stay", hotel_property: "Hotel", property_listing: "Home", property_inspection: "Property submission", worker_booking: "Service job", experience_booking: "Experience" };
+  const types: Record<string, string> = { apartment_reservation: target.stay_type === "short_let" ? "Short Let" : "Long Let", hotel_booking: "Hotel stay", hotel_property: "Hotel", property_listing: "Home", property_inspection: "Property submission", worker_booking: "Service job", experience_booking: "Activity" };
   return types[target.context_type || ""] || (target.subject_type === "worker" ? "Worker profile" : target.subject_type === "payout" ? "Withdrawal" : "Account");
 }
 export function helpRecordCurrent(target: HelpTarget): boolean {

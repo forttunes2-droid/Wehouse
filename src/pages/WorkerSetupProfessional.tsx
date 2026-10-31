@@ -17,6 +17,8 @@ import ProfilePhotoEditor from "@/components/ProfilePhotoEditor";
 import { occupationForService, workerOccupation } from "@/lib/workerTaxonomy";
 import { formatMoney } from "@/lib/regional";
 import {withTimeout} from '@/lib/withTimeout';
+import ServiceOfferPhotosPanel from '@/components/ServiceOfferPhotosPanel';
+import {Dialog,DialogContent,DialogHeader,DialogTitle} from '@/components/ui/dialog';
 
 type Props = {
   profile: Profile;
@@ -26,6 +28,7 @@ type Props = {
 };
 
 type SelectedService = {
+  id?: string;
   categoryId: string;
   categoryName: string;
   name: string;
@@ -44,6 +47,7 @@ export default function WorkerSetupProfessional({
   const [specialty, setSpecialty] = useState("");
   const [servicePrice, setServicePrice] = useState("");
   const [services, setServices] = useState<SelectedService[]>([]);
+  const [photoService,setPhotoService]=useState<SelectedService|null>(null),[photoBusy,setPhotoBusy]=useState(false);
   const [initialServicesKey, setInitialServicesKey] = useState("");
   const [baselineProfile,setBaselineProfile]=useState(profile);
   const initialOccupation = workerOccupation(profile);
@@ -96,13 +100,14 @@ export default function WorkerSetupProfessional({
 
       const canonical = await withTimeout(supabase
         .from("worker_services")
-        .select("service_name,price")
+        .select("id,service_name,price")
         .eq("worker_id", profile.user_id)
         .order("created_at"),15000,'Your saved services took too long to load. Refresh before editing.');
       if (!active) return;
       if(canonical.error)throw canonical.error;
 
       const canonicalRows = (canonical.data || []) as Array<{
+        id: string;
         service_name: string;
         price: number | null;
       }>;
@@ -115,6 +120,7 @@ export default function WorkerSetupProfessional({
           ),
         );
         return {
+          id: row.id,
           categoryId: match?.category.id || "",
           categoryName: match?.category.name || "",
           name: String(row.service_name || "").trim(),
@@ -233,7 +239,7 @@ export default function WorkerSetupProfessional({
     setServices((current) => current.filter((_, itemIndex) => itemIndex !== index));
   }
 
-  async function save(event: React.FormEvent) {
+  async function save(event: React.FormEvent,stayForPhotos=false) {
     event.preventDefault();
     if(busy||servicesLoading||loadError)return;
     setSaveError('');
@@ -285,6 +291,14 @@ export default function WorkerSetupProfessional({
     setInitialLocationKey(JSON.stringify(location));
     if(savedProfile)setBaselineProfile(savedProfile);
     toast.success("Service Worker profile saved");
+    if(stayForPhotos){
+      try{
+      const {data,error:reloadError}=await withTimeout(supabase.from('worker_services').select('id,service_name').eq('worker_id',profile.user_id),15000,'Services saved. Refresh before adding photos.');
+      if(reloadError){setSaveError('Services saved, but their photo references could not be loaded. Refresh before adding photos.');return;}
+      setServices(current=>current.map(item=>({...item,id:data?.find(row=>row.service_name.trim().toLowerCase()===item.name.trim().toLowerCase())?.id})));
+      }catch{setSaveError('Services saved, but their photo references could not be confirmed. Refresh before adding photos.');}
+      return;
+    }
 
     if (!savedProfile?.worker_verified) {
       if (onContinueVerification) {
@@ -374,6 +388,7 @@ export default function WorkerSetupProfessional({
                     >
                       Remove
                     </button>
+                    {item.id&&<button type="button" disabled={busy} onClick={()=>setPhotoService(item)} className="min-h-11 px-2 text-xs font-semibold text-[var(--wh-accent-text)]">Photos</button>}
                   </div>
                 ))}
               </div>
@@ -405,6 +420,7 @@ export default function WorkerSetupProfessional({
                 disabled={!category}
               />
             </div>
+            {services.some(item=>!item.id)&&<div className="mt-4 space-y-2"><p className="text-xs text-[var(--wh-text-secondary)]">Save your services to add a separate cover and gallery for each one.</p><button type="button" disabled={busy||servicesLoading} onClick={event=>void save(event,true)} className="min-h-11 rounded-xl border border-[var(--wh-border)] px-4 text-sm font-semibold">Save and add service photos</button></div>}
             <div className="mt-3">
               <Field
                 label={`Starting price (${currencySymbol()}) · optional`}
@@ -430,7 +446,7 @@ export default function WorkerSetupProfessional({
             </div>
             <label className="mt-3 block">
               <span className="mb-1.5 block text-[10px] font-medium text-[var(--wh-text-muted)]">
-                Experience
+                Work experience
               </span>
               <textarea
                 value={experience}
@@ -486,6 +502,7 @@ export default function WorkerSetupProfessional({
           </fieldset>
         </form>
       </main>
+      <Dialog open={Boolean(photoService)} onOpenChange={open=>{if(!open&&!photoBusy)setPhotoService(null);}}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl" onEscapeKeyDown={event=>{if(photoBusy)event.preventDefault();}} onInteractOutside={event=>{if(photoBusy)event.preventDefault();}}><DialogHeader><DialogTitle>Service photos</DialogTitle></DialogHeader>{photoService?.id&&<ServiceOfferPhotosPanel key={photoService.id} serviceId={photoService.id} workerId={profile.user_id} name={photoService.name} onBusyChange={setPhotoBusy}/>}</DialogContent></Dialog>
     </div>
   );
 }

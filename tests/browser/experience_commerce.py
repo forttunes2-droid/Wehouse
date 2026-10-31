@@ -89,12 +89,12 @@ async def main():
    for mode in ('customer-paid','customer-late','customer-complete','host-ready','publication','host-list','bookings'):
     s,ctx,p,errors=await page_for(browser,mode,theme)
     if mode in ('customer-paid','customer-late'):
-     await p.get_by_role('button',name='Cancel booking',exact=True).click();await p.get_by_label('Reason',exact=True).fill('Plans changed and I need to cancel this activity.');await p.get_by_role('button',name='Confirm cancellation' if mode=='customer-paid' else 'Request cancellation review',exact=True).click();await expect(p.get_by_text('Experience · '+('Refund pending' if mode=='customer-paid' else 'WeHouse review'),exact=True)).to_be_visible()
-    elif mode=='customer-complete':await p.get_by_role('button',name='Confirm completion and release payment',exact=True).click();await expect(p.get_by_text('Experience · Completed',exact=True)).to_be_visible()
+     await p.get_by_role('button',name='Cancel booking',exact=True).click();await p.get_by_label('Reason',exact=True).fill('Plans changed and I need to cancel this activity.');await p.get_by_role('button',name='Confirm cancellation' if mode=='customer-paid' else 'Request cancellation review',exact=True).click();await expect(p.get_by_text('Activity · '+('Refund pending' if mode=='customer-paid' else 'WeHouse review'),exact=True)).to_be_visible()
+    elif mode=='customer-complete':await p.get_by_role('button',name='Confirm completion and release payment',exact=True).click();await expect(p.get_by_text('Activity · Completed',exact=True)).to_be_visible()
     elif mode=='host-ready':await p.get_by_role('button',name='Mark session finished',exact=True).click();await expect(p.get_by_role('button',name='Mark session finished',exact=True)).to_have_count(0)
     elif mode=='publication':await p.get_by_role('button',name='Publish activity and dates',exact=True).click();await expect(p.get_by_text('Published · Customers can view dates',exact=True)).to_be_visible()
     elif mode=='host-list':await p.get_by_role('button',name=DETAILS['title'],exact=False).click();await expect(p.get_by_text('Your accepted net earnings',exact=True)).to_be_visible()
-    else:await p.get_by_role('button',name='Experiences',exact=True).click();await p.get_by_role('button',name='Open Experience booking for '+DETAILS['title'],exact=True).click();await expect(p.get_by_role('heading',name=DETAILS['title'],exact=True)).to_be_visible()
+    else:await p.get_by_role('button',name='Activities',exact=True).click();await p.get_by_role('button',name='Open Activity booking for '+DETAILS['title'],exact=True).click();await expect(p.get_by_role('heading',name=DETAILS['title'],exact=True)).to_be_visible()
     if mode in ('customer-paid','customer-late','customer-complete','host-ready','host-list','bookings'):
      await p.get_by_text('Your booked activity',exact=True).click();await expect(p.get_by_text(DETAILS['what_to_expect'],exact=True)).to_be_visible();await expect(p.get_by_role('heading',name='Included',exact=True)).to_be_visible()
      await p.evaluate("window.addEventListener('openSupportChat',e=>{window.__activityHelp=e.detail})")

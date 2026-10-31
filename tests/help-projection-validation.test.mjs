@@ -26,7 +26,7 @@ test('Experience Help retains booking and workspace across work, money and safet
   const activity={subject_type:'experience_booking',subject_id:'activity-booking',context_type:'experience_booking',label:'Campus cooking class',status:'completed'};
   assert.equal(isHelpTargetsResponse({account,payment_targets:[activity],experience_bookings:[activity]}),true);
   assert.equal(isHelpTargetsResponse({account,payment_targets:[],experience_bookings:[null]}),false);
-  assert.equal(helpRecordType(activity),'Experience');
+  assert.equal(helpRecordType(activity),'Activity');
   assert.equal(filterHelpRecords([activity],'cooking',false).length,0);
   assert.equal(filterHelpRecords([activity],'cooking',true).length,1);
   for(const workspace of ['personal','worker'])for(const reason of ['experience_booking_help','payment_issue','safety_threat']){

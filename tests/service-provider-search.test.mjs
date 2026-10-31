@@ -5,8 +5,10 @@ import vm from 'node:vm';
 import ts from 'typescript';
 const code=ts.transpileModule(readFileSync('src/lib/supabase/workers-public.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const filters={country:'NG',query:'Keffi cleaner',category:'Home care',specialty:'Cleaning',state:'Nasarawa',city:'Keffi'};
+const photoApi={};
+vm.runInNewContext(ts.transpileModule(readFileSync('src/lib/serviceOfferPhotos.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:photoApi,require:name=>name==='./supabase/client'?{supabase:{}}:name==='./supabase/utils'?{}:name==='./withTimeout'?{withTimeout:async task=>task}:(()=>{throw Error('Unexpected photo dependency '+name);})(),Error,Set,Map,Promise,Number,Array});
 const row=id=>({user_id:id,rating:4.5,review_count:3,full_name:'Public provider'});
-function harness(result){const api={},calls=[];vm.runInNewContext(code,{exports:api,require:name=>name==='./client'?{supabase:{rpc:async(name,args)=>{calls.push({name,args});return result;}}}:name==='@/lib/withTimeout'?{withTimeout:async task=>task}:(()=>{throw Error('Unexpected import '+name);})(),Error,Set,Map,Promise,Number,Array});return{api,calls};}
+function harness(result){const api={},calls=[];vm.runInNewContext(code,{exports:api,require:name=>name==='./client'?{supabase:{rpc:async(name,args)=>{calls.push({name,args});return result;}}}:name==='@/lib/serviceOfferPhotos'?photoApi:name==='@/lib/withTimeout'?{withTimeout:async task=>task}:(()=>{throw Error('Unexpected import '+name);})(),Error,Set,Map,Promise,Number,Array});return{api,calls};}
 test('service pages keep the complete filter/cursor contract and bound typed text',async()=>{
  const items=Array.from({length:24},(_,i)=>row('provider-'+(24-i))),next_cursor={id:'provider-1',rating:4.5,reviews:3};
  const h=harness({data:{items,has_more:true,next_cursor},error:null});const result=await h.api.searchServiceProviders({...filters,query:'a'.repeat(90)},next_cursor);
@@ -29,4 +31,12 @@ test('shared Provider lookups are bounded, deduplicated and reject another retur
 test('failed search and link reads stay failures rather than showing fabricated results',async()=>{
  const h=harness({data:null,error:{message:'Synthetic unavailable'}});
  await assert.rejects(h.api.searchServiceProviders(filters),/Synthetic unavailable/);await assert.rejects(h.api.getServiceProvidersByIds(['known']),/Synthetic unavailable/);
+});
+test('service search covers must belong to the returned Provider and exact offering',async()=>{
+ const id='9755d000-1000-4000-8000-000000000001',photoId='9755d000-2000-4000-8000-000000000001';
+ const prefix=`known/${id}/${photoId}/`,cover={id:photoId,image:prefix+'full.jpg',preview:prefix+'preview.jpg',caption:'This service'};
+ const offer={id,name:'Cleaning',price:1000,price_type:'starting_from',cover};
+ const receipt=value=>harness({data:{items:[{...row('known'),service_offer:value}],has_more:false},error:null}).api.searchServiceProviders(filters);
+ assert.equal((await receipt(offer)).workers[0].service_offer.cover.preview,cover.preview);
+ for(const bad of [{...offer,id:'another-service'},{...offer,price:-1},{...offer,cover:{...cover,preview:'someone-else/preview.jpg'}},{...offer,cover:{...cover,caption:''}}])await assert.rejects(receipt(bad));
 });

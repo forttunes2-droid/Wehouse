@@ -351,7 +351,13 @@ jobs:
       - name: Enforce the approved unpaid home hold limit and Creator authority
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/unpaid_home_hold_limit_contract.sql
-      - name: Verify seeded Services availability and deliberate operational pauses
+      - name: Bound private-message payloads and new Service requests with retry recovery
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/private_message_and_request_budget_contract.sql
+        - name: Verify separate service photos, stable offering identities and Storage ownership
+          if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+          run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/service_offer_photos_contract.sql
+        - name: Verify seeded Services availability and deliberate operational pauses
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/wehouse-contract-supabase/tests/service_availability_default_contract.sql
       - name: Verify existing plan billing during workspace restrictions

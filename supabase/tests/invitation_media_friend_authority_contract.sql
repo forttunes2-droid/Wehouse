@@ -85,7 +85,7 @@ select pg_temp.expect(not private.admin_can_mutate_listing_media('listing-images
 select pg_temp.expect(not private.admin_can_mutate_listing_media('listing-images','listings/9755a000-4000-4000-8000-000000000003/fixture.jpg'),'branch Admin cannot manage another state');
 select pg_temp.expect(pg_temp.denied($q$select public.reserve_my_media_upload('listing-images','listings/9755a000-4000-4000-8000-000000000003/new.jpg')$q$,'cannot upload'),'out-of-scope media is rejected before reserving budget');
 with removed as(delete from storage.objects where id in('9755a000-5000-4000-8000-000000000001','9755a000-5000-4000-8000-000000000002','9755a000-5000-4000-8000-000000000003') returning id)
-select pg_temp.expect(count(*)=1,'Storage DELETE applies the branch scope') from removed;
+select pg_temp.expect(count(*)=1,'Storage DELETE applies the branch scope; removed '||count(*)) from removed;
 with changed as(update storage.objects set name=name||'.changed' where id='9755a000-5000-4000-8000-000000000002' returning id)
 select pg_temp.expect(count(*)=0,'Storage UPDATE cannot move another branch media') from changed;
 select set_config('request.jwt.claims','{"sub":"9755a000-0000-4000-8000-000000000006","session_id":"9755a000-0000-4000-8000-000000000006","role":"authenticated","aal":"aal2"}',true);

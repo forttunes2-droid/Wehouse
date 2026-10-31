@@ -136,8 +136,8 @@ const OPS: Array<{
   },
   {
     id: "refunds",
-    label: "Service and Experience refunds",
-    note: "Review protected Service and Experience refunds and decisions.",
+    label: "Service and Activity refunds",
+    note: "Review protected Service and Activity refunds and decisions.",
     group: "Platform",
   },
   {

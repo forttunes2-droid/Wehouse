@@ -475,7 +475,7 @@ try {
     for(const theme of ['light','dark'])for(const width of [320,768,1440]){
       const page=await browser.newPage({viewport:{width,height:1000}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
       await page.goto(base+'/?mode=experience-applications-create');await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
-      await page.getByRole('button',{name:'Create an Experience',exact:true}).click();
+      await page.getByRole('button',{name:'Create an activity',exact:true}).click();
       for(const label of ['State or region','Local government or district','City or town'])assert.equal(await page.getByLabel(label,{exact:true}).inputValue(),'','New activity location is entered explicitly, not copied from a private home');
       await page.getByLabel('Category',{exact:true}).selectOption('culture_tours');
       await page.getByLabel('Activity name',{exact:true}).fill('Campus orientation walk');
@@ -496,9 +496,9 @@ try {
       const page=await browser.newPage({viewport:{width:390,height:900}});await page.goto(base+'/?mode='+mode);
       if(mode.endsWith('category-error')){
         await page.getByRole('button',{name:/Campus orientation walk/}).waitFor();await page.getByRole('button',{name:'Retry categories',exact:true}).waitFor();
-        assert.equal(await page.getByRole('button',{name:'Create an Experience',exact:true}).isDisabled(),true);
+        assert.equal(await page.getByRole('button',{name:'Create an activity',exact:true}).isDisabled(),true);
         await page.evaluate(()=>{window.__walletPro.recover=true;});await page.getByRole('button',{name:'Retry categories',exact:true}).click();
-        await page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Create an Experience')?.disabled);
+        await page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Create an activity')?.disabled);
       }else if(mode.endsWith('linked')){
         await page.getByRole('button',{name:'Retry application link',exact:true}).waitFor();await page.evaluate(()=>{window.__walletPro.recover=true;});await page.getByRole('button',{name:'Retry application link',exact:true}).click();
         await page.getByLabel('Activity name',{exact:true}).waitFor();assert.equal(await page.getByLabel('Activity name',{exact:true}).inputValue(),'Campus orientation walk');

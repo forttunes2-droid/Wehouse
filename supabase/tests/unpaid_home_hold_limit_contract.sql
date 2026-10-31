@@ -25,10 +25,11 @@ on conflict(key) do update set value='10000',is_active=true;
 insert into public.listings(id,listing_id,title,property_type,sub_type,state,city,status,availability_status,owner_id,partner_id,price)
 select ('9755b000-3000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'quota-home-'||n,'Quota fixture '||n,'apartment','long_stay','Lagos','Ikeja',
  case when n<=3 then 'reserved' else 'available' end,case when n<=3 then 'reserved' else 'available' end,'quota-owner','quota-owner',100000 from generate_series(1,4) n;
-insert into public.reservations(id,listing_id,user_id,status,reservation_type,stay_type,manual_payment_status,payment_expires_at)
-select 'quota-hold-'||n,('9755b000-3000-4000-8000-'||lpad(least(n,4)::text,12,'0')),'quota-customer',
+insert into public.reservations(id,listing_id,user_id,status,reservation_type,stay_type,manual_payment_status,payment_expires_at,stay_check_in,stay_check_out,stay_nights)
+select 'quota-hold-'||n,('9755b000-3000-4000-8000-'||lpad((case when n=4 then 6 else n end)::text,12,'0')),'quota-customer',
  case when n=5 then 'reserved' else 'payment_pending' end,'apartment',case when n=2 then 'short_let' else 'long_stay' end,
- case when n=5 then 'paid' else 'unpaid' end,case when n=4 then now()-interval '1 minute' else now()+interval '30 minutes' end from generate_series(1,5) n;
+ case when n=5 then 'paid' else 'unpaid' end,case when n=4 then now()-interval '1 minute' else now()+interval '30 minutes' end,
+ case when n=2 then current_date+1 end,case when n=2 then current_date+2 end,case when n=2 then 1 end from generate_series(1,5) n;
 set local session_replication_role=origin;
 select set_config('request.jwt.claims','{"sub":"9755b000-0000-4000-8000-000000000001","session_id":"9755b000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;

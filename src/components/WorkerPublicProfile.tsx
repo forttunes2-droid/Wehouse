@@ -19,6 +19,9 @@ import PublicProfileSurface from "@/components/PublicProfileSurface";
 import { formatRecordedMoney } from "@/lib/regional";
 import { saveServiceProvider, unsaveServiceProvider } from '@/lib/supabase/saved-service-providers';
 import WorkerShareDialog from '@/components/WorkerShareDialog';
+import {useServicePhotoUrls} from '@/hooks/useServicePhotoUrls';
+import {servicePhoto,type ServiceOfferPhoto} from '@/lib/serviceOfferPhotos';
+import {Dialog,DialogContent,DialogHeader,DialogTitle} from '@/components/ui/dialog';
 
 type Post = ShowcasePost;
 type Trust = {
@@ -26,6 +29,8 @@ type Trust = {
   trusted?: boolean;
   trusted_enabled?: boolean;
   completed_jobs?: number;
+  completed_activity_sessions?: number;
+  rating_counts?: number[];
   rating?: number;
   review_count?: number;
   worker_cancel_rate?: number;
@@ -41,7 +46,7 @@ type PublicReview = {
   service_name: string;
 };
 type PublicPackage = { id: string; title: string; description: string; price_ngn: number };
-type PublicServiceOffer = { service_name: string; price: number | null; price_type: string | null };
+type PublicServiceOffer = { id:string;service_name: string; price: number | null; price_type: string | null;photos:ServiceOfferPhoto[] };
 type PostReaction = {
   post_id: string;
   emoji: string;
@@ -91,7 +96,11 @@ function WorkerProfileContent({
   const [trust, setTrust] = useState<Trust | null>(null), [reviews, setReviews] = useState<PublicReview[]>([]);
   const [packages, setPackages] = useState<PublicPackage[]>([]);
   const [serviceOffers, setServiceOffers] = useState<PublicServiceOffer[]>([]);
+  const [servicePhotoView,setServicePhotoView]=useState<ServiceOfferPhoto|null>(null);
+  const servicePreviews=useServicePhotoUrls(serviceOffers.flatMap(offer=>offer.photos?.map(photo=>photo.preview)||[]),viewerUserId);
+  const selectedServicePhoto=useServicePhotoUrls(servicePhotoView?[servicePhotoView.image]:[],viewerUserId);
   const [serviceOffersLoading, setServiceOffersLoading] = useState(true);
+  const [serviceOffersError,setServiceOffersError]=useState('');
   const [providerSaved, setProviderSaved] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [savingProvider, setSavingProvider] = useState(false);
@@ -107,7 +116,7 @@ function WorkerProfileContent({
     try { const ready = await showcase.refreshPost(post); if (request === openSequence.current && activeWorker.current === identity) setViewer(ready); }
     catch { if (request === openSequence.current && activeWorker.current === identity) setMediaFailed(true); }
   }
-  useEffect(() => { setViewer(null); setSection("work"); openSequence.current++; }, [worker.user_id, privateConversationMode]);
+  useEffect(() => { setViewer(null);setServicePhotoView(null); setSection("work"); openSequence.current++; }, [worker.user_id, privateConversationMode]);
   useEffect(() => {
     let live = true;
     setProviderSaved(false);
@@ -125,19 +134,20 @@ function WorkerProfileContent({
   }
   useEffect(() => {
     let active = true;
-    setTrust(null); setReviews([]); setPackages([]); setServiceOffers([]); setServiceOffersLoading(!privateConversationMode); setFeaturedPosts([]); setPostReactions({}); setReviewError(""); setTrustError(""); setReviewLoading(!privateConversationMode);
+    setTrust(null); setReviews([]); setPackages([]); setServiceOffers([]); setServiceOffersError('');setServiceOffersLoading(!privateConversationMode); setFeaturedPosts([]); setPostReactions({}); setReviewError(""); setTrustError(""); setReviewLoading(!privateConversationMode);
     if (privateConversationMode) return;
     void withTimeout(
       supabase.from("worker_services")
-        .select("service_name,price,price_type")
+        .select("id,service_name,price,price_type,photos")
         .eq("worker_id", worker.user_id)
         .order("service_name"),
       15000,
       "Services took too long.",
     ).then(({ data, error }) => {
+      if(error)throw error;
       if (active && !error && Array.isArray(data))
-        setServiceOffers(data as PublicServiceOffer[]);
-    }).catch(() => undefined).finally(() => {
+        setServiceOffers(data.map(row=>({...row,photos:(row.photos||[]).map((p:unknown)=>servicePhoto(p,row.id,worker.user_id))})) as PublicServiceOffer[]);
+    }).catch(() => {if(active)setServiceOffersError('Services could not be loaded. Please retry.');}).finally(() => {
       if (active) setServiceOffersLoading(false);
     });
     void withTimeout(supabase.rpc("get_worker_marketplace_trust", { p_worker_id: worker.user_id }), 15000, "Profile totals took too long.").then(result => {
@@ -216,11 +226,11 @@ function WorkerProfileContent({
       {viewerUserId && viewerUserId !== worker.user_id && !previewMode && showBookingAction ? <section><button type="button" disabled={savingProvider} aria-pressed={providerSaved} onClick={() => void toggleProviderSave()} className="min-h-11 rounded-xl border border-[var(--wh-border)] bg-[var(--wh-surface)] px-4 text-sm font-semibold text-[var(--wh-text)] disabled:opacity-50">{savingProvider ? 'Saving…' : providerSaved ? 'Saved service provider' : 'Save service provider'}</button></section> : null}
       {previewMode && <p className="rounded-xl border border-violet-400/20 bg-violet-400/[.08] px-4 py-3 text-sm leading-5 text-violet-100">Creator preview · customer actions are disabled. Public availability is controlled separately.</p>}
       {trust ? <section className="flex flex-wrap gap-x-6 gap-y-2 border-y border-[var(--wh-border-subtle)] py-4 text-sm text-[var(--wh-text-secondary)]">
-        {reviewCount > 0 && <span>★ {rating.toFixed(1)} · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>}<span>{Number(trust.completed_jobs || 0)} completed jobs</span>
+        {reviewCount > 0 && <span>★ {rating.toFixed(1)} / 5 · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}</span>}<span>{Number(trust.completed_jobs || 0)} completed services</span><span>{Number(trust.completed_activity_sessions || 0)} activity sessions completed</span>
       </section> : trustError ? <p className="text-sm text-[var(--wh-text-secondary)]">{trustError} <button type="button" onClick={() => setAttempt(n => n + 1)} className="min-h-11 text-violet-300">Try again</button></p> : null}
       {worker.worker_experience?.trim() ? (
         <section aria-label="Work experience" className="space-y-2">
-          <h2 className="text-sm font-semibold">Experience</h2>
+          <h2 className="text-sm font-semibold">Work experience</h2>
           <p className="whitespace-pre-line text-sm leading-6 text-[var(--wh-text-secondary)]">{worker.worker_experience.trim()}</p>
         </section>
       ) : null}
@@ -228,7 +238,7 @@ function WorkerProfileContent({
         <section aria-label="Services and starting prices">
           <WeHouseLoadingState compact label="Loading services" />
         </section>
-      ) : serviceOffers.length > 0 ? (
+      ) : serviceOffersError ? <p role="alert" className="text-sm text-[var(--wh-text-secondary)]">{serviceOffersError} <button type="button" onClick={()=>setAttempt(n=>n+1)} className="min-h-11 underline">Retry services</button></p> : serviceOffers.length > 0 ? (
         <section aria-label="Services and starting prices" className="space-y-3">
           <div>
             <h2 className="text-sm font-semibold">Services</h2>
@@ -236,12 +246,14 @@ function WorkerProfileContent({
           </div>
           <ul className="divide-y divide-[var(--wh-border-subtle)] rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4">
             {serviceOffers.map((offer) => (
-              <li key={offer.service_name} className="flex items-center justify-between gap-4 py-3">
+              <li key={offer.id} className="space-y-3 py-3"><div className="flex items-center justify-between gap-4">
                 <span className="min-w-0 text-sm font-medium">{offer.service_name}</span>
                 <span className="shrink-0 text-sm text-[var(--wh-text-secondary)]">{servicePriceLabel(offer)}</span>
+                </div>{offer.photos.length>0&&<div className="flex gap-2 overflow-x-auto">{offer.photos.map(photo=><button key={photo.id} type="button" onClick={()=>setServicePhotoView(photo)} aria-label={`View ${offer.service_name}: ${photo.caption}`} className="w-32 shrink-0 overflow-hidden rounded-xl bg-[var(--wh-elevated)]">{servicePreviews.urls[photo.preview]?<img src={servicePreviews.urls[photo.preview]} loading="lazy" decoding="async" alt={photo.caption} className="aspect-[4/3] w-full object-cover"/>:<span className="grid aspect-[4/3] place-items-center p-2 text-xs text-[var(--wh-text-secondary)]">Photo unavailable</span>}</button>)}</div>}
               </li>
             ))}
           </ul>
+          {servicePreviews.error&&<p role="status" className="text-xs text-[var(--wh-text-secondary)]">{servicePreviews.error} <button type="button" onClick={servicePreviews.retry} className="min-h-11 underline">Refresh service photos</button></p>}
           <p className="text-xs leading-5 text-[var(--wh-text-muted)]">
             Final scope, date and total are reviewed with you before payment.
           </p>
@@ -256,6 +268,7 @@ function WorkerProfileContent({
         {reviewLoading ? <WeHouseLoadingState compact label="Loading reviews" /> : reviewError ? <div role="alert" className="py-6 text-sm text-[var(--wh-text-secondary)]">{reviewError}<button type="button" onClick={() => setAttempt(n => n + 1)} className="ml-2 min-h-11 text-violet-300">Try again</button></div> : reviews.length ? <div className="divide-y divide-[var(--wh-border-subtle)]">{reviews.map(review => <article key={review.id} className="py-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold">{review.reviewer_name}</p><p className="mt-1 text-xs text-[var(--wh-text-secondary)]">{review.service_name} · {new Date(review.created_at).toLocaleDateString()}</p></div><p aria-label={`${review.rating} out of 5`} className="text-sm text-amber-300">{"★".repeat(Math.max(0, Math.min(5, Number(review.rating))))}</p></div>{review.comment && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--wh-text-secondary)]">{review.comment}</p>}{viewerUserId&&!previewMode&&review.reviewer_name!=='Your review'&&<button type="button" onClick={()=>setReportedReview(review.id)} className="min-h-11 text-xs text-[var(--wh-text-secondary)] underline">Report this review</button>}</article>)}</div> : <p className="py-10 text-center text-sm text-[var(--wh-text-secondary)]">No customer reviews yet.</p>}
       </section>}
       {reportedReview&&<ReportDialog subjectType="provider_review" subjectUserId="" subjectRef={reportedReview} subjectName="customer review" onClose={()=>setReportedReview(null)}/>}
+      <Dialog open={Boolean(servicePhotoView)} onOpenChange={open=>{if(!open)setServicePhotoView(null);}}><DialogContent className="sm:max-w-3xl"><DialogHeader><DialogTitle>Service photo</DialogTitle></DialogHeader>{servicePhotoView&&(selectedServicePhoto.urls[servicePhotoView.image]?<img src={selectedServicePhoto.urls[servicePhotoView.image]} alt={servicePhotoView.caption} className="max-h-[70dvh] w-full object-contain"/>:<p role="status">{selectedServicePhoto.error||'Loading service photo…'}<button type="button" className="min-h-11 px-3 underline" onClick={selectedServicePhoto.retry}>Retry photo</button></p>)}<p className="text-sm text-[var(--wh-text-secondary)]">{servicePhotoView?.caption}</p></DialogContent></Dialog>
       {safetyAction ? <section className="mt-7 border-t border-[var(--wh-border-subtle)] pt-5">{safetyAction}</section> : null}
       {viewer && (
         <WorkerShowcasePostViewer

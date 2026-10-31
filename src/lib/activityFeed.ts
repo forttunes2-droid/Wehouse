@@ -252,11 +252,11 @@ export function activityDestinationLabel(row: Parameters<typeof resolveActivityD
   const type = String(row.type || "").toLowerCase();
   if (route === "detail") return "View home";
   if (route === "hotel_detail") return "View hotel";
-  if (route === "experience_application") return "Open Experience application";
+  if (route === "experience_application") return "Open Activity application";
   if(route==='service_booking')return 'Open Service booking';
-  if(route==='experience_booking')return 'Open Experience booking';
-  if(route==='experience_finance_review')return 'Review Experience booking';
-  if (route === "experience_review") return "Review Experience application";
+  if(route==='experience_booking')return 'Open Activity booking';
+  if(route==='experience_finance_review')return 'Review Activity booking';
+  if (route === "experience_review") return "Review Activity application";
   if (type === "hotel_team_invitation_response") return "View team access";
   if (type === "resource_invitation_response") return "View team access";
   if (type === "property_move_in_requested") return "Prepare handover";

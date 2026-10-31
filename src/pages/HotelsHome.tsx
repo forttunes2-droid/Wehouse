@@ -1,5 +1,6 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
 import DiscoveryRail from '@/components/DiscoveryRail';
+import DiscoveryRows from '@/components/DiscoveryRows';
 import {ImageOff} from 'lucide-react';
 import {matchesDiscoveryText} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
@@ -353,8 +354,7 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
   }
 
   const showBrowseRail = !query.trim() && filterCount===0 && !userLocation && !followedOrigin && filtered.length>6;
-  const browseHotels = showBrowseRail ? filtered.slice(0,6) : [];
-  const resultHotels = showBrowseRail ? filtered.slice(6) : filtered;
+
   const hotelCard = ({hotel,distance}: (typeof filtered)[number]) => (
     <HotelCard key={hotel.hotel_id} hotel={hotel} distance={distance}
       saved={savedHotelIds.has(Number(hotel.hotel_id))} saving={savingHotelId===Number(hotel.hotel_id)}
@@ -443,13 +443,8 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
           />
         ) : (
           <>
-            {showBrowseRail && <DiscoveryRail title="Hotels to explore">{browseHotels.map(hotelCard)}</DiscoveryRail>}
-            <section aria-label={showBrowseRail?'More hotels':'Hotel results'} className="space-y-4">
-              {showBrowseRail && <h2 className="text-lg font-semibold tracking-tight">More hotels</h2>}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {resultHotels.map(hotelCard)}
-              </div>
-            </section>
+            {showBrowseRail ? <DiscoveryRows title="Hotels to explore" moreTitle="More hotels">{filtered.map(hotelCard)}</DiscoveryRows> :
+              <section aria-label="Hotel results" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.map(hotelCard)}</section>}
           </>
         )}
         {!loading && hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="mx-auto block min-h-12 rounded-full border border-[var(--wh-border)] px-6 text-sm font-semibold text-[var(--wh-accent-text)] disabled:opacity-50">{loadingMore ? 'Loading more…' : 'Show more hotels'}</button>}

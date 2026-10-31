@@ -60,7 +60,7 @@ async def main():
      await summary.get_by_role('button',name=s.q['title'],exact=False).click();await expect(page.get_by_role('heading',name=s.q['title'],exact=True)).to_be_visible()
      await page.get_by_role('button',name='Mark session finished',exact=True).click();await expect(page.get_by_role('button',name='Mark session finished',exact=True)).to_have_count(0)
      await page.get_by_role('button',name='Back',exact=True).click();await expect(page.get_by_text('Waiting for participant completion',exact=True)).to_be_visible()
-     await page.get_by_role('button',name='View all activity bookings',exact=True).click();await expect(page.get_by_role('heading',name='Experience bookings',exact=True)).to_be_visible()
+     await page.get_by_role('button',name='View all activity bookings',exact=True).click();await expect(page.get_by_role('heading',name='Activity bookings',exact=True)).to_be_visible()
      assert not any(c['name'].startswith('activate_my_') for c in s.calls)
     assert not errors,errors;assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth')
     await page.screenshot(path=str(OUT/f'{mode}-{theme}-{width}.png'),full_page=True);results.append({'mode':mode,'theme':theme,'width':width});await ctx.close()

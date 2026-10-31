@@ -1,4 +1,6 @@
 import { hasLiveSession } from "../_shared/liveSession.ts";
+import {consumeUserAction} from '../_shared/rateLimit.ts';
+import {JsonRequestError,readSmallJsonRequest} from '../_shared/smallJsonRequest.ts';
 import { paymentMinorUnits, resolvePaymentMarket } from '../_shared/payment-market.ts';
 import {recordRentChargeRoute} from '../_shared/later-rent.ts';
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -10,6 +12,7 @@ const cors = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
   "Content-Type": "application/json",
+  "Cache-Control": "no-store",
 };
 
 async function sha256Hex(body: string) {
@@ -48,13 +51,17 @@ serve(async (req) => {
 
   let verifiedCharge = false;
   try {
-    const { reference, purpose } = await req.json();
-    if (!reference)
+    const { reference, purpose } = await readSmallJsonRequest(req);
+    if (typeof reference!=='string' || !/^[A-Za-z0-9._:-]{1,180}$/.test(reference) ||
+        purpose!==undefined && (typeof purpose!=='string'||purpose.length>80))
       return new Response(
         JSON.stringify({ success: false, error: "Reference is required" }),
         { status: 400, headers: cors },
       );
 
+    // Reject missing identity before inspecting private provider configuration.
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) return new Response(JSON.stringify({success:false,error:'Authorization required'}),{status:401,headers:cors});
     const url = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const paystackSecret = Deno.env.get("PAYSTACK_SECRET_KEY");
@@ -65,13 +72,6 @@ serve(async (req) => {
           error: "Server configuration incomplete",
         }),
         { status: 500, headers: cors },
-      );
-
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader)
-      return new Response(
-        JSON.stringify({ success: false, error: "Authorization required" }),
-        { status: 401, headers: cors },
       );
 
     const admin = createClient(url, serviceKey, {
@@ -141,10 +141,13 @@ serve(async (req) => {
         { status: 403, headers: cors },
       );
 
+    const budget=await consumeUserAction(admin,user.id,'payment_verify',20,300,true);
+    if(!budget.allowed)return new Response(JSON.stringify({success:false,error:'Too many payment checks. Wait before trying again.',retry_after_seconds:budget.retryAfterSeconds}),
+      {status:429,headers:{...cors,'Retry-After':String(budget.retryAfterSeconds)}});
     const paystackResponse = await fetch(
       `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
       {
-        headers: { Authorization: `Bearer ${paystackSecret}` },
+        headers: { Authorization: `Bearer ${paystackSecret}` },signal:AbortSignal.timeout(12000),
       },
     );
     if (!paystackResponse.ok)
@@ -374,7 +377,7 @@ serve(async (req) => {
           ...(verifiedCharge ? { verified: true, charged: true, requires_review: true } : {}),
         error: error instanceof Error ? error.message : "Internal error",
       }),
-      { status: verifiedCharge ? 200 : 500, headers: cors },
+      { status: verifiedCharge ? 200 : error instanceof JsonRequestError ? error.status : 500, headers: cors },
     );
   }
 });

@@ -88,7 +88,7 @@ export default function WorkspaceSwitchSheet({
                   : granted?.state
                     ? `${granted.state} · Whole State`
                     : workspace === "worker"
-                      ? "Your services, Experiences, bookings and earnings"
+                      ? "Your services, Activities, bookings and earnings"
                       : workspace === "property_partner"
                         ? "Properties, guests, earnings and partner work"
                         : workspace === "hosting"

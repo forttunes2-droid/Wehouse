@@ -22,7 +22,7 @@ const BOOKING_PURPOSES: Record<string, PurposeCopy> = {
   shared_housing_share: { heading: 'Your share is confirmed', action: 'Open my booking' },
   hotel_booking: { heading: 'Hotel booking confirmed', action: 'Open my booking' },
   worker_booking: { heading: 'Service payment confirmed', action: 'Open my booking' },
-  experience_booking: { heading: 'Experience booking confirmed', action: 'Open my booking' },
+  experience_booking: { heading: 'Activity booking confirmed', action: 'Open my booking' },
 };
 
 const BUSINESS_PURPOSES: Record<string, PurposeCopy> = {

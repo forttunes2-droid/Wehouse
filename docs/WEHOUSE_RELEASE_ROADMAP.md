@@ -85,16 +85,71 @@ home checkouts per person. The database enforces that shared Long/Short Let
 budget with an indexed count and per-person transaction lock; retries, expiry
 and paid bookings retain their stated behavior. Creator changes use the existing
 settings/elevation/audit systems, stale-update checks and a control inside
-Booking & money rules. The new isolated SQL contracts are pending CI; successful
-Test apply alone is not authorization/concurrency proof.
+Booking & money rules. Installed rollback contracts now pass these boundaries.
+The Native Storage permitted-delete case exposed a missing scoped SELECT policy;
+forward Test migration `20261031070343` supplies the same scoped mutation authority.
+The hold contract exposed a nullable-record retry check; `20261031071353` repairs
+the actual retry rather than weakening the contract. Fresh candidate CI remains
+required; the older `1ddc8abf` run failed these cases and the money-screen fixture.
 
-WR-16/21: the owner's latest browsing requirement applies to Roommates,
-Services, Experiences and Homes: repeated bounded horizontal rows down the
-page, preserving result identity, filters and pagination without duplicated
-cards or invented categories. Services mean work performed for a customer;
-Experiences mean host-guided participation. Both retain one Provider identity
-and workspace. Scoped existing team conversations and property pause/removal
+WR-14/15/16/21: customer wording is now **Services**, with **Request a service**
+for agreed work and **Book an activity** for scheduled host-guided participation.
+The existing activity booking/API records remain; there is no additional product,
+account or workspace. Providers write their own activity titles/details, choose a
+controlled category and submit the existing review/photo/evidence/session flow.
+Both use the same Provider identity, Inbox and earnings. Showcase is a separate
+portfolio; no Showcase post is reused as an offering cover.
+
+Service covers/galleries now attach to the existing `worker_services` row in Test
+(`20261031080101`). Editing services preserves IDs, attached photos and revisions.
+Normal service tools include up to three independently captioned photos, a chosen
+cover, compressed full image (700 KB) and preview (120 KB), private Storage with
+owner/public/reviewer boundaries, stale-edit protection and referenced-file delete
+guards. Staging files are bounded by the existing project quota plus per-Provider
+30 MB/80-object bounds, with native Storage cleanup for confirmed unused uploads.
+Search enriches its existing bounded page with the matching service cover/price;
+preview links are batched and full images load on opening. The installed rollback
+contract passes own/foreign service and uploader, stale/idempotent saves, direct
+write denial, actual setter identity preservation and protected cleanup cases.
+The complete gallery browser/upload journey is still pending CI/visual evidence.
+
+Provider totals (`20261031081303`, `20261031095837`) distinguish completed services
+from distinct fulfilled activity sessions. Shared earned-review records supply
+actual ratings and counts; paid/draft bookings do not create reviews. Activity-only
+Providers do not acquire a requested-service approval badge. Activity details
+include host totals in the existing response. The zero-review/service-count Test
+contract passes. The full application contract also passes on hosted Test,
+including earned activity counts, eligible rating changes and hidden-review
+handling; all synthetic rows rolled back. Its first connector attempt failed
+transport, and the completed retry supplied the actual successful result.
+Test's empty service catalog is seeded from the two existing Production categories
+and six services; existing Creator-managed catalogs are not overwritten. No new
+country or fictional activity catalog was added.
+
+Repeated eight-card horizontal rows now continue down Homes, Hotels, Roommates,
+Services and activity category browsing, preserving loaded order, identity and
+pagination. Explicit searches retain comparison grids where already appropriate.
+The shared discovery fixtures were updated for the changed row boundary; local
+browser rerun was declined, so no new screenshots/visual pass are claimed.
+Scoped existing team conversations and property pause/removal
 must be traced before adding another communication system or changing records.
+
+WR-09/19: `20261031071353` bounds encrypted sends (64 KiB ciphertext, six
+attachments, 90 new sends/minute) and Service requests (10/minute); owned confirmed
+Friend retries retain their receipt without consuming a new-send budget. Client
+plaintext is limited by UTF-8 bytes before key lookup/encryption. Installed
+rollback contracts and byte-boundary tests pass. Test `paystack-verify` v11 now
+checks a shared 20/5-minute verification budget before provider access, bounds the
+streamed request and times out the provider call. Test `reverse-geocode` v3 bounds
+requests/results, per-person traffic, warm cache and the global Nominatim provider
+slot (one request/second for the whole app); normal listing search is independent.
+The public Nominatim endpoint is not a large-scale geocoder. A configured alternate
+provider remains necessary as usage grows. Deno checks pass. Hosted anonymous
+boundary checks pass, including real 401/413 Edge responses. They exposed a
+configuration-before-authentication response in verification; Test v12 checks
+missing identity first. The source fixture additionally proves that throttled
+verification returns 429 without provider traffic. Signed-in provider, settlement
+and recovery proofs remain WR-06 and are not claimed by these anonymous probes.
 
 WR-17: read-only verification on 31 October confirmed both `wehouse.com.ng`
 and `www.wehouse.com.ng` still on `dpl_8BjJisMWjXqUT4ii74KzKcjMjaUr`, source

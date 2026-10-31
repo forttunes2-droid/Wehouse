@@ -11,6 +11,7 @@ const root=new URL('../../',import.meta.url);
 const modules={
  './privateMessagingSession':['src/lib/privateMessagingSession.ts','privateMessagingSessionVersion','assertPrivateMessagingSession','onPrivateMessagingSessionInvalidated','invalidatePrivateMessagingSession','PrivateMessagingSessionChanged','observePrivateMessagingAuth','rememberPrivateMessagingKeyVersion','storedPrivateMessagingKeyVersion','privateMessagingAuthIdentity'],
  './byteCache':['src/lib/byteCache.ts','ByteCache'],
+ './privateMessageText':['src/lib/privateMessageText.ts','MAX_PRIVATE_MESSAGE_TEXT_BYTES','assertPrivateMessageText'],
  './privateDeviceKeys':['src/lib/privateDeviceKeys.ts','readPrivateDeviceJwk','keepPrivateDeviceJwk','preparePrivateDeviceIdentity','samePrivatePublicKey','validatePrivateJwk'],
  './privatePasskeyBackup':['src/lib/privatePasskeyBackup.ts','passkeyBackupAvailable','privatePrfResult','publicPasskeyRegistration','sealPasskeyBackup','openPasskeyBackup','createPasskeyBackup'],
  './e2ee':['src/lib/e2ee.ts','rememberPrivateMessagingProfile','createEncryptionIdentity','unlockEncryptionIdentity','encryptionIdentityStatus','privateConversationReadiness','encryptPrivateMessage','decryptPrivateMessage','encryptPrivateAttachment','decryptPrivateAttachment','encryptedAttachmentsForSend','refreshPrivateMessageKeys','savePrivateChatPasskeyBackup','restorePrivateChatPasskeyBackup','removePrivateChatBackup','startPrivateChatsWithoutHistory'],

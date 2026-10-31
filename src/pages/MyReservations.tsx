@@ -193,7 +193,7 @@ export default function MyReservations({
       if(current!==loadGeneration.current)return;
       const nextErrors: BookingSourceErrors = {};
       if(experienceResult.status==='fulfilled'){setExperiences(experienceResult.value.items);setExperienceMore(experienceResult.value.has_more);experienceCursor.current=experienceResult.value.items.at(-1);}
-      else nextErrors.experiences='Experience bookings could not be refreshed.';
+      else nextErrors.experiences='Activity bookings could not be refreshed.';
       if(sharedResult.status==='fulfilled'&&!sharedResult.value.error) setSharedGroups(sharedResult.value.groups);
       else nextErrors.housing="Shared payments could not be refreshed.";
       if (housingResult.status === "fulfilled") {
@@ -718,7 +718,7 @@ export default function MyReservations({
     );
   }
 
-  async function moreExperiences(){if(experiencePagingLock.current)return;experiencePagingLock.current=true;setExperiencePaging(true);const current=loadGeneration.current;try{const p=await getExperienceBookings(false,experienceCursor.current);if(current===loadGeneration.current){setExperiences(old=>[...new Map([...old,...p.items].map(r=>[r.id,r])).values()]);setExperienceMore(p.has_more);experienceCursor.current=p.items.at(-1);}}catch{if(current===loadGeneration.current)setSourceErrors(old=>({...old,experiences:'Older Experience bookings could not be loaded. Retry the page.'}));}finally{experiencePagingLock.current=false;if(current===loadGeneration.current)setExperiencePaging(false);}}
+  async function moreExperiences(){if(experiencePagingLock.current)return;experiencePagingLock.current=true;setExperiencePaging(true);const current=loadGeneration.current;try{const p=await getExperienceBookings(false,experienceCursor.current);if(current===loadGeneration.current){setExperiences(old=>[...new Map([...old,...p.items].map(r=>[r.id,r])).values()]);setExperienceMore(p.has_more);experienceCursor.current=p.items.at(-1);}}catch{if(current===loadGeneration.current)setSourceErrors(old=>({...old,experiences:'Older Activity bookings could not be loaded. Retry the page.'}));}finally{experiencePagingLock.current=false;if(current===loadGeneration.current)setExperiencePaging(false);}}
   if(activeExperience)return <ExperienceBookingDetail key={activeExperience} id={activeExperience} viewerId={profile.user_id} onClose={()=>setActiveExperience(null)} onChanged={row=>setExperiences(old=>old.map(item=>item.id===row.id?row:item))}/>;
   if (activeServiceChat)
     return (
@@ -902,7 +902,7 @@ export default function MyReservations({
               { value: "long_let", label: "Long Let" },
               { value: "hotels", label: "Hotel" },
               { value: "services", label: "Services" },
-              { value: "experiences", label: "Experiences" },
+              { value: "experiences", label: "Activities" },
             ].map(option => {
               const selected = option.value === "all"
                 ? view === "all" && stayFilter === "all"
@@ -980,7 +980,7 @@ export default function MyReservations({
                   {group.map((item, index) => (
                     <div key={item.kind==='experience'?`experience-${item.row.id}`:item.kind === "housing" ? item.row.id : item.kind === "shared" ? `shared-${item.row.id}` : item.kind === "hotel" ? item.row.booking_id : item.row.booking_id || item.row.conversation_id}
                       className={index ? "border-t border-[var(--wh-border-subtle)]" : ""}>
-                      {item.kind==='experience'?<BookingCard eyebrow="Experience" title={item.row.contract.title} subtitle={item.row.host_name||'Experience host'} image={null} fallback="◎" status={experienceBookingLabel(item.row)} meta={[displayDateTimeAtProperty(item.row.contract.starts_at,item.row.contract.timezone),`${item.row.participants} participants`,formatRecordedMoney(item.row.contract.total_minor/100,item.row.contract.currency)]} next="View booking and next steps" onOpen={()=>setActiveExperience(item.row.id)} compact/>:item.kind === "housing" ? (
+                      {item.kind==='experience'?<BookingCard eyebrow="Activity" title={item.row.contract.title} subtitle={item.row.host_name||'Activity host'} image={null} fallback="◎" status={experienceBookingLabel(item.row)} meta={[displayDateTimeAtProperty(item.row.contract.starts_at,item.row.contract.timezone),`${item.row.participants} participants`,formatRecordedMoney(item.row.contract.total_minor/100,item.row.contract.currency)]} next="View booking and next steps" onOpen={()=>setActiveExperience(item.row.id)} compact/>:item.kind === "housing" ? (
                         <HousingCard row={item.row} onOpen={() => setActiveHousing(item.row)} compact />
                       ) : item.kind === "shared" ? (
                         <BookingCard eyebrow={item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
@@ -1000,7 +1000,7 @@ export default function MyReservations({
             ))}
           </div>
         )}
-        {experienceMore&&(view==='all'||view==='experiences')&&<button type="button" disabled={experiencePaging} onClick={()=>void moreExperiences()} className="mt-4 min-h-11 rounded-xl border border-[var(--wh-border)] px-4 text-sm">{experiencePaging?'Loading...':'Load older Experience bookings'}</button>}
+        {experienceMore&&(view==='all'||view==='experiences')&&<button type="button" disabled={experiencePaging} onClick={()=>void moreExperiences()} className="mt-4 min-h-11 rounded-xl border border-[var(--wh-border)] px-4 text-sm">{experiencePaging?'Loading...':'Load older Activity bookings'}</button>}
       </main>
 
       <ConfirmDialog
@@ -1070,7 +1070,7 @@ function BookingSourceNotice({
     errors.housing && "apartments",
     errors.hotels && "hotels",
     errors.services && "WeHouse Services",
-    errors.experiences && "Experiences",
+    errors.experiences && "Activities",
   ].filter(Boolean);
   return (
     <div
