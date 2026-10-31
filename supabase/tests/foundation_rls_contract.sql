@@ -33,6 +33,10 @@ begin
       -- Caller-only boolean used by the Data API hook and restrictive RLS.
       -- No parameters, account lookup, records or mutation authority.
       'request_mfa_satisfied()',
+      -- Data API entry guard: no arguments, no returned records, only rejection
+      -- of ended sessions/MFA failures. Public catalogue calls also invoke it.
+      -- api_session_revocation_contract checks live/ended/anonymous boundaries.
+      'wehouse_api_request_guard()',
       'get_property_site_offers(uuid,text,date,date,uuid)',
       'get_hotel_review_summary(integer)',
       'get_accommodation_rate_terms()',
@@ -47,6 +51,11 @@ begin
     ]);
   if unexpected is not null then
     raise exception 'Unexpected anonymous privileged RPC access: %',unexpected;
+  end if;
+  if not exists(select 1 from pg_proc where oid='public.wehouse_api_request_guard()'::regprocedure
+      and pronargs=0 and prorettype='void'::regtype and prosecdef
+      and proconfig @> array['search_path=""']) then
+    raise exception 'Public request guard acquired parameters, data output or an unsafe search path';
   end if;
 end;
 $$;

@@ -90,8 +90,12 @@ Password controls are distinguished explicitly: the username bridge has its
 existing 12-attempt/15-minute network throttle; direct Supabase Auth has its
 provider rate limits. Both now preserve a real 429 as a cooldown rather than
 misreporting a wrong password. Local configuration declares provider defaults,
-and a bounded loopback CI case exercises direct password-endpoint rejection
-and recovery. Hosted Auth settings still need read-back in WR-17. A global
+and a bounded loopback CI case checks direct password-endpoint rejection
+and recovery. Its initial run exposed that CLI Auth leaves the limiter's
+IP-header setting empty. The corrected fixture reuses the exact local Auth
+image/config in one temporary, resource-bounded CI container with a simulated
+trusted gateway header; it does not change hosted settings or increase hosted
+traffic. Hosted Auth settings still need read-back in WR-17. A global
 per-account password-attempt hook is **not active or claimed**: Supabase
 documents it as Teams/Enterprise, while this launch uses Free. No permanent
 target-account ban or browser-only lock was introduced. The Test username Edge
@@ -104,7 +108,8 @@ Only `.env.example` is tracked. Public Supabase publishable keys are expected;
 server service-role/payment/mail keys remain server environment inputs.
 The main build now checks **all** exposed `VITE_` variables after Vite loads
 them, and rejects recognised private credentials in emitted assets before
-publication. Three functional cases cover public/anon keys, private values
+publication. A real Vite invocation rejects a synthetic private key in an unused
+exposed variable before emitting assets. Three functional cases cover public/anon keys, private values
 under misleading names, unused fallbacks and secret-free error messages.
 This complements RLS/endpoint permissions; it is not a complete history or
 provider-infrastructure secret audit.
@@ -113,8 +118,13 @@ WR-16/23: the previous browser workflow failures were reproduced in its
 synthetic fixtures. Missing optional-passkey exports, an obsolete PIN-era
 heading and Windows path matching are repaired. Local stabilisation (48 cases),
 message attachments (44), Wallet/Pro (87), Friend history (both themes) and
-automatic private-chat setup/recovery (10) pass. The source suite passed 876
-checks before the three additional build-boundary cases. Exact combined-head
+automatic private-chat setup/recovery (10) pass. At `3584c964`, 879 source
+checks, the production build, isolated real-WebCrypto, direct Auth signup
+rejection and existing-account upgrade pass in CI. The new request hook's
+explicit anonymous endpoint inventory needed an exact-signature update;
+the corrected foundation contract passes on Test, with no arguments, void
+output and empty search path enforced. No broad exception was added.
+Exact combined-head
 CI, including fresh/upgrade migrations, real Auth HTTP and the isolated crypto
 fixture, must establish the new candidate result; these fixture counts do not
 close all 23 outcomes.
