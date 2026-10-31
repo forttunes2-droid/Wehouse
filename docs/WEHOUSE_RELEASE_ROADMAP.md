@@ -162,8 +162,19 @@ No Production change was made. Fresh/upgrade replay and all SQL contracts passed
 at `c71e212d`; its isolated crypto fixture failed because the copied-source
 allowlist omitted the new text guard. The repair keeps the same isolation and
 resource restrictions and adds an oversized-text-before-key-lookup assertion;
-its fresh CI receipt remains required. Source tests pass 885; TypeScript, focused
+Its fresh isolated crypto, fresh replay, SQL contracts and existing-account
+upgrade all pass at `1b2f2f08`. Source tests pass 885; TypeScript, focused
 lint and the app build pass. These are scoped results, not external-only readiness.
+
+WR-03/17: coordinated release preservation now includes existing Service rows.
+Original IDs, prices, descriptions and already-deployed galleries enter the
+before/after hash. Only `photos` and `photo_revision`, when actually absent at
+the starting schema, are treated as reviewed additions. A nonempty Service row
+is included in the existing-account upgrade fixture. Nine release unit checks
+and the installed rollback preservation contract pass, including changed price,
+replaced identity, changed existing gallery and deletion rejection. Production
+history reconciliation remains a separate unresolved check; this adds no alias
+exception and grants no apply approval.
 
 WR-17: read-only verification on 31 October confirmed both `wehouse.com.ng`
 and `www.wehouse.com.ng` still on `dpl_8BjJisMWjXqUT4ii74KzKcjMjaUr`, source

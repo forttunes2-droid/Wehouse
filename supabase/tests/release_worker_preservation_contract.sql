@@ -68,4 +68,36 @@ do $$ begin
  if pg_temp.worker_preservation_hash()=(select digest from worker_hash_before) then
   raise exception 'Unreviewed schema drift was hidden';end if;
 end $$;
+-- Service rows require the same protection. Adding the reviewed gallery columns
+-- may not hide a changed service ID, price, description or existing photo.
+create temporary table service_preservation_fixture(id uuid,worker_id text,service_name text,price integer,description text) on commit drop;
+create temporary table service_ignored_fields on commit drop as
+select name from unnest(array['photos','photo_revision']) fields(name)
+where not exists(select 1 from pg_attribute a where a.attrelid='pg_temp.service_preservation_fixture'::regclass and a.attname=name and a.attnum>0 and not a.attisdropped);
+create function pg_temp.service_preservation_hash() returns text language sql as $$
+ select md5(coalesce(string_agg((to_jsonb(t)-array(select name from service_ignored_fields))::text,''
+ order by (to_jsonb(t)-array(select name from service_ignored_fields))::text),'')) from service_preservation_fixture t
+$$;
+insert into service_preservation_fixture values('99999999-3333-4333-8333-999999999999','synthetic-worker','Original service',15000,'Original description');
+create temporary table service_hash_before(digest text) on commit drop;
+insert into service_hash_before values(pg_temp.service_preservation_hash());
+alter table service_preservation_fixture add column photos jsonb not null default '[]',add column photo_revision uuid not null default gen_random_uuid();
+do $$begin
+ if pg_temp.service_preservation_hash()<>(select digest from service_hash_before) then raise exception 'Reviewed gallery additions changed the original service hash';end if;
+ update service_preservation_fixture set price=16000;
+ if pg_temp.service_preservation_hash()=(select digest from service_hash_before) then raise exception 'A changed service price was hidden';end if;
+ update service_preservation_fixture set price=15000,id='99999999-3333-4333-8333-000000000001';
+ if pg_temp.service_preservation_hash()=(select digest from service_hash_before) then raise exception 'A replaced service identity was hidden';end if;
+ update service_preservation_fixture set id='99999999-3333-4333-8333-999999999999';
+end $$;
+-- On a later release, both gallery fields participate because they already exist.
+delete from service_ignored_fields;
+update service_hash_before set digest=pg_temp.service_preservation_hash();
+do $$begin
+ update service_preservation_fixture set photos='[{"image":"existing/gallery.jpg"}]';
+ if pg_temp.service_preservation_hash()=(select digest from service_hash_before) then raise exception 'A changed existing service gallery was hidden';end if;
+ update service_preservation_fixture set photos='[]';
+ delete from service_preservation_fixture;
+ if pg_temp.service_preservation_hash()=(select digest from service_hash_before) then raise exception 'A deleted service row was hidden';end if;
+end $$;
 rollback;
