@@ -36,4 +36,19 @@ select pg_temp.expect(pg_temp.denied($q$select public.create_booking_request('un
 select pg_temp.expect(public.send_friend_encrypted_message('9755c000-1000-4000-8000-000000000001','Ym9keQ==','aXY=','[]',null,'9755c000-2000-4000-8000-000000000002',current_setting('test.budget_envelope'))='9755c000-2000-4000-8000-000000000002','a new window recovers normal messaging');
 select pg_temp.expect(not has_function_privilege(current_user,'public.take_reverse_geocode_provider_slot()','execute'),'clients cannot reserve/bypass the shared geocoder slot');
 reset role;
+-- Install the actual table constraint on a scratch pair. A malformed input
+-- must fail with CHECK violation, rather than passing through SQL NULL logic.
+create temporary table coordinate_probe(service_latitude double precision,service_longitude double precision) on commit drop;
+do $$declare definition text;begin
+ select pg_get_constraintdef(oid) into definition from pg_constraint where conrelid='public.worker_bookings'::regclass and conname='worker_bookings_location_pair_check' and convalidated;
+ if definition is null then raise exception 'Validated coordinate constraint missing';end if;
+ execute 'alter table coordinate_probe add constraint actual_coordinate_pair '||definition;
+end $$;
+create function pg_temp.bad_coordinates(latitude double precision,longitude double precision) returns boolean language plpgsql as $$
+begin insert into coordinate_probe values(latitude,longitude);return false;exception when check_violation then return true;end $$;
+insert into coordinate_probe values(null,null),(0,0),(90,180),(-90,-180);
+select pg_temp.expect(pg_temp.bad_coordinates(null,8.5),'longitude alone is invalid');
+select pg_temp.expect(pg_temp.bad_coordinates(8.5,null),'latitude alone is invalid');
+select pg_temp.expect(pg_temp.bad_coordinates(91,0) and pg_temp.bad_coordinates(0,-181),'coordinates must stay within the actual geographic ranges');
+select pg_temp.expect(pg_temp.bad_coordinates('NaN',0) and pg_temp.bad_coordinates(0,'Infinity'),'non-finite coordinates are invalid');
 rollback;

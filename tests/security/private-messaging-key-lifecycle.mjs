@@ -84,6 +84,11 @@ test('automatic private chats, recovery and bounded media with real WebCrypto',a
   for(const row of db.identities.values()){assert.equal(row.backup_scheme,'device_only');assert.equal(row.encrypted_private_key,undefined);assert.ok(!row.public_key_jwk.d);}
   assert.ok([...a.localKeys.values()].every(row=>!row.deviceKey.extractable&&!row.jwk));assert.ok(![...a.storage.keys()].some(k=>k.startsWith('wehouse:e2ee:private-key:')));
  });
+ await t.test('oversized text is rejected before identity reads and encryption',async()=>{
+  const before=a.controls.identityReads;
+  await assert.rejects(a.e2ee.encryptPrivateMessage('friend',thread,'bob','x'.repeat(32769)),/too long/i);
+  assert.equal(a.controls.identityReads,before);
+ });
  await t.test('property-share text decrypts only for the intended participant and reuses one key',async()=>{
   const clear=JSON.stringify({kind:'property_share',listing_id:'synthetic-42'});oldMessage=await a.e2ee.encryptPrivateMessage('friend',thread,'bob',clear);
   assert.equal(await b.e2ee.decryptPrivateMessage('friend',thread,'alice',oldMessage.ciphertext,oldMessage.iv,oldMessage.keyId),clear);

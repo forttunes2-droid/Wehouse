@@ -151,6 +151,20 @@ missing identity first. The source fixture additionally proves that throttled
 verification returns 429 without provider traffic. Signed-in provider, settlement
 and recovery proofs remain WR-06 and are not claimed by these anonymous probes.
 
+WR-09/15/17: reconciliation exposed a nullable-CHECK defect in Service booking
+coordinates: a latitude or longitude could be stored alone. Read-only counts
+found no existing partial/out-of-range pairs in Test or Production. Forward Test
+migration `20261031104522` keeps address-only bookings, requires a complete valid
+pair when coordinates are supplied and fails rather than rewriting incompatible
+records. Installed rollback checks exercise the actual validated constraint,
+including boundary coordinates, one missing coordinate and non-finite numbers.
+No Production change was made. Fresh/upgrade replay and all SQL contracts passed
+at `c71e212d`; its isolated crypto fixture failed because the copied-source
+allowlist omitted the new text guard. The repair keeps the same isolation and
+resource restrictions and adds an oversized-text-before-key-lookup assertion;
+its fresh CI receipt remains required. Source tests pass 885; TypeScript, focused
+lint and the app build pass. These are scoped results, not external-only readiness.
+
 WR-17: read-only verification on 31 October confirmed both `wehouse.com.ng`
 and `www.wehouse.com.ng` still on `dpl_8BjJisMWjXqUT4ii74KzKcjMjaUr`, source
 `f990fc4a8d6b508badb232de0b071f13109e615b`. The #118 main merge did not switch
