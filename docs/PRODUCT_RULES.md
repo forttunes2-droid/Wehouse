@@ -170,6 +170,8 @@ These invariants should become database constraints/RPC tests where possible, Ty
 
 Essential arrival/access instructions are included in normal property/Hotel operations, with owner-only editing and booking-scoped paid-guest reading. Pro may add consolidated portfolio reporting and optional business tools; it must not gate normal fulfillment, payment records, verification, reporting, support or safety. Studio denotes zero separate bedrooms and must retain that meaning in submission, cards and detail views.
 
+Hotels may enable same-day bookings by choosing a booking/payment cutoff in their own timezone (C-067). With no cutoff, check-in dates start tomorrow. Today's unpaid room hold ends at the earlier of its ordinary expiry or that cutoff; inviting paying guests never extends it. Policy changes do not cancel confirmed paid bookings or replace a saved hold's deadline. The customer sees the actual saved cancellation deadline before paying; booking after the free-cancellation window does not create a new automatic refund entitlement. Arrival problems and payment errors still have the existing WeHouse review route.
+
 ### C-064: customer view and operator responsibility (20 October)
 
 **Identical units in one compound/building (owner clarification, 22 October):**

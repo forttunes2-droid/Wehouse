@@ -1,4 +1,6 @@
 import WeHouseChoice from "@/components/WeHouseChoice";
+import {Switch} from "@/components/ui/switch";
+import {withTimeout} from "@/lib/withTimeout";
 import PartnerHotelDiscounts from "@/components/PartnerHotelDiscounts";
 import {uploadInParallel} from '@/lib/uploadBatch';
 import {PUBLIC_PHOTO_MAX_INPUT_BYTES} from '@/lib/publicPhotoPolicy';
@@ -15,6 +17,7 @@ import { shareInvitationExternally } from "@/lib/resourceInvitation";
 import SentResourceInvitations from "@/components/SentResourceInvitations";
 import {
   getMyHotelOperationSnapshot,
+  getHotelById,
   partnerCreateHotelRoom,
   partnerSaveHotelRatePlan,
   partnerSaveHotelVenue,
@@ -147,12 +150,16 @@ const words = (value: string) =>
     .filter(Boolean);
 
 export default function PartnerHotelOperations({
-  hotel,
+  hotel: suppliedHotel,
   accessRole,
   onBack,
   profile,
   initialBookingId,
-}: Props) {
+ }: Props) {
+  const [policyReceipt,setPolicyReceipt]=useState<any>(null);
+  const hotel=policyReceipt?.hotel_id===suppliedHotel.hotel_id&&Date.parse(policyReceipt.updated_at)>=Date.parse(suppliedHotel.updated_at||'1970-01-01')
+    ? {...suppliedHotel,check_in_time:policyReceipt.check_in_time,check_out_time:policyReceipt.check_out_time,same_day_booking_cutoff:policyReceipt.same_day_booking_cutoff,updated_at:policyReceipt.updated_at}
+    : suppliedHotel;
   const closeRecord = useRecordScreenBack(onBack);
   const [section, setSection] = useState(initialBookingId ? "reservations" : "overview");
   const [focusedBooking, setFocusedBooking] = useState(initialBookingId);
@@ -412,7 +419,7 @@ export default function PartnerHotelOperations({
         </section>
       ) : null}
 
-      {visibleSection === "details" ? <HotelStayPolicy hotel={hotel} editable={canManagePolicy} /> : null}
+      {visibleSection === "details" ? <HotelStayPolicy key={hotel.hotel_id} hotel={hotel} editable={canManagePolicy} onUpdated={setPolicyReceipt} /> : null}
       {visibleSection === "details" && accessRole === 'owner' && profile ? <PropertyArrivalInstructions key={`${profile.user_id}:${hotel.hotel_id}`} kind="hotel" assetId={String(hotel.hotel_id)} accountId={profile.user_id} /> : null}
 
       {loadError && <div role="alert" className="mb-4 rounded-xl border border-amber-400/20 p-3 text-sm text-amber-100"><p>{loadError}</p><button onClick={() => void load()} className="min-h-11 font-semibold text-violet-300">Try again</button></div>}
@@ -513,13 +520,6 @@ export default function PartnerHotelOperations({
   );
 }
 
-const HOTEL_TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
-  const hour = Math.floor(index / 2);
-  const minute = index % 2 ? "30" : "00";
-  const value = `${String(hour).padStart(2, "0")}:${minute}`;
-  return { value, label: formatHotelTime(value) };
-});
-
 function normalizedHotelTime(value: unknown, fallback: string) {
   const match = String(value || "").match(/^(\d{2}):(\d{2})/);
   return match ? `${match[1]}:${match[2]}` : fallback;
@@ -567,60 +567,67 @@ function hotelMoment(dateValue: string, timeValue: unknown, timeZone: string) {
   return result;
 }
 
-function HotelStayPolicy({ hotel, editable }: { hotel: any; editable: boolean }) {
-  const initialCheckIn = normalizedHotelTime(hotel.check_in_time, "14:00");
-  const initialCheckOut = normalizedHotelTime(hotel.check_out_time, "12:00");
-  const [checkIn, setCheckIn] = useState(initialCheckIn);
-  const [checkOut, setCheckOut] = useState(initialCheckOut);
-  const [savedValues, setSavedValues] = useState([initialCheckIn, initialCheckOut]);
-  const [saving, setSaving] = useState(false);
-  const dirty = checkIn !== savedValues[0] || checkOut !== savedValues[1];
-  async function save() {
-    setSaving(true);
-    const { error } = await supabase.rpc("partner_update_hotel_stay_policy", {
-      p_hotel_id: hotel.hotel_id,
-      p_check_in_time: checkIn,
-      p_check_out_time: checkOut,
-    });
-    setSaving(false);
-    if (error) return toast.error(error.message);
-    setSavedValues([checkIn, checkOut]);
-    toast.success("Hotel arrival times updated");
+export function HotelStayPolicy({hotel,editable,onUpdated}:{hotel:any;editable:boolean;onUpdated?:(value:any)=>void}) {
+  const originalCutoff=hotel.same_day_booking_cutoff?normalizedHotelTime(hotel.same_day_booking_cutoff,''):'';
+  const [checkIn,setCheckIn]=useState(normalizedHotelTime(hotel.check_in_time,'14:00'));
+  const [checkOut,setCheckOut]=useState(normalizedHotelTime(hotel.check_out_time,'12:00'));
+  const [enabled,setEnabled]=useState(Boolean(originalCutoff)),[cutoff,setCutoff]=useState(originalCutoff);
+  const [revision,setRevision]=useState(hotel.policy_updated_at||hotel.updated_at||'');
+  const [savedValues,setSavedValues]=useState([checkIn,checkOut,originalCutoff]);
+  const [saving,setSaving]=useState(false),[refreshing,setRefreshing]=useState(false),[error,setError]=useState('');
+  const mounted=useRef(true);useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  const wantedCutoff=enabled?cutoff:'';
+  const dirty=checkIn!==savedValues[0]||checkOut!==savedValues[1]||wantedCutoff!==savedValues[2]||enabled!==Boolean(savedValues[2]);
+  const busy=saving||refreshing;
+  function accept(value:any){
+    const stamp=value?.policy_updated_at||value?.updated_at;
+    if(value?.hotel_id!==hotel.hotel_id||!Object.hasOwn(value,'same_day_booking_cutoff')||typeof stamp!=='string'||!Number.isFinite(Date.parse(stamp)))throw Error('Hotel policy could not be confirmed. Reload the saved policy.');
+    const nextIn=normalizedHotelTime(value.check_in_time,''),nextOut=normalizedHotelTime(value.check_out_time,'');
+    const nextCutoff=value.same_day_booking_cutoff?normalizedHotelTime(value.same_day_booking_cutoff,''):'';
+    if(!nextIn||!nextOut||value.same_day_booking_cutoff&&!nextCutoff)throw Error('Hotel times could not be confirmed. Reload the saved policy.');
+    setCheckIn(nextIn);setCheckOut(nextOut);setCutoff(nextCutoff);setEnabled(Boolean(nextCutoff));setRevision(stamp);
+    setSavedValues([nextIn,nextOut,nextCutoff]);onUpdated?.({...value,updated_at:stamp});setError('');
   }
-  return (
-    <section className="border-y border-[var(--wh-border-subtle)] py-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-semibold">Arrival and departure</h3>
-          <p className="mt-1 text-sm leading-4 text-[var(--wh-text-secondary)]">
-            These local hotel times appear throughout booking and control when check-in becomes available.
-          </p>
-        </div>
-        {!editable ? (
-          <span className="shrink-0 text-right text-sm text-[var(--wh-text-secondary)]">
-            From {formatHotelTime(checkIn)}<br />By {formatHotelTime(checkOut)}
-          </span>
-        ) : null}
+  async function reload(){
+    if(busy)return;setRefreshing(true);
+    try {const result=await getHotelById(hotel.hotel_id);if(result.error)throw result.error;if(mounted.current)accept(result.hotel);}
+    catch(cause){if(mounted.current)setError(cause instanceof Error?cause.message:'Hotel policy could not be loaded. Try again.');}
+    finally{if(mounted.current)setRefreshing(false);}
+  }
+  async function save(){
+    if(busy||!dirty)return;
+    if(!checkIn||!checkOut){setError('Choose valid check-in and checkout times.');return;}
+    if(enabled&&!cutoff){setError('Choose the same-day booking cutoff time.');return;}
+    if(!Number.isFinite(Date.parse(revision))){setError('Reload the saved Hotel policy before saving.');return;}
+    setSaving(true);setError('');
+    try {
+      const result=await withTimeout(supabase.rpc('partner_update_hotel_stay_policy',{
+        p_hotel_id:hotel.hotel_id,p_check_in_time:checkIn,p_check_out_time:checkOut,
+        p_same_day_booking_cutoff:enabled?cutoff:null,p_expected_revision:revision,
+      }),15000,'The save result is unknown. Reload the saved Hotel policy or retry these choices.');
+      if(result.error)throw result.error;
+      if(!result.data||normalizedHotelTime(result.data.check_in_time,'')!==checkIn||normalizedHotelTime(result.data.check_out_time,'')!==checkOut||
+        (result.data.same_day_booking_cutoff?normalizedHotelTime(result.data.same_day_booking_cutoff,''):'')!==wantedCutoff)throw Error('The saved Hotel choices could not be confirmed. Reload the saved policy.');
+      if(mounted.current){accept(result.data);toast.success('Hotel policy updated');}
+    }catch(cause){if(mounted.current)setError(cause instanceof Error?cause.message:(cause as {message?:string})?.message||'Hotel policy could not be saved. Try again.');}
+    finally{if(mounted.current)setSaving(false);}
+  }
+  return <section className="space-y-4 border-y border-[var(--wh-border-subtle)] py-4">
+    <div><h3 className="text-sm font-semibold">Arrival and booking times</h3><p className="mt-1 text-sm leading-5 text-[var(--wh-text-secondary)]">Times use {propertyTimeZone(hotel.timezone)}. Confirmed bookings keep their saved payment deadline.</p></div>
+    {error&&<p role="alert" className="rounded-xl border border-[var(--wh-border)] p-3 text-sm leading-5">{error}</p>}
+    {editable ? <>
+      <div className="grid grid-cols-2 gap-3 sm:max-w-lg">
+        <label className="text-sm text-[var(--wh-text-secondary)]">Check-in from<input type="time" step="60" aria-label="Check-in time" disabled={busy} value={checkIn} onChange={event=>setCheckIn(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base text-[var(--wh-text)] sm:text-sm"/></label>
+        <label className="text-sm text-[var(--wh-text-secondary)]">Check-out by<input type="time" step="60" aria-label="Check-out time" disabled={busy} value={checkOut} onChange={event=>setCheckOut(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base text-[var(--wh-text)] sm:text-sm"/></label>
       </div>
-      {editable ? (
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:max-w-lg">
-          <label className="text-sm text-[var(--wh-text-secondary)]">
-            Check-in from
-            <WeHouseChoice aria-label="Check-in time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs text-[var(--wh-text)]">
-              {HOTEL_TIME_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </WeHouseChoice>
-          </label>
-          <label className="text-sm text-[var(--wh-text-secondary)]">
-            Check-out by
-            <WeHouseChoice aria-label="Check-out time" value={checkOut} onChange={(event) => setCheckOut(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-xs text-[var(--wh-text)]">
-              {HOTEL_TIME_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </WeHouseChoice>
-          </label>
-          {dirty ? <button type="button" disabled={saving} onClick={() => void save()} className="col-span-2 h-11 rounded-xl bg-violet-500 text-sm font-semibold disabled:opacity-40">{saving ? "Saving times…" : "Save arrival times"}</button> : null}
-        </div>
-      ) : null}
-    </section>
-  );
+      <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 sm:max-w-lg">
+        <label htmlFor={`hotel-same-day-${hotel.hotel_id}`} className="flex min-h-11 cursor-pointer items-center justify-between gap-4"><span className="text-sm font-semibold">Allow same-day bookings</span><Switch id={`hotel-same-day-${hotel.hotel_id}`} aria-label="Allow same-day bookings" checked={enabled} disabled={busy} onCheckedChange={setEnabled}/></label>
+        <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">New bookings for today must be fully paid before your cutoff. Arrival instructions stay separate.</p>
+        {enabled&&<label className="mt-3 block text-sm">Same-day booking cutoff<input type="time" step="60" aria-label="Same-day booking cutoff" disabled={busy} value={cutoff} onChange={event=>setCutoff(event.target.value)} className="mt-1 h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 text-base text-[var(--wh-text)] sm:text-sm"/></label>}
+      </div>
+      <div className="flex flex-wrap gap-3">{dirty&&<button type="button" disabled={busy||enabled&&!cutoff} onClick={()=>void save()} className="min-h-11 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white disabled:opacity-40">{saving?'Saving policy…':'Save Hotel policy'}</button>}<button type="button" disabled={busy} onClick={()=>void reload()} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-3 text-sm">{refreshing?'Reloading…':dirty?'Discard edits and reload':'Reload saved policy'}</button></div>
+    </> : <p className="text-sm leading-6 text-[var(--wh-text-secondary)]">Check-in from {formatHotelTime(checkIn)} · Check-out by {formatHotelTime(checkOut)}<br/>{originalCutoff?`Same-day bookings until ${formatHotelTime(originalCutoff)}`:'Same-day bookings are off'}</p>}
+  </section>;
 }
 
 function RoomUnitBoard({ units, rooms, editable, onSaved }: { units: HotelRoomUnit[]; rooms: Room[]; editable: boolean; onSaved: () => Promise<void> }) {

@@ -562,6 +562,9 @@ export type HotelStatus = "active" | "inactive";
 
 export interface Hotel {
   hotel_id: number;
+  timezone?: string | null;
+  same_day_booking_cutoff?: string | null;
+  policy_updated_at?: string;
   name: string;
   description: string | null;
   state: string;

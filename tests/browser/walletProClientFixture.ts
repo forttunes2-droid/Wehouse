@@ -1,5 +1,6 @@
 const mode = new URLSearchParams(location.search).get('mode') || 'worker';
 const state = { mode, recover: false, failActivity:false, failReminderReceipt:false, rpcCalls: [] as Array<{ name: string; args: any }>, queries: [] as any[], invokeCalls: [] as any[] };
+let hotelPolicy:any={hotel_id:42,check_in_time:'14:00',check_out_time:'12:00',timezone:'Africa/Lagos',same_day_booking_cutoff:null,updated_at:'2026-10-31T12:00:00Z'};
 let propertyReview:any=null;
 let experienceSessionRows:any[]=[];
 const activityPhotoRows:any[]=(mode.includes('photo-review')||mode.includes('approval-'))?[{id:'10000000-0000-4000-8000-000000000002',activity_id:'10100000-0000-4000-8000-000000000091',revision:2,object_path:'10100000-0000-4000-8000-000000000091/10000000-0000-4000-8000-000000000002.jpg',byte_size:9,caption:'Guided orientation route',context_current:true,status:mode.includes('approval-')?'approved':'submitted'}]:[];
@@ -131,6 +132,19 @@ export const supabase: any = {
     return query;
   },
   async rpc(name: string, args: any = {}) {
+    if(mode.startsWith('hotel-policy-')){
+      state.rpcCalls.push({name,args});
+      if(name==='get_public_hotel_detail')return{data:{...hotelPolicy,policy_updated_at:hotelPolicy.updated_at},error:null};
+      if(name==='partner_update_hotel_stay_policy'){
+        if(mode==='hotel-policy-stale'&&!state.recover){hotelPolicy={...hotelPolicy,check_in_time:'16:00',same_day_booking_cutoff:'20:00',updated_at:'2026-10-31T12:01:00Z'};return{data:null,error:{code:'40001',message:'Hotel policy changed. Refresh before saving these choices'}};}
+        if(mode==='hotel-policy-failure'&&!state.recover)return{data:null,error:{message:'Hotel policy is temporarily unavailable'}};
+        hotelPolicy={...hotelPolicy,check_in_time:args.p_check_in_time,check_out_time:args.p_check_out_time,same_day_booking_cutoff:args.p_same_day_booking_cutoff,updated_at:new Date(Date.parse(hotelPolicy.updated_at)+1000).toISOString()};
+        if(mode==='hotel-policy-lost'&&!state.recover)throw Error('Policy connection interrupted');
+        return{data:mode==='hotel-policy-missing'&&!state.recover?null:hotelPolicy,error:null};
+      }
+      throw Error('Unexpected Hotel policy call '+name);
+    }
+
     if(mode.startsWith('hotel-presence-')&&name==='issue_my_hotel_stay_code'){
       state.rpcCalls.push({name,args});
       if(mode==='hotel-presence-delay'&&args.p_booking_id===71)return new Promise(resolve=>{(window as any).__finishHotelCode=()=>resolve({data:'11112222',error:null});});

@@ -18,6 +18,13 @@ test('zoned input converts using the zone, not a fixed offset', () => {
   assert.equal(regional.zonedInputToISO('2026-01-01T12:00', 'America/New_York'), '2026-01-01T17:00:00.000Z');
 });
 
+test('local deadlines match PostgreSQL at repeated and missing daylight-saving times',()=>{
+ assert.equal(regional.zonedInputToISO('2026-11-01T01:30','America/New_York'),'2026-11-01T06:30:00.000Z');
+ assert.equal(regional.zonedInputToISO('2026-03-08T02:30','America/New_York'),'2026-03-08T07:30:00.000Z');
+ assert.equal(regional.zonedInputToISO('2026-10-25T01:30','Europe/London'),'2026-10-25T01:30:00.000Z');
+ assert.equal(regional.zonedInputToISO('2026-03-29T01:30','Europe/London'),'2026-03-29T01:30:00.000Z');
+});
+
 test('money uses the charged currency', () => {
   assert.match(regional.formatMoney(1500, { currency: 'GHS' }), /1,500/);
   assert.notEqual(regional.formatMoney(1500, { currency: 'USD' }), regional.formatMoney(1500, { currency: 'NGN' }));

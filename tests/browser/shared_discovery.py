@@ -359,14 +359,6 @@ async def main():
     assert (abs(boxes[0]['y']-boxes[1]['y'])<2) if width>=640 else (boxes[1]['y']>=boxes[0]['y']+boxes[0]['height']), 'Hotel packages compare side by side on wider screens and stack on phones'
     await page.locator('[data-room-choice="9"]').screenshot(path=str(OUT/f'hotel-room-and-offers-{width}-{theme}.png'))
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) or c['name'].startswith(('create_','saveHotel','rpc:save_')) for c in await page.evaluate('window.__browse.calls'))
-    await page.get_by_role('button',name='Save hotel',exact=True).click()
-    assert await page.evaluate('window.__browse.requested')
-    intent=await page.evaluate('JSON.parse(sessionStorage.getItem("wh_public_property_intent_v1")).property')
-    assert intent=={'kind':'hotel','id':'7'}
-    await page.evaluate('window.__switchBrowseMode("hotel")')
-    await expect(page.get_by_role('button',name='Breakfast stay',exact=False)).to_have_attribute('aria-pressed','true')
-    assert await page.locator('[data-room-choice="9"] > button').get_attribute('aria-expanded')=='true'
-    assert not await page.evaluate('Boolean(window.__browse.booking)')
     await page.get_by_role('button',name='Back to hotels',exact=True).click()
     await expect(page.get_by_role('navigation',name='Main navigation')).to_be_visible()
     await page.evaluate('window.__browse.holdHotel=true')
@@ -377,6 +369,19 @@ async def main():
     await expect(page.get_by_role('navigation',name='Main navigation')).to_be_visible()
     await page.evaluate('window.__browse.holdHotel=false;window.__finishHotelInfo()')
     await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_have_count(0)
+    await expect(page.get_by_placeholder('Search hotel name or location')).to_have_value('Keffi Garden')
+    await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
+    await expect(page.get_by_role('button',name='Breakfast stay',exact=False)).to_have_attribute('aria-pressed','true')
+    await page.get_by_role('button',name='Save hotel',exact=True).click()
+    assert await page.evaluate('window.__browse.requested')
+    intent=await page.evaluate('JSON.parse(sessionStorage.getItem("wh_public_property_intent_v1")).property')
+    assert intent=={'kind':'hotel','id':'7'}
+    # The signed-in fixture renders Hotel detail without the guest app shell.
+    await page.evaluate('window.__switchBrowseMode("hotel")')
+    await expect(page.get_by_role('button',name='Breakfast stay',exact=False)).to_have_attribute('aria-pressed','true')
+    assert await page.locator('[data-room-choice="9"] > button').get_attribute('aria-expanded')=='true'
+    assert not await page.evaluate('Boolean(window.__browse.booking)')
+    await page.get_by_role('button',name='Back to hotels',exact=True).click()
     await expect(page.get_by_placeholder('Search hotel name or location')).to_have_value('Keffi Garden')
     await page.evaluate('window.__switchBrowseMode("thumbnail")')
     # Explicit load failures never produce an empty tile or endless skeleton.

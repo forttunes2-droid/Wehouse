@@ -1,5 +1,5 @@
 """Actual Hotel booking UI; all API and payment destinations are local fixtures."""
-import asyncio,copy,json
+import asyncio,copy,json,re
 from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from playwright.async_api import async_playwright,expect
@@ -14,10 +14,14 @@ async def main():
  async with async_playwright() as pw:
   browser=await pw.chromium.launch(args=['--no-sandbox'])
   for theme,width in [('light',390),('dark',1280)]:
-   for mode in ('success','lost-hold','wrong-receipt','lost-release','paid-race','recorded-charge','expired','bad-url','wrong-reference','shared','shared-arrival','shared-arrival-recovery'):
+   for mode in ('success','lost-hold','wrong-receipt','lost-release','paid-race','recorded-charge','expired','bad-url','wrong-reference','shared','shared-arrival','shared-arrival-recovery','same-day-open','same-day-closes','same-day-hold-expiry','same-day-shared-expiry','same-day-disabled'):
     ctx=await browser.new_context(viewport={'width':width,'height':1000},timezone_id='Asia/Tokyo',service_workers='block');page=await ctx.new_page();calls=[];errors=[];saved=None;shared=None;protection=None;lost=True
-    today=datetime.now(timezone.utc).date();checkin=str(today+timedelta(days=3));checkout=str(today+timedelta(days=5));deadline=str(today+timedelta(days=2))+'T13:00:00Z'
-    def hold(key):return {'booking_id':77,'hotel_id':7,'room_id':12,'rate_plan_id':13,'rate_plan_name':'Room only','user_id':'hold-guest','request_key':key,'check_in':checkin,'check_out':checkout,'guest_count':1,'total_nights':2,'total_price':40000,'guest_name':'Sample Guest','guest_phone':'08000000000','special_requests':None,'status':'pending','payment_status':'unpaid','payment_expires_at':iso(datetime.now(timezone.utc)+timedelta(minutes=30)),'cancellation_snapshot':{'refundable':True,'deadline':deadline,'timezone':'Africa/Lagos','refund_amount_ngn':40000}}
+    same_day=mode.startswith('same-day-');is_shared=mode in ('shared','same-day-shared-expiry')
+    now=datetime(2030,3,8,19,58,tzinfo=timezone.utc) if same_day else datetime.now(timezone.utc)
+    if same_day:await page.clock.install(time=now)
+    today=now.date();checkin=str(today+timedelta(days=0 if same_day else 3));checkout=str(today+timedelta(days=2 if same_day else 5));deadline=str(today-timedelta(days=1) if same_day else today+timedelta(days=2))+'T13:00:00Z'
+    cutoff=str(today)+'T20:00:00Z'
+    def hold(key):return {'booking_id':77,'hotel_id':7,'room_id':12,'rate_plan_id':13,'rate_plan_name':'Room only','user_id':'hold-guest','request_key':key,'check_in':checkin,'check_out':checkout,'guest_count':1,'total_nights':2,'total_price':40000,'guest_name':'Sample Guest','guest_phone':'08000000000','special_requests':None,'status':'pending','payment_status':'unpaid','payment_expires_at':cutoff if same_day else iso(now+timedelta(minutes=30)),'cancellation_snapshot':{'refundable':True,'deadline':deadline,'timezone':'Africa/Lagos','refund_amount_ngn':40000}}
     if mode.startswith('shared-arrival'):
      saved=hold('arrival-fixture');saved['guest_count']=2;shared=make_shared(saved,checkin,checkout)
      shared.update(status='paid',booking_status='checked_in',hotel_arrival={'booking_id':77,'booking_code':'ROOM-77','address':'Reception, fixture address','check_in_time':'14:00','check_out_time':'12:00','timezone':'Africa/Lagos'})
@@ -34,9 +38,9 @@ async def main():
      headers={'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'*'}
      if req.method=='OPTIONS':return await handler.fulfill(status=204,headers=headers)
      name=req.url.split('?')[0].split('/')[-1];args=req.post_data_json or {};calls.append({'name':name,'args':args});status=200
-     if name=='get_public_hotel_detail':data={'hotel_id':7,'name':'Garden Hotel','state':'Nasarawa','city':'Lafia','timezone':'Africa/Lagos','check_in_time':'14:00','check_out_time':'12:00','hotel_rooms':[{'room_id':12,'hotel_id':7,'room_type':'Standard room','price_per_night':20000,'max_guests':3,'total_rooms':2,'images':['/hero-city.jpg'],'rate_plans':[{'rate_plan_id':13,'hotel_id':7,'room_id':12,'name':'Room only','meal_plan':'room_only','price_per_night':20000,'refundable':True,'cancellation_hours':24,'active':True,'included_features':[]}]}]}
+     if name=='get_public_hotel_detail':data={'hotel_id':7,'name':'Garden Hotel','state':'Nasarawa','city':'Lafia','timezone':'Africa/Lagos','same_day_booking_cutoff':'21:00:00' if same_day and mode!='same-day-disabled' else None,'check_in_time':'14:00','check_out_time':'12:00','hotel_rooms':[{'room_id':12,'hotel_id':7,'room_type':'Standard room','price_per_night':20000,'max_guests':3,'total_rooms':2,'images':['/hero-city.jpg'],'rate_plans':[{'rate_plan_id':13,'hotel_id':7,'room_id':12,'name':'Room only','meal_plan':'room_only','price_per_night':20000,'refundable':True,'cancellation_hours':24,'active':True,'included_features':[]}]}]}
      elif name=='get_my_hotel_booking_hold':data=copy.deepcopy(saved) if saved and saved['request_key']==args['p_request_key'] else None
-     elif name=='quote_hotel_room_rate':data={'available':True,'nights':2,'total_price':40000,'rate_plan_name':'Room only','cancellation_deadline':deadline,'cancellation_timezone':'Africa/Lagos','refund_amount_ngn':40000}
+     elif name=='quote_hotel_room_rate':data={'available':True,'nights':2,'total_price':40000,'rate_plan_name':'Room only','same_day_booking_cutoff_at':cutoff if same_day else None,'cancellation_deadline':deadline,'cancellation_timezone':'Africa/Lagos','refund_amount_ngn':40000}
      elif name=='create_my_hotel_booking_with_rate':
       saved=saved if saved and saved['request_key']==args['p_request_key'] else hold(args['p_request_key']);saved['guest_count']=args['p_guest_count'];data=copy.deepcopy(saved)
       if mode=='lost-hold' and lost:lost=False;status=503;data={'message':'The room hold result is unknown'}
@@ -66,7 +70,7 @@ async def main():
      elif name=='create_my_shared_housing_payment':
       assert shared['status']=='payment_pending' and all(m['invitation_status']=='accepted' for m in shared['members'])
       data={'success':True,'reference':'WHH_shared_fixture_77','amount':20000}
-     elif name=='payment-init':data={'success':True,'purpose':'shared_housing_share' if mode=='shared' else 'hotel_booking','reference':'WHH_shared_fixture_77' if mode=='shared' else 'wrong-reference' if mode=='wrong-reference' else 'WHH_fixture_77','authorization_url':'https://untrusted.example.invalid/pay' if mode=='bad-url' else 'https://checkout.paystack.com/fixture'}
+     elif name=='payment-init':data={'success':True,'purpose':'shared_housing_share' if is_shared else 'hotel_booking','reference':'WHH_shared_fixture_77' if is_shared else 'wrong-reference' if mode=='wrong-reference' else 'WHH_fixture_77','authorization_url':'https://untrusted.example.invalid/pay' if mode=='bad-url' else 'https://checkout.paystack.com/fixture'}
      else:raise AssertionError('Unexpected Hotel API '+name)
      await handler.fulfill(status=status,headers=headers,content_type='application/json',body=json.dumps(data))
     page.on('pageerror',lambda error:errors.append(str(error)));await page.route('**/*',route)
@@ -87,10 +91,32 @@ async def main():
      await page.screenshot(path=str(OUT/f'{mode}-{theme}.png'),full_page=True)
      assert not errors,errors;assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth')
      results.append({'mode':mode,'theme':theme,'width':width,'passed':True});await ctx.close();continue
-    await page.goto(BASE+'/tests/browser/hotel-checkout.html?theme='+theme)
+    await page.goto(BASE+'/tests/browser/hotel-checkout.html?theme='+theme+('&sameDay=true' if same_day else ''))
+    if same_day:
+     await expect(page.get_by_label('Full name',exact=True)).to_have_value('Sample Guest')
+     await page.get_by_role('button',name='Check-in',exact=True).click()
+     day=page.get_by_role('dialog',name='Choose Check-in').get_by_role('button',name=re.compile(rf'{today.strftime("%B")} {today.day}(?:st|nd|rd|th)?, {today.year}'))
+     if mode=='same-day-disabled':
+      await expect(day).to_be_disabled();await page.get_by_role('button',name='Close calendar',exact=True).click()
+      await expect(page.get_by_role('button',name='Choose available dates',exact=True)).to_be_disabled()
+      assert not any(c['name'] in ('quote_hotel_room_rate','create_my_hotel_booking_with_rate') for c in calls)
+      results.append({'mode':mode,'theme':theme,'width':width,'passed':True});await ctx.close();continue
+     await expect(day).to_be_enabled();await page.get_by_role('button',name='Close calendar',exact=True).click()
     await expect(page.get_by_role('button',name='Review booking',exact=False)).to_be_enabled()
     await expect(page.get_by_label('Full name',exact=True)).to_have_value('Sample Guest')
-    if mode=='shared':await page.get_by_role('button',name='Add guest',exact=True).click()
+    if same_day:
+     await expect(page.get_by_text(re.compile("Today's payment deadline:.*Africa/Lagos"))).to_be_visible()
+     await expect(page.get_by_role('region',name='Cancellation and arrival terms')).to_contain_text('free-cancellation deadline has passed')
+     await page.screenshot(path=str(OUT/f'{mode}-dates-{theme}.png'),full_page=True)
+    if mode=='same-day-closes':
+     reads=len([c for c in calls if c['name']=='quote_hotel_room_rate']);await page.clock.fast_forward(121000)
+     await expect(page.get_by_role('button',name='Choose available dates',exact=True)).to_be_disabled()
+     await page.get_by_role('button',name='Check-in',exact=True).click();await expect(day).to_be_disabled()
+     await page.get_by_role('button',name='Close calendar',exact=True).click()
+     assert not any(c['name']=='create_my_hotel_booking_with_rate' for c in calls)
+     assert len([c for c in calls if c['name']=='quote_hotel_room_rate'])==reads,'Closing the cutoff must not poll the database'
+     results.append({'mode':mode,'theme':theme,'width':width,'passed':True});await ctx.close();continue
+    if is_shared:await page.get_by_role('button',name='Add guest',exact=True).click()
     await page.get_by_role('button',name='Review booking',exact=False).evaluate('(button)=>{button.click();button.click();}')
     creates=lambda:[c for c in calls if c['name']=='create_my_hotel_booking_with_rate']
     if mode in ('lost-hold','wrong-receipt'):
@@ -105,7 +131,14 @@ async def main():
      key=creates()[0]['args']['p_request_key'];await page.reload()
      await expect(page.get_by_role('heading',name='Review your stay',exact=True)).to_be_visible();assert len(creates())==1
      assert [c for c in calls if c['name']=='get_my_hotel_booking_hold'][-1]['args']['p_request_key']==key
-     if mode=='shared':
+     if mode=='same-day-hold-expiry':
+      await expect(page.get_by_text(re.compile('free-cancellation deadline has passed'))).to_be_visible()
+      reads=len(calls);await page.clock.fast_forward(121000)
+      await expect(page.get_by_role('heading',name='Room hold expired',exact=True)).to_be_visible()
+      await expect(page.get_by_role('button',name='Accept terms and continue',exact=True)).to_have_count(0)
+      assert len(calls)==reads,'Saved hold expiry must not poll the database'
+      await page.screenshot(path=str(OUT/f'{mode}-{theme}.png'),full_page=True)
+     elif is_shared:
       await page.get_by_role('button',name='Share this stay',exact=False).click()
       await page.get_by_role('checkbox',name='Invite Joining Friend',exact=True).check()
       await expect(page.get_by_text('₦20,000',exact=True)).to_have_count(2)
@@ -116,10 +149,17 @@ async def main():
       shared['members'][1]['invitation_status']='accepted';shared['status']='payment_pending'
       await page.get_by_role('button',name='Refresh',exact=True).click()
       await expect(page.get_by_role('button',name='Complete my payment',exact=False)).to_be_enabled()
-      await page.get_by_role('button',name='Complete my payment',exact=False).click()
-      await expect(page.get_by_role('heading',name='Controlled checkout destination',exact=True)).to_be_visible()
-      assert not any(c['name']=='create_hotel_booking_payment' for c in calls)
-      assert len([c for c in calls if c['name']=='create_my_shared_housing_payment'])==1
+      if mode=='same-day-shared-expiry':
+       reads=len(calls);await page.clock.fast_forward(121000)
+       await expect(page.get_by_role('button',name='Complete my payment',exact=False)).to_have_count(0)
+       await expect(page.get_by_text('The room hold has expired. Refresh to check any recorded payment or refund.',exact=True)).to_be_visible()
+       assert len(calls)==reads,'Shared deadline must not poll or start another payment'
+       await page.screenshot(path=str(OUT/f'{mode}-{theme}.png'),full_page=True)
+      else:
+       await page.get_by_role('button',name='Complete my payment',exact=False).click()
+       await expect(page.get_by_role('heading',name='Controlled checkout destination',exact=True)).to_be_visible()
+       assert not any(c['name']=='create_hotel_booking_payment' for c in calls)
+       assert len([c for c in calls if c['name']=='create_my_shared_housing_payment'])==1
      elif mode in ('lost-release','paid-race'):
       await page.get_by_role('button',name='Edit booking',exact=True).click();await expect(page.get_by_role('alert')).to_be_visible()
       await page.get_by_role('button',name='Refresh room hold',exact=True).click()

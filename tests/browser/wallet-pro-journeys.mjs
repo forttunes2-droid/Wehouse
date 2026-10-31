@@ -67,7 +67,45 @@ async function dismissToast(page,{clocked=false}={}){
 }
 try {
   browser = await chromium.launch({ headless: true });
-  if(process.argv.includes('--hotel-presence-only')){
+  if(process.argv.includes('--hotel-policy-only')){
+    for(const theme of ['light','dark'])for(const width of [390,1440])for(const scenario of ['success','failure','missing','lost','stale','readonly']){
+      const page=await browser.newPage({viewport:{width,height:1000}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+      await page.goto(base+'/?mode=hotel-policy-'+scenario);await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
+      await page.getByRole('heading',{name:'Arrival and booking times',exact:true}).waitFor();
+      if(scenario==='readonly'){
+        assert.equal(await page.getByRole('switch').count(),0);assert.equal(await page.getByRole('button',{name:'Save Hotel policy',exact:true}).count(),0);
+        assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.length),0);
+      }else{
+        await page.getByRole('switch',{name:'Allow same-day bookings',exact:true}).click();
+        assert.equal(await page.getByLabel('Same-day booking cutoff',{exact:true}).inputValue(),'');
+        assert.equal(await page.getByRole('button',{name:'Save Hotel policy',exact:true}).isDisabled(),true);
+        await page.getByLabel('Same-day booking cutoff',{exact:true}).fill('21:00');await page.getByLabel('Check-in time',{exact:true}).fill('15:15');
+        assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.length),0,'Editing policy must not send database writes');
+        await page.getByRole('button',{name:'Save Hotel policy',exact:true}).click();
+        if(scenario!=='success'){
+          await page.getByRole('alert').waitFor();assert.equal(await page.getByLabel('Same-day booking cutoff',{exact:true}).inputValue(),'21:00');
+          assert.equal(await page.evaluate(()=>Boolean(window.__hotelPolicyUpdated)),false,'A missing or failed receipt must not show a saved policy');
+          await page.evaluate(()=>{window.__walletPro.recover=true;});
+          if(scenario==='stale'){
+            await page.getByRole('button',{name:'Discard edits and reload',exact:true}).click();
+            await page.waitForFunction(()=>window.__hotelPolicyUpdated?.same_day_booking_cutoff==='20:00');
+            assert.equal(await page.getByLabel('Check-in time',{exact:true}).inputValue(),'16:00');
+            await page.getByLabel('Same-day booking cutoff',{exact:true}).fill('21:00');
+          }
+          await page.getByRole('button',{name:'Save Hotel policy',exact:true}).click();
+        }
+        await page.waitForFunction(()=>window.__hotelPolicyUpdated?.same_day_booking_cutoff==='21:00');
+        assert.equal(await page.evaluate(()=>window.__hotelPolicyUpdated.check_in_time),scenario==='stale'?'16:00':'15:15');
+        assert.equal(await page.getByRole('button',{name:'Save Hotel policy',exact:true}).count(),0);
+        await page.screenshot({path:output+'/hotel-policy-'+scenario+'-'+theme+'-'+width+'.png',fullPage:true});
+        await page.getByRole('switch',{name:'Allow same-day bookings',exact:true}).click();await page.getByRole('button',{name:'Save Hotel policy',exact:true}).click();
+        await page.waitForFunction(()=>window.__hotelPolicyUpdated?.same_day_booking_cutoff===null);
+        const call=await page.evaluate(()=>window.__walletPro.rpcCalls.filter(call=>call.name==='partner_update_hotel_stay_policy').at(-1));
+        assert.equal(call.args.p_same_day_booking_cutoff,null);assert.ok(Number.isFinite(Date.parse(call.args.p_expected_revision)));
+      }
+      assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);results.push('Hotel policy '+scenario+' '+theme+' '+width);await page.close();
+    }
+  }else if(process.argv.includes('--hotel-presence-only')){
     for(const theme of ['light','dark'])for(const scenario of ['success','failure','malformed','delay','timeout']){
       const mode='hotel-presence-'+(scenario==='timeout'?'delay':scenario);
       const page=await browser.newPage({viewport:{width:390,height:900}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
@@ -1288,7 +1326,7 @@ try {
   }
   }
   }
-  const resultsFile=process.argv.includes('--hotel-presence-only')?'results-hotel-presence.json':process.argv.includes('--viewing-journeys-only')?'results-viewing-journeys.json':process.argv.includes('--share-journeys-only')?'results-share-journeys.json':process.argv.includes('--service-activity-only')?'results-service-activity.json':process.argv.includes('--property-reviews-only')?'results-property-reviews.json':process.argv.includes('--experience-sessions-only')?'results-experience-sessions.json':process.argv.includes('--site-offers-only')?'results-site-offers.json':process.argv.includes('--hosting-controls-only')?'results-hosting-controls.json':process.argv.includes('--space-review-only')?'results-space-review.json':process.argv.includes('--partner-history-only')?'results-partner-history.json':process.argv.includes('--hotel-cancellation-only')?'results-hotel-cancellation.json':process.argv.includes('--partner-assets-only')?'results-partner-assets.json':process.argv.includes('--property-spaces-only')?'results-property-spaces.json':process.argv.includes('--private-calls-only')?'results-private-calls.json':process.argv.includes('--wallet-snapshots-only')?'results-wallet-snapshots.json':process.argv.includes('--finance-summary-only')?'results-finance-summary.json':process.argv.includes('--finance-recovery-only')?'results-finance-recovery.json':process.argv.includes('--experience-applications-only')?'results-experience-applications.json':process.argv.includes('--worker-profile-only')?'results-worker-profile.json':process.argv.includes('--credentials-only')?'results-credentials.json':process.argv.includes('--bank-search-only')?'results-bank-search.json':process.argv.includes('--phone-notifications-only')?'results-phone-notifications.json':process.argv.includes('--notifications-only')?'results-notifications.json':process.argv.includes('--security-only')?'results-security.json':process.argv.includes('--friends-only')?'results-friends.json':process.argv.includes('--management-only')?'results-management.json':'results.json';
+  const resultsFile=process.argv.includes('--hotel-policy-only')?'results-hotel-policy.json':process.argv.includes('--hotel-presence-only')?'results-hotel-presence.json':process.argv.includes('--viewing-journeys-only')?'results-viewing-journeys.json':process.argv.includes('--share-journeys-only')?'results-share-journeys.json':process.argv.includes('--service-activity-only')?'results-service-activity.json':process.argv.includes('--property-reviews-only')?'results-property-reviews.json':process.argv.includes('--experience-sessions-only')?'results-experience-sessions.json':process.argv.includes('--site-offers-only')?'results-site-offers.json':process.argv.includes('--hosting-controls-only')?'results-hosting-controls.json':process.argv.includes('--space-review-only')?'results-space-review.json':process.argv.includes('--partner-history-only')?'results-partner-history.json':process.argv.includes('--hotel-cancellation-only')?'results-hotel-cancellation.json':process.argv.includes('--partner-assets-only')?'results-partner-assets.json':process.argv.includes('--property-spaces-only')?'results-property-spaces.json':process.argv.includes('--private-calls-only')?'results-private-calls.json':process.argv.includes('--wallet-snapshots-only')?'results-wallet-snapshots.json':process.argv.includes('--finance-summary-only')?'results-finance-summary.json':process.argv.includes('--finance-recovery-only')?'results-finance-recovery.json':process.argv.includes('--experience-applications-only')?'results-experience-applications.json':process.argv.includes('--worker-profile-only')?'results-worker-profile.json':process.argv.includes('--credentials-only')?'results-credentials.json':process.argv.includes('--bank-search-only')?'results-bank-search.json':process.argv.includes('--phone-notifications-only')?'results-phone-notifications.json':process.argv.includes('--notifications-only')?'results-notifications.json':process.argv.includes('--security-only')?'results-security.json':process.argv.includes('--friends-only')?'results-friends.json':process.argv.includes('--management-only')?'results-management.json':'results.json';
   fs.writeFileSync(`${output}/${resultsFile}`, JSON.stringify(results, null, 2));
   console.log(`Wallet/Pro browser journeys passed: ${results.length}`);
 } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }

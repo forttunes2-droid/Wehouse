@@ -1,4 +1,6 @@
 import {useState} from 'react';
+import {useDeadlineClock} from '@/hooks/useDeadlineClock';
+import {hotelBookingCancellationText} from '@/lib/hotelCancellation';
 import {createPortal} from 'react-dom';
 import BackButton from '@/components/BackButton';
 import HotelCancellationPanel from '@/components/HotelCancellationPanel';
@@ -17,7 +19,8 @@ export default function SharedHotelDetails({group,userId,busy,error,onBack,onRef
 }){
  const root=useDialogInteraction(onBack),[accepted,setAccepted]=useState(false);
  const mine=group.members.find(member=>member.user_id===userId),organiser=group.created_by===userId;
- const terms=group.cancellation_snapshot!,arrival=group.hotel_arrival,expired=Date.parse(group.expires_at)<=Date.now();
+ const terms=group.cancellation_snapshot!,arrival=group.hotel_arrival;
+ const clock=useDeadlineClock([group.expires_at,terms.deadline]),expired=Date.parse(group.expires_at)<=clock;
  const canAccept=mine?.invitation_status==='invited'&&group.status==='inviting'&&!expired;
  const canPay=mine?.invitation_status==='accepted'&&mine.payment_status!=='paid'&&group.status==='payment_pending'&&!expired;
  const money=(value:unknown)=>formatRecordedMoney(value,'NGN');
@@ -37,7 +40,7 @@ export default function SharedHotelDetails({group,userId,busy,error,onBack,onRef
      </div>
     </section>
     <section className="space-y-3 text-sm leading-6"><h2 className="font-semibold">Saved booking terms</h2>
-     <p>{terms.refundable?`Full refund for eligible cancellation by ${displayDateTimeAtProperty(terms.deadline!,terms.timezone)} (${terms.timezone}).`:'This rate is non-refundable for ordinary cancellation. Payment or stay problems can still be sent to WeHouse for review.'}</p>
+     <p>{hotelBookingCancellationText(terms,'your recorded payment',displayDateTimeAtProperty(terms.deadline,terms.timezone),clock)}</p>
      <p className="text-[var(--wh-text-secondary)]">You are joining this stay. The organiser manages the whole room booking and its cancellation. Each person pays only their assigned share and receives their own receipt. Any eligible refund returns to the original payer.</p>
      {!['paid','refunded','cancelled','expired'].includes(group.status)&&<p className="text-[var(--wh-text-secondary)]">Payment deadline: {displayDateTimeAtProperty(group.expires_at,terms.timezone)} ({terms.timezone}). Joining later does not extend the hold.</p>}
     </section>

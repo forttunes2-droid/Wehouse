@@ -393,5 +393,103 @@ do $$declare stage text;gid uuid;mid uuid;person text;begin
   perform pg_temp.expect((select status='expired' from public.shared_payment_groups where shared_payment_group_id=gid),'canonical unpaid Home expiry agrees');
  end loop;
 end$$;
-select 'PASS: guests-only Hotel sharing, two/three-payer allocation, late-charge refunds and unpaid Home expiry' as result;
+-- Same-day policy uses the existing Hotel, actual constructors, shared checkout
+-- and verified-charge gateway. No financial projection is fabricated here.
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000001');
+insert into public.hotel_rooms(room_id,hotel_id,room_type,price_per_night,total_rooms,max_guests)
+values(-7979,-7970,'Same-day room',20000,3,3);
+insert into public.hotel_rate_plans(rate_plan_id,hotel_id,room_id,name,meal_plan,payment_timing,refundable,cancellation_hours,price_per_night,included_features,active,cancellation_template)
+values(-7979,-7970,-7979,'Same-day flexible','room_only','pay_now',true,24,20000,array[]::text[],true,'standard');
+set local role authenticated;
+do $$declare h public.hotels;r public.hotels;revision timestamptz;cutoff time;begin
+ select * into h from public.hotels where hotel_id=-7970;revision:=h.updated_at;
+ r:=public.partner_update_hotel_stay_policy(-7970,time '14:00',time '12:00',time '23:59',revision);
+ perform pg_temp.expect(r.same_day_booking_cutoff=time '23:59','the authorised Hotel manager can enable same-day bookings');
+ r:=public.partner_update_hotel_stay_policy(-7970,time '14:00',time '12:00',time '23:59',revision);
+ begin perform public.partner_update_hotel_stay_policy(-7970,time '15:00',time '12:00',time '22:00',revision-interval '1 second');raise exception 'FAIL: stale Hotel policy overwritten';exception when serialization_failure then null;end;
+ begin perform public.partner_update_hotel_stay_policy(-7970,time '14:00',time '12:00',time '23:59:30',r.updated_at);raise exception 'FAIL: invalid cutoff precision accepted';exception when check_violation then null;end;
+ r:=public.partner_update_hotel_stay_policy(-7970,time '14:30',time '12:00');
+ perform pg_temp.expect(r.same_day_booking_cutoff=time '23:59','older arrival-time clients retain the configured cutoff');
+ cutoff:=case when timezone('Africa/Lagos',now())::time<time '23:54' then (date_trunc('minute',timezone('Africa/Lagos',now()))+interval '5 minutes')::time else time '23:59' end;
+ r:=public.partner_update_hotel_stay_policy(-7970,time '00:00',time '12:00',cutoff,r.updated_at);
+ perform pg_temp.expect(public.get_public_hotel_detail(-7970)->>'same_day_booking_cutoff'=to_jsonb(cutoff)#>>'{}','the customer projection carries the configured cutoff');
+end$$;
+reset role;
+-- Verify persisted audit effects as the fixture administrator; users retain no raw audit-table access.
+select pg_temp.expect((select count(*)=case when (select same_day_booking_cutoff from public.hotels where hotel_id=-7970)=time '23:59' then 1 else 2 end from public.hotel_commercial_change_audit where hotel_id=-7970 and action='same_day_booking_cutoff_updated'),'retried, stale and invalid policy changes add no duplicate audit records');
+-- Hotel ownership alone cannot bypass the live trusted-session requirement.
+select set_config('request.jwt.claims',jsonb_build_object('sub','79706666-0000-4000-8000-000000000001','session_id','79706666-9999-4000-8000-000000000001','role','authenticated')::text,true);
+set local role authenticated;
+do $$begin
+ begin perform public.partner_update_hotel_stay_policy(-7970,time '00:00',time '12:00',time '23:59',now());raise exception 'FAIL: inactive owner session changed Hotel cutoff';exception when insufficient_privilege then null;end;
+end$$;
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000002');
+set local role authenticated;
+do $$declare h public.hotels;b public.hotel_bookings;retry public.hotel_bookings;q jsonb;g jsonb;today date:=timezone('Africa/Lagos',now())::date;begin
+ begin perform public.partner_update_hotel_stay_policy(-7970,time '00:00',time '12:00',time '23:59',now());raise exception 'FAIL: guest changed Hotel cutoff';exception when insufficient_privilege then null;end;
+ -- The late-night closed branch is legitimate. Fixed-clock cases separately
+ -- prove every boundary; release evidence records the actual open path below.
+ if timezone('Africa/Lagos',now())::time>=time '23:59' then
+  begin perform public.quote_hotel_room_rate(-7970,-7979,-7979,today,today+2);raise exception 'FAIL: closed same-day quote';exception when invalid_parameter_value then null;end;
+  perform set_config('test.same_day_group','closed',true);
+ else
+  q:=public.quote_hotel_room_rate(-7970,-7979,-7979,today,today+2);
+  perform pg_temp.expect((q->>'available')::boolean and (q->>'same_day_booking_cutoff_at')::timestamptz>now(),'same-day quote returns its live Hotel deadline');
+  b:=public.create_my_hotel_booking_with_rate('79706666-5000-4000-8000-000000000099',-7970,-7979,-7979,today,today+2,2,'Same-day guest','08000000000',null);
+  perform pg_temp.expect(b.payment_expires_at=(q->>'same_day_booking_cutoff_at')::timestamptz and b.payment_expires_at<now()+interval '30 minutes','the actual room hold is clipped to the Hotel cutoff');
+  retry:=public.create_my_hotel_booking_with_rate('79706666-5000-4000-8000-000000000099',-7970,-7979,-7979,today,today+2,2,'Same-day guest','08000000000',null);
+  perform pg_temp.expect(retry.booking_id=b.booking_id and retry.payment_expires_at=b.payment_expires_at,'retry preserves one same-day room and its original deadline');
+  g:=public.create_my_shared_hotel(b.booking_id,array['share-peer']);
+  perform pg_temp.expect((g->>'expires_at')::timestamptz=b.payment_expires_at,'every shared payer retains the clipped room deadline');
+  perform set_config('test.same_day_group',g->>'id',true);perform set_config('test.same_day_booking',b.booking_id::text,true);
+ end if;
+end$$;
+reset role;
+-- Disabling new same-day sales must not cancel or extend a saved room hold.
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000001');
+set local role authenticated;
+do $$declare h public.hotels;begin select * into h from public.hotels where hotel_id=-7970;
+ perform public.partner_update_hotel_stay_policy(-7970,time '00:00',time '12:00',null,h.updated_at);end$$;
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000004');
+set local role authenticated;
+do $$declare p jsonb;begin if current_setting('test.same_day_group')<>'closed' then
+ perform public.respond_to_shared_housing_invite(current_setting('test.same_day_group')::uuid,true);
+ p:=public.create_my_shared_housing_payment(current_setting('test.same_day_group')::uuid);perform set_config('test.same_day_peer_ref',p->>'reference',true);
+end if;end$$;
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000002');
+set local role authenticated;
+do $$declare p jsonb;begin if current_setting('test.same_day_group')<>'closed' then
+ p:=public.create_my_shared_housing_payment(current_setting('test.same_day_group')::uuid);perform set_config('test.same_day_guest_ref',p->>'reference',true);
+end if;end$$;
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+do $$declare p public.booking_payments;r jsonb;begin if current_setting('test.same_day_group')<>'closed' then
+ for p in select * from public.booking_payments where paystack_reference in(current_setting('test.same_day_peer_ref'),current_setting('test.same_day_guest_ref')) loop
+  r:=public.process_verified_paystack_charge('same-day-'||p.id,'charge.success',p.paystack_reference,repeat('e',64),now(),(p.amount*100)::bigint,'NGN','same-day-'||p.id);
+  perform pg_temp.expect((r->>'success')::boolean,'a saved same-day shared charge crosses the actual gateway after policy changes');
+ end loop;
+ perform pg_temp.expect((select status='confirmed' and payment_status='paid' from public.hotel_bookings where booking_id=current_setting('test.same_day_booking')::integer),'both verified shares confirm one same-day Hotel room');
+end if;end$$;
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000002');
+set local role authenticated;
+do $$declare code text;begin if current_setting('test.same_day_group')<>'closed' then
+ code:=public.issue_my_hotel_stay_code(current_setting('test.same_day_booking')::integer,'checked_in');
+ perform pg_temp.expect(code ~ '^\d{8}$','same-day guest receives a private arrival code');
+ perform set_config('test.same_day_arrival_code',code,true);
+end if;end$$;
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000001');
+set local role authenticated;
+do $$begin if current_setting('test.same_day_group')<>'closed' then
+ perform public.partner_confirm_hotel_stay_with_code(current_setting('test.same_day_booking')::integer,'checked_in',current_setting('test.same_day_arrival_code'));
+ perform pg_temp.expect((public.get_my_hotel_operation_snapshot(-7970)->'bookings') @> jsonb_build_array(jsonb_build_object('booking_id',current_setting('test.same_day_booking')::integer,'status','checked_in')),'Hotel records same-day guest arrival after verified shared payment');
+end if;end$$;
+reset role;
+select 'PASS: Hotel shared payments, same-day quote/hold/gateway/arrival, saved deadlines, late refunds and Home expiry' as result;
 rollback;

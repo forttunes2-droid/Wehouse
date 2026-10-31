@@ -154,6 +154,38 @@ price is labelled as an estimate. No pricing, cancellation, capacity or booking
 command changes. New browser checks exercise the actual button hit target,
 navigation restoration, room photos, package selection and responsive comparison.
 
+WR-01/05/09/16: C-067 now permits same-day Hotel booking with a Hotel-set cutoff.
+Test migration `20261031154926` (normalized statement MD5
+`4a606c9a9ebf773f8eb70894bbf062ad`) extends the existing quote, room constructor,
+inventory integrity trigger and policy writer; it introduces no parallel booking,
+payment or wallet system. No default time or additional market is activated.
+The Hotel-local deadline clips the existing unpaid hold, including every shared
+payer's deadline. Later setting changes do not rewrite a saved hold or cancel a
+confirmed paid stay. The policy control lives in existing Hotel details, checks
+trusted live-session/capability authority, rejects stale edits and records changes
+in the existing commercial audit. Old arrival-time clients preserve the cutoff.
+
+The hosted rollback contract passes the actual same-day quote, clipped hold,
+idempotent retry, shared consent and charge gateway, followed by guest-code Hotel
+arrival. It also proves a saved hold remains payable after the Hotel disables new
+same-day sales, and denies customer/inactive-owner policy writes. Fixed-clock SQL
+cases cover exact cutoff, disabled sales, Hotel-local dates, daylight-saving
+boundaries and helper permissions. This is controlled gateway evidence, not proof
+of live provider settlement. Nine focused regional/window/cancellation source
+tests, TypeScript, lint, production build and isolated fixture compilation pass.
+
+Customer calendars/checkout use the same Hotel window; open screens refresh at
+the cutoff/midnight without database polling. Saved individual/shared holds stop
+offering payment on expiry. Last-minute cancellation text explains the expired
+free-cancellation window, and shared terms refer to the payer's own recorded sum.
+New isolated browser cases cover those customer states and Hotel policy save,
+lost response/retry, stale edits, read-only access and both themes. Their new
+exact-commit CI run is still required. Candidate `57855e9a` passed six workflows;
+its discovery browser failed because a guest-navigation assertion ran after the
+test had switched to a standalone signed-in detail. The corrected sequence checks
+guest Back/loading recovery before switching identities. The wider WR register
+and separately authorised Production rollout remain open.
+
 WR-01/05/06: Hotel sharing is limited to accepted Friends joining the stay,
 with two/three payers and the room's declared guest limit still enforced (owner
 decision, 31 October). Its integration extends the existing shared-payment records.

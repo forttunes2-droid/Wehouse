@@ -3,6 +3,8 @@ import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import HotelRoomChoices from "@/components/HotelRoomChoices";
+import {useHotelBookingWindow} from '@/hooks/useHotelBookingWindow';
+import {hotelCalendarDay} from '@/lib/hotelCheckout';
 import PropertyShareDialog from "@/components/PropertyShareDialog";
 import ReportListingDialog from "@/components/ReportListingDialog";
 import { sharePropertyExternally } from "@/lib/propertyShare";
@@ -146,22 +148,14 @@ export default function HotelDetailExperience({
     if (!loading && hotel && String(hotel.hotel_id) === String(hotelId)) savePublicBrowseDraft('hotel', String(hotelId), { roomId: selectedRoom?.room_id || null, rateId: selectedRate?.rate_plan_id || null, checkIn, checkOut });
   }, [loading, hotel, hotelId, selectedRoom, selectedRate, checkIn, checkOut]);
 
-  const tomorrow = useMemo(() => {
-    const value = new Date();
-    value.setDate(value.getDate() + 1);
-    return value.toISOString().split("T")[0];
-  }, []);
-  const bookingWindowEnd = useMemo(() => {
-    const value = new Date();
-    value.setDate(value.getDate() + 366);
-    return value.toISOString().split("T")[0];
-  }, []);
-  const minCheckout = useMemo(() => {
-    if (!checkIn) return tomorrow;
-    const value = new Date(`${checkIn}T12:00:00`);
-    value.setDate(value.getDate() + 1);
-    return value.toISOString().split("T")[0];
-  }, [checkIn, tomorrow]);
+  const bookingWindow=useHotelBookingWindow(hotel);
+  const tomorrow=bookingWindow.earliest,bookingWindowEnd=bookingWindow.latest;
+  const minCheckout=hotelCalendarDay(checkIn)||tomorrow;
+  useEffect(()=>{
+    if(!loading&&hotel&&String(hotel.hotel_id)===String(hotelId)&&checkIn&&(checkIn<bookingWindow.earliest||checkOut>bookingWindow.latest)){
+      setCheckIn('');setCheckOut('');
+    }
+  },[loading,hotel,hotelId,checkIn,checkOut,bookingWindow.earliest,bookingWindow.latest]);
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0;
     const start = new Date(`${checkIn}T12:00:00`).getTime();
@@ -236,6 +230,7 @@ export default function HotelDetailExperience({
     if (!checkIn || !checkOut)
       return toast.error("Choose check-in and check-out dates");
     if (nights < 1) return toast.error("Check-out must be after check-in");
+    if(checkIn<bookingWindow.earliest||checkOut>bookingWindow.latest)return toast.error("Choose currently available stay dates");
     onBook(
       hotelId,
       selectedRoom.room_id,
@@ -395,12 +390,16 @@ export default function HotelDetailExperience({
         {selectedRate ? (
           <section id="hotel-stay-dates" className="scroll-mt-4 border-y border-[var(--wh-border-subtle)] py-5">
             <h2 className="text-sm font-semibold">Choose stay dates</h2>
+            <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">{bookingWindow.cutoffTime
+              ? bookingWindow.sameDayOpen ? `Book and complete payment for today by ${bookingWindow.cutoffLabel} (${bookingWindow.timeZone}).`
+                : "Today's same-day booking deadline has passed. Choose a later check-in date."
+              : "This Hotel accepts bookings from tomorrow."}</p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <DateField
                 label="Check-in"
                 value={checkIn}
                 min={tomorrow}
-                max={bookingWindowEnd}
+                max={bookingWindow.lastCheckIn}
                 onChange={(value) => {
                   setCheckIn(value);
                   if (checkOut && checkOut <= value) setCheckOut("");
