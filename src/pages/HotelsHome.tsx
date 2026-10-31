@@ -1,5 +1,6 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
 import DiscoveryRail from '@/components/DiscoveryRail';
+import DiscoveryRows,{DiscoveryGrid} from '@/components/DiscoveryRows';
 import {ImageOff} from 'lucide-react';
 import {matchesDiscoveryText} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
@@ -353,8 +354,7 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
   }
 
   const showBrowseRail = !query.trim() && filterCount===0 && !userLocation && !followedOrigin && filtered.length>6;
-  const browseHotels = showBrowseRail ? filtered.slice(0,6) : [];
-  const resultHotels = showBrowseRail ? filtered.slice(6) : filtered;
+
   const hotelCard = ({hotel,distance}: (typeof filtered)[number]) => (
     <HotelCard key={hotel.hotel_id} hotel={hotel} distance={distance}
       saved={savedHotelIds.has(Number(hotel.hotel_id))} saving={savingHotelId===Number(hotel.hotel_id)}
@@ -443,13 +443,8 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
           />
         ) : (
           <>
-            {showBrowseRail && <DiscoveryRail title="Hotels to explore">{browseHotels.map(hotelCard)}</DiscoveryRail>}
-            <section aria-label={showBrowseRail?'More hotels':'Hotel results'} className="space-y-4">
-              {showBrowseRail && <h2 className="text-lg font-semibold tracking-tight">More hotels</h2>}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {resultHotels.map(hotelCard)}
-              </div>
-            </section>
+            {showBrowseRail ? <DiscoveryRows title="Hotels to explore">{filtered.map(hotelCard)}</DiscoveryRows> :
+              <DiscoveryGrid label="Hotel results">{filtered.map(hotelCard)}</DiscoveryGrid>}
           </>
         )}
         {!loading && hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="mx-auto block min-h-12 rounded-full border border-[var(--wh-border)] px-6 text-sm font-semibold text-[var(--wh-accent-text)] disabled:opacity-50">{loadingMore ? 'Loading more…' : 'Show more hotels'}</button>}
@@ -531,9 +526,9 @@ function HotelCard({
   const image = hotel.images?.[0];
   const roomCount = (hotel.hotel_rooms || []).length;
   return (
-    <article data-hotel-card className="relative min-w-0 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-2.5 pb-4">
+    <article data-hotel-card className="relative min-w-0 pb-2">
       <button type="button" onClick={onOpen} aria-label={`View ${hotel.name}`} className="absolute inset-0 z-10 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--wh-violet)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wh-bg)]" />
-      <div className={`relative overflow-hidden rounded-xl bg-[var(--wh-elevated)] ${image ? "aspect-[4/3]" : "h-36"}`}>
+      <div data-hotel-media className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[var(--wh-elevated)]">
           {image ? <ShowcaseMediaThumbnail src={image} mediaType="image" alt={hotel.name} className="h-full w-full object-cover" />
             : <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--wh-text-muted)]"><ImageOff size={24} aria-hidden="true"/><span className="text-xs">Photos not available</span></div>}
           {hotel.featured ? (

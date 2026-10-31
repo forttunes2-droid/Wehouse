@@ -17,7 +17,7 @@ export default function useSecureInboxAccess(profileId: string, enabled = true) 
   const refresh = useCallback(async () => {
     const request = ++generation.current;
     rememberPrivateMessagingProfile(profileId);
-    const identity = await encryptionIdentityStatus();
+    const identity = await encryptionIdentityStatus().catch(reason=>({enabled:false,unlocked:false,error:{message:reason instanceof Error?reason.message:'Private chats could not be checked. Try again.'}}));
     const next: PrivateConversationReadiness = identity.error
       ? {
           state: "unavailable",
@@ -28,13 +28,13 @@ export default function useSecureInboxAccess(profileId: string, enabled = true) 
         ? {
             state: "setup_required",
             message:
-              "Create your recovery passcode before opening private messages.",
+              "Set up private chats before opening private messages.",
           }
         : !identity.unlocked
           ? {
               state: "unlock_required",
               message:
-                "Unlock private messages with your recovery passcode on this device.",
+                "Restore your chat backup or continue without previous history on this device.",
             }
           : { state: "ready", message: "Private messages unlocked" };
     if (request === generation.current) setAccess({ profileId, status: next });

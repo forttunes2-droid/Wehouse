@@ -9,7 +9,7 @@ This code change does not enable passkeys in a hosted Supabase project. Do not s
 ## Before enabling the Test web project
 
 1. In that Supabase project's Authentication → Passkeys settings, enable passkeys and configure the WeHouse display name, relying-party ID, and exact HTTPS origin(s).
-2. Use the stable WeHouse domain as the relying-party ID (for example `wehouse.com.ng`) and only origins whose hostnames belong to that domain. Do not use a one-off Vercel preview hostname as the relying-party ID.
+2. Give Test its own stable host and relying-party ID (for example `test.wehouse.com.ng`, subject to the owner's domain choice). Keep its RP separate from Production's `wehouse.com.ng`; allow only the exact origins belonging to that RP. Do not activate backup on changing, one-off preview origins or reuse the Production RP for Test.
 3. Treat the relying-party ID as permanent. Supabase documents that changing it invalidates passkeys enrolled under the previous ID.
 4. Set `VITE_PASSKEYS_ENABLED=true` only on the matching Test web deployment. Keep it unset/false in production until Test has passed.
 5. Test a verified existing account: add a passkey, sign out, sign in with it, test cancellation/unavailable browser behavior, verify new-device confirmation still runs, remove a lost passkey, and sign in through the fallback method. Use disposable Test accounts.
@@ -26,3 +26,25 @@ The flow in this branch is web-only. The app uses Capacitor, not a Flutter clien
 - Passkey sign-in loads the existing WeHouse profile and uses the existing device-registration flow. Pending devices still need the current device-confirmation process.
 - Passkeys are an optional additional sign-in method; they do not replace account recovery, Creator step-up, workspace permissions, or server authorization.
 - Passkey APIs are experimental in Supabase Auth and may change. Keep the feature flag off if the hosted project or deployed client cannot support the same API.
+
+## Optional private-chat backup
+
+Private chats now create encrypted device keys automatically, without another
+WeHouse PIN. An optional backup reuses a compatible registered passkey or creates
+one through the same Auth registration API. The WebAuthn PRF output stays in the
+browser; the public attestation sent to Auth explicitly omits PRF results. A
+successful sign-in passkey registration is not proof of compatible backup: the
+client must receive a 32-byte PRF output and confirm the encrypted backup receipt.
+Cancellation, missing PRF and stale/unknown saves must remain recoverable states.
+
+Use the stable Test branch alias for routine preview work. Device keys are
+origin-scoped: another random deployment hostname is another browser storage
+origin even when it uses the same Test database. Do not copy local keys or
+Production passkey configuration between these origins. A newly opened origin
+needs an optional backup restore or explicit continuation without unavailable
+history. Normal chats remain usable without activating optional passkey backup.
+
+The current synthetic browser and isolated real-WebCrypto checks cover storage,
+key reuse, PRF-output handling, recovery and failure behavior. Physical passkey,
+new-device sign-in/confirmation and native acceptance are separate checks; do not
+describe simulated PRF as actual hosted Auth or hardware evidence.

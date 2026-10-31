@@ -62,7 +62,7 @@ export default function ExperienceSessionsPanel({ activity, onDirtyChange, revie
     finally{lock.current=false;if(request===generation.current)setBusy(false);}
   }
   const editable = !review && ['draft','changes_required','withdrawn','approved'].includes(activity.status);
-  return <section aria-label="Experience sessions" className="space-y-4 rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4">
+  return <section aria-label="Activity sessions" className="space-y-4 rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4">
     <header><h3 className="font-semibold">Dates and prices</h3><p className="mt-1 text-sm leading-6 text-[var(--wh-text-secondary)]">{review ? 'Review the dates, capacity and standard price prepared before this application was submitted.' : activity.status === 'submitted' ? 'Dates and standard prices are locked during review. Withdraw the application before changing them.' : activity.status==='approved' ? 'Add dates within your approved activity and group limit. Closing availability keeps existing holds and confirmed bookings.' : 'Prepare dates for review. Dates stay private until the activity is approved and published.'} Times use {activity.details.timezone}. Open dates become bookable while the approved activity is published.</p></header>
     {loading && <p role="status">Loading prepared sessions...</p>}
     {error && <div role="alert" className="space-y-2 text-sm text-red-700 dark:text-red-300"><p>{error}</p><Button variant="outline" type="button" disabled={busy||dirty} onClick={() => setAttempt(n=>n+1)}>Refresh sessions</Button></div>}

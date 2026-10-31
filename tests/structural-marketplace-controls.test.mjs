@@ -99,7 +99,7 @@ test('Sponsored is one generic paid-visibility foundation, separate from Worker 
   assert.match(migration, /status in \('draft','pending_payment','active','paused','expired','cancelled'\)/);
   assert.match(migration, /worker_featured_sales_enabled/);
   assert.match(migration, /set value='false'/);
-  for(const label of ['Service profiles','Homes','Hotels','Experiences'])assert.ok(ui.includes(`"${label}"`),`Creator resource choices include ${label}`);
+  for(const label of ['Service profiles','Homes','Hotels','Activities'])assert.ok(ui.includes(`"${label}"`),`Creator resource choices include ${label}`);
   assert.match(ui, /verified payment activation/);
   assert.match(discovery, /SPONSORED/);
 });

@@ -1,3 +1,4 @@
+import AccommodationProtectionPanel,{ArrivalIssueDialog} from '@/components/AccommodationProtectionPanel';
 import ServiceReviewDecisionNotice from '@/components/ServiceReviewDecisionNotice';
 import PropertyBookingReview from '@/components/PropertyBookingReview';
 import ExperienceBookingDetail,{experienceBookingLabel,experienceBookingLane} from '@/components/ExperienceBookingDetail';
@@ -15,6 +16,7 @@ import { sharedHousingLane } from "@/lib/sharedHousingPresentation";
 import { withTimeout } from "@/lib/withTimeout";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 import HotelCancellationPanel from "@/components/HotelCancellationPanel";
+import HotelPresenceCode from '@/components/HotelPresenceCode';
 import StayArrivalInstructions from "@/components/StayArrivalInstructions";
 import WorkerCustomerRecordConsent from "@/components/WorkerCustomerRecordConsent";
 import { shortLetPayment,shortLetBookingPrice } from "@/lib/shortLetPayment";
@@ -38,7 +40,6 @@ import {
 } from "@/lib/supabase/housing-payments";
 import {
   getHotelBookingsForUser,
-  issueMyHotelStayCode,
   initializeHotelBookingPayment,
   updateBookingStatus,
 } from "@/lib/supabase/hotels";
@@ -193,7 +194,7 @@ export default function MyReservations({
       if(current!==loadGeneration.current)return;
       const nextErrors: BookingSourceErrors = {};
       if(experienceResult.status==='fulfilled'){setExperiences(experienceResult.value.items);setExperienceMore(experienceResult.value.has_more);experienceCursor.current=experienceResult.value.items.at(-1);}
-      else nextErrors.experiences='Experience bookings could not be refreshed.';
+      else nextErrors.experiences='Activity bookings could not be refreshed.';
       if(sharedResult.status==='fulfilled'&&!sharedResult.value.error) setSharedGroups(sharedResult.value.groups);
       else nextErrors.housing="Shared payments could not be refreshed.";
       if (housingResult.status === "fulfilled") {
@@ -367,7 +368,7 @@ export default function MyReservations({
           row,
           date: row.created_at || "",
         })),
-        ...hotels.map((row) => ({
+        ...hotels.filter(row=>!sharedGroups.some(group=>group.id===row.shared_payment_group_id)).map((row) => ({
           kind: "hotel" as const,
           row,
           date: row.created_at || "",
@@ -382,9 +383,9 @@ export default function MyReservations({
           if (view === "services") return item.kind === "service";
           if (view === "experiences") return item.kind === "experience";
           if (view === "all") return true;
-          if (stayFilter === "short_let") return item.kind === "housing" && String(item.row.stay_type) === "short_let";
-          if (stayFilter === "long_let") return item.kind === "housing" && String(item.row.stay_type) !== "short_let";
-          if (stayFilter === "hotels") return item.kind === "hotel";
+          if (stayFilter === "short_let") return item.kind === "housing" && String(item.row.stay_type) === "short_let" || item.kind==='shared'&&item.row.product_type==='short_let';
+          if (stayFilter === "long_let") return item.kind === "housing" && String(item.row.stay_type) !== "short_let" || item.kind==='shared'&&item.row.product_type==='long_let';
+          if (stayFilter === "hotels") return item.kind === "hotel" || item.kind==='shared'&&item.row.product_type==='hotel';
           return item.kind === "housing" || item.kind === "hotel" || item.kind === "shared";
         })
         .sort(
@@ -718,7 +719,7 @@ export default function MyReservations({
     );
   }
 
-  async function moreExperiences(){if(experiencePagingLock.current)return;experiencePagingLock.current=true;setExperiencePaging(true);const current=loadGeneration.current;try{const p=await getExperienceBookings(false,experienceCursor.current);if(current===loadGeneration.current){setExperiences(old=>[...new Map([...old,...p.items].map(r=>[r.id,r])).values()]);setExperienceMore(p.has_more);experienceCursor.current=p.items.at(-1);}}catch{if(current===loadGeneration.current)setSourceErrors(old=>({...old,experiences:'Older Experience bookings could not be loaded. Retry the page.'}));}finally{experiencePagingLock.current=false;if(current===loadGeneration.current)setExperiencePaging(false);}}
+  async function moreExperiences(){if(experiencePagingLock.current)return;experiencePagingLock.current=true;setExperiencePaging(true);const current=loadGeneration.current;try{const p=await getExperienceBookings(false,experienceCursor.current);if(current===loadGeneration.current){setExperiences(old=>[...new Map([...old,...p.items].map(r=>[r.id,r])).values()]);setExperienceMore(p.has_more);experienceCursor.current=p.items.at(-1);}}catch{if(current===loadGeneration.current)setSourceErrors(old=>({...old,experiences:'Older Activity bookings could not be loaded. Retry the page.'}));}finally{experiencePagingLock.current=false;if(current===loadGeneration.current)setExperiencePaging(false);}}
   if(activeExperience)return <ExperienceBookingDetail key={activeExperience} id={activeExperience} viewerId={profile.user_id} onClose={()=>setActiveExperience(null)} onChanged={row=>setExperiences(old=>old.map(item=>item.id===row.id?row:item))}/>;
   if (activeServiceChat)
     return (
@@ -776,6 +777,7 @@ export default function MyReservations({
     );
 
   if(activeShared) return <SharedHousingDetails groupId={activeShared} userId={profile.user_id} onBack={()=>{setActiveShared(null);void load(true);}} onChanged={()=>void load(true)}
+    onOpenHotelBooking={id=>{const row=hotels.find(item=>Number(item.booking_id)===id);if(row){setActiveShared(null);setActiveHotel(row);}else toast.error("Refresh Bookings to load your room booking.");}}
     onOpenListing={onOpenListing ? id=>{setActiveShared(null);onOpenListing(id);} : undefined}
     onOpenBooking={id=>{const row=housing.find(item=>String(item.id)===id);if(row){setActiveShared(null);setActiveHousing(row);}else toast.error("Refresh Bookings to load your booking.");}} />;
 
@@ -902,7 +904,7 @@ export default function MyReservations({
               { value: "long_let", label: "Long Let" },
               { value: "hotels", label: "Hotel" },
               { value: "services", label: "Services" },
-              { value: "experiences", label: "Experiences" },
+              { value: "experiences", label: "Activities" },
             ].map(option => {
               const selected = option.value === "all"
                 ? view === "all" && stayFilter === "all"
@@ -933,7 +935,7 @@ export default function MyReservations({
           </div>
           <div className="flex flex-wrap items-center gap-x-1">
             {STATUS_OPTIONS.map(option => <button key={option.value} type="button" aria-label={option.label} aria-pressed={statusView === option.value} onClick={() => setStatusView(option.value)}
-              className={`min-h-8 shrink-0 px-2.5 text-[10px] font-semibold ${statusView === option.value ? "text-violet-300" : "text-[var(--wh-text-secondary)]"}`}>
+              className={`min-h-8 shrink-0 px-2.5 text-[10px] font-semibold ${statusView === option.value ? "text-[var(--wh-accent-text)]" : "text-[var(--wh-text-secondary)]"}`}>
               {option.value === "all" ? "All status" : option.value === "action" ? "To do" : option.value === "active" ? "Upcoming" : "History"}
             </button>)}
           </div>
@@ -950,7 +952,7 @@ export default function MyReservations({
         </div>
         {!loading && <p className="mt-3 text-xs text-[var(--wh-text-muted)]" aria-live="polite">
           {visibleCount} {visibleCount === 1 ? "item" : "items"}
-          {(search || month !== "all") && <button type="button" onClick={() => { setSearch(""); setMonth("all"); }} className="ml-3 min-h-9 font-semibold text-violet-300">Clear search and month</button>}
+          {(search || month !== "all") && <button type="button" onClick={() => { setSearch(""); setMonth("all"); }} className="ml-3 min-h-9 font-semibold text-[var(--wh-accent-text)]">Clear search and month</button>}
         </p>}
 
         {Object.keys(sourceErrors).length > 0 ? (
@@ -980,10 +982,10 @@ export default function MyReservations({
                   {group.map((item, index) => (
                     <div key={item.kind==='experience'?`experience-${item.row.id}`:item.kind === "housing" ? item.row.id : item.kind === "shared" ? `shared-${item.row.id}` : item.kind === "hotel" ? item.row.booking_id : item.row.booking_id || item.row.conversation_id}
                       className={index ? "border-t border-[var(--wh-border-subtle)]" : ""}>
-                      {item.kind==='experience'?<BookingCard eyebrow="Experience" title={item.row.contract.title} subtitle={item.row.host_name||'Experience host'} image={null} fallback="◎" status={experienceBookingLabel(item.row)} meta={[displayDateTimeAtProperty(item.row.contract.starts_at,item.row.contract.timezone),`${item.row.participants} participants`,formatRecordedMoney(item.row.contract.total_minor/100,item.row.contract.currency)]} next="View booking and next steps" onOpen={()=>setActiveExperience(item.row.id)} compact/>:item.kind === "housing" ? (
+                      {item.kind==='experience'?<BookingCard eyebrow="Activity" title={item.row.contract.title} subtitle={item.row.host_name||'Activity host'} image={null} fallback="◎" status={experienceBookingLabel(item.row)} meta={[displayDateTimeAtProperty(item.row.contract.starts_at,item.row.contract.timezone),`${item.row.participants} participants`,formatRecordedMoney(item.row.contract.total_minor/100,item.row.contract.currency)]} next="View booking and next steps" onOpen={()=>setActiveExperience(item.row.id)} compact/>:item.kind === "housing" ? (
                         <HousingCard row={item.row} onOpen={() => setActiveHousing(item.row)} compact />
                       ) : item.kind === "shared" ? (
-                        <BookingCard eyebrow={item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
+                        <BookingCard eyebrow={item.row.product_type==='hotel'?'Hotel · Shared':item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
                           title={item.row.listing.title||"Shared home"} subtitle={item.row.members.filter((m:any)=>m.user_id!==profile.user_id).map((m:any)=>m.name).join(", ")}
                           image={item.row.listing.image||null} fallback="⌂" meta={item.row.stay_check_in ? [`${date(item.row.stay_check_in)} – ${date(item.row.stay_check_out)}`] : []}
                           status={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited' ? "To do" : "Shared"}
@@ -1000,7 +1002,7 @@ export default function MyReservations({
             ))}
           </div>
         )}
-        {experienceMore&&(view==='all'||view==='experiences')&&<button type="button" disabled={experiencePaging} onClick={()=>void moreExperiences()} className="mt-4 min-h-11 rounded-xl border border-[var(--wh-border)] px-4 text-sm">{experiencePaging?'Loading...':'Load older Experience bookings'}</button>}
+        {experienceMore&&(view==='all'||view==='experiences')&&<button type="button" disabled={experiencePaging} onClick={()=>void moreExperiences()} className="mt-4 min-h-11 rounded-xl border border-[var(--wh-border)] px-4 text-sm">{experiencePaging?'Loading...':'Load older Activity bookings'}</button>}
       </main>
 
       <ConfirmDialog
@@ -1070,7 +1072,7 @@ function BookingSourceNotice({
     errors.housing && "apartments",
     errors.hotels && "hotels",
     errors.services && "WeHouse Services",
-    errors.experiences && "Experiences",
+    errors.experiences && "Activities",
   ].filter(Boolean);
   return (
     <div
@@ -1078,7 +1080,7 @@ function BookingSourceNotice({
       role="status"
     >
       <div>
-        <p className="text-[10px] font-semibold text-amber-300">
+        <p className="text-[10px] font-semibold text-amber-800 dark:text-amber-300">
           {labels.join(", ")} {labels.length === 1 ? "needs" : "need"} a refresh
         </p>
         <p className="mt-1 text-xs text-[var(--wh-text-secondary)]">
@@ -1088,7 +1090,7 @@ function BookingSourceNotice({
       <button
         type="button"
         onClick={retry}
-        className="min-h-9 shrink-0 px-3 text-xs font-semibold text-amber-300"
+        className="min-h-9 shrink-0 px-3 text-xs font-semibold text-amber-800 dark:text-amber-300"
       >
         Try again
       </button>
@@ -1179,7 +1181,7 @@ function ServiceBookingDetail({
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-violet-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--wh-accent-text)]">
                 WeHouse Service
               </p>
               <h2 className="mt-1 break-words text-base font-bold leading-5">
@@ -1189,7 +1191,7 @@ function ServiceBookingDetail({
                 {workerName}
               </p>
             </div>
-            <span className="shrink-0 text-xs font-semibold text-violet-200">
+            <span className="shrink-0 text-xs font-semibold text-[var(--wh-accent-text)]">
               {serviceStatusLabel(status)}
             </span>
           </div>
@@ -1254,10 +1256,10 @@ function ServiceBookingJourney({ status, moneyLabel }: { status: string; moneyLa
     <div className="mt-3 grid grid-cols-4 gap-1 sm:grid-cols-7">
       {stages.map(([id, label], index) => <div key={id} className="text-center">
         <div className={"mx-auto grid h-6 w-6 place-items-center rounded-full text-[10px] font-bold " + (!stopped && index <= current ? "bg-violet-500 text-white" : "bg-[var(--wh-interactive)] text-[var(--wh-text-muted)]")}>{!stopped && index < current ? "✓" : index + 1}</div>
-        <p className={"mt-1 text-[9px] leading-3 " + (!stopped && index <= current ? "text-violet-300" : "text-[var(--wh-text-muted)]")}>{label}</p>
+        <p className={"mt-1 text-[9px] leading-3 " + (!stopped && index <= current ? "text-[var(--wh-accent-text)]" : "text-[var(--wh-text-muted)]")}>{label}</p>
       </div>)}
     </div>
-    <div className={"mt-3 rounded-xl bg-[var(--wh-interactive)] px-3 py-2.5 text-xs leading-5 " + (stopped ? "text-amber-300" : "text-[var(--wh-text-secondary)]")}>
+    <div className={"mt-3 rounded-xl bg-[var(--wh-interactive)] px-3 py-2.5 text-xs leading-5 " + (stopped ? "text-amber-800 dark:text-amber-300" : "text-[var(--wh-text-secondary)]")}>
       <p>{serviceNextAction(status)}</p>
       <p className="mt-1 text-[10px] text-[var(--wh-text-muted)]">Payment: {moneyLabel}</p>
     </div>
@@ -1402,13 +1404,13 @@ export function BookingCard({
             className={`${compact ? "h-11 w-11 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 object-cover`}
           />
         ) : (
-          <div className={`grid ${compact ? "h-11 w-11 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 place-items-center bg-violet-500/[.08] text-lg font-bold text-violet-300`}>
+          <div className={`grid ${compact ? "h-11 w-11 rounded-lg" : "h-14 w-14 rounded-xl"} shrink-0 place-items-center bg-violet-500/[.08] text-lg font-bold text-[var(--wh-accent-text)]`}>
             {fallback}
           </div>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-[11px] font-semibold text-violet-300">{eyebrow}</p>
+            <p className="text-[11px] font-semibold text-[var(--wh-accent-text)]">{eyebrow}</p>
             {status ? (
               <span className="max-w-[7rem] shrink-0 overflow-hidden text-ellipsis whitespace-nowrap rounded-full border border-[var(--wh-border-subtle)] px-2 py-1 text-[10px] font-semibold text-[var(--wh-text-secondary)]" title={status}>
                 {status}
@@ -1422,7 +1424,7 @@ export function BookingCard({
           ) : null}
           {next ? (
             <p className="mt-2 text-[11px] leading-4 text-[var(--wh-text-secondary)]">
-              <span className="font-semibold text-violet-300">Next</span> · {next}
+              <span className="font-semibold text-[var(--wh-accent-text)]">Next</span> · {next}
             </p>
           ) : null}
         </div>
@@ -1543,7 +1545,7 @@ function PropertyBookingDetail({
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-violet-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--wh-accent-text)]">
                 {short ? "Short Let" : "Long Let"}
               </p>
               <h2 className="mt-1 break-words text-base font-bold leading-5">
@@ -1559,7 +1561,7 @@ function PropertyBookingDetail({
                   "Area unavailable"}
               </p>
             </div>
-            <span className="shrink-0 text-xs font-semibold text-violet-200">
+            <span className="shrink-0 text-xs font-semibold text-[var(--wh-accent-text)]">
               {status}
             </span>
           </div>
@@ -1567,7 +1569,7 @@ function PropertyBookingDetail({
           {recordCode ? (
             <p className="mt-4 text-xs text-[var(--wh-text-muted)]">
               {short ? "Arrival code" : "Move-in code"}{" "}
-              <span className="font-bold tracking-wide text-violet-300">
+              <span className="font-bold tracking-wide text-[var(--wh-accent-text)]">
                 {row.booking_code}
               </span>
             </p>
@@ -1616,13 +1618,13 @@ function PropertyBookingDetail({
           {row.hold_expires_at &&
           !journey.rentPaid &&
           !["occupied", "completed"].includes(row.status) ? (
-            <p className="mt-3 text-xs text-amber-300">
+            <p className="mt-3 text-xs text-amber-800 dark:text-amber-300">
               Reservation hold until {displayDateTime(row.hold_expires_at)}
             </p>
           ) : null}
 
           <section className="mt-4 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4 shadow-[var(--wh-shadow-sm)]">
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-3 py-2 text-xs font-semibold text-violet-300">Directions</a> : null}</div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-[var(--wh-text-muted)]">Arrival</p><p className="mt-1 text-xs font-semibold">{arrivalManager}</p></div>{addressForDirections ? <a href={directionsUrl(addressForDirections)} target="_blank" rel="noreferrer" className="min-h-10 rounded-xl border border-[var(--wh-border-subtle)] px-3 py-2 text-xs font-semibold text-[var(--wh-accent-text)]">Directions</a> : null}</div>
             <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">{hostManaged ? "Your authorised property host handles arrival and access for this booking. WeHouse still controls payment verification, support and disputes." : "WeHouse Property Operations handles arrival and verified access for this booking."}</p>
           </section>
           <PropertyBookingJourney row={row} inspection={inspection} />
@@ -1630,7 +1632,7 @@ function PropertyBookingDetail({
           {!short&&!row.shared_payment_group_id&&!['cancelled','expired','refunded','payment_conflict'].includes(String(row.status))&&<LongLetBookingAgreement reservationId={String(row.id)} customerId={userId} onSaved={onTermsSaved} onCanPayChange={setAgreementReady}/>}
           <ShortLetBookingShares row={row} userId={userId} onCreated={onShareCreated}/>
           {short && row.stay_payment_protection_id && !["cancelled", "completed", "expired"].includes(String(row.status)) && journey.action !== "reservation_payment" ? (
-            <button type="button" disabled={busy} onClick={onCancel} className="mt-4 min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-50">
+            <button type="button" disabled={busy} onClick={onCancel} className="mt-4 min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-700 dark:text-red-300 disabled:opacity-50">
               Review stay cancellation
             </button>
           ) : null}
@@ -1641,7 +1643,7 @@ function PropertyBookingDetail({
               <button type="button" disabled={busy||(short&&!shortPrice)} onClick={onResume} className="min-h-12 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
                 {busy ? "Opening secure payment…" : short ? "Pay Reserve date fee" : "Pay reservation fee"}
               </button>
-              <button type="button" disabled={busy} onClick={onCancel} className="min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-50">
+              <button type="button" disabled={busy} onClick={onCancel} className="min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-700 dark:text-red-300 disabled:opacity-50">
                 Cancel reservation
               </button>
             </div>
@@ -1656,7 +1658,7 @@ function PropertyBookingDetail({
               <button type="button" disabled={busy} onClick={onInspect} className="mt-3 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-50">
                 {busy ? "Sending request…" : "Request a viewing"}
               </button>
-              <button type="button" disabled={busy||!agreementReady} onClick={onRent} className="mt-2 min-h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.06] text-xs font-semibold text-emerald-300 disabled:opacity-50">
+              <button type="button" disabled={busy||!agreementReady} onClick={onRent} className="mt-2 min-h-11 w-full rounded-xl border border-emerald-500/25 bg-emerald-500/[.06] text-xs font-semibold text-emerald-700 dark:text-emerald-300 disabled:opacity-50">
                 {busy ? "Opening secure payment…" : `Pay agreed rent · ${money(rentAmount)}`}
               </button>
             </section>
@@ -1690,20 +1692,20 @@ function PropertyBookingDetail({
           ) : null}
 
           {!short && journey.action === "handover" && !editingMoveIn && (
-            <button type="button" onClick={() => { setMoveInAt(earliestMoveIn); setEditingMoveIn(true); }} className="mt-4 min-h-11 text-sm font-semibold text-violet-300">Change move-in time</button>
+            <button type="button" onClick={() => { setMoveInAt(earliestMoveIn); setEditingMoveIn(true); }} className="mt-4 min-h-11 text-sm font-semibold text-[var(--wh-accent-text)]">Change move-in time</button>
           )}
 
           {journey.action === "handover" && row.booking_code ? (
             <div className="mt-4 flex items-center justify-between gap-3 border-y border-emerald-500/15 py-2.5">
               <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[.14em] text-emerald-300">
+                <p className="text-[11px] uppercase tracking-[.14em] text-emerald-700 dark:text-emerald-300">
                   {short ? "Arrival code" : "Handover code"}
                 </p>
                 <p className="mt-0.5 text-[11px] leading-4 text-[var(--wh-text-secondary)]">
                   Show only to {hostManaged ? "your authorised property host" : "Property Operations"} during verified handover.
                 </p>
               </div>
-              <p className="shrink-0 font-mono text-sm font-bold tracking-[.1em] text-emerald-200">
+              <p className="shrink-0 font-mono text-sm font-bold tracking-[.1em] text-emerald-800 dark:text-emerald-200">
                 {row.booking_code}
               </p>
             </div>
@@ -1720,7 +1722,7 @@ function PropertyBookingDetail({
           row.status === "completed" &&
           Number(row.security_deposit_snapshot || 0) > 0 ? (
             <div className="mt-4 rounded-2xl border border-amber-500/15 bg-amber-500/[.035] p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300">
                 Refundable caution fee
               </p>
               <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
@@ -1733,7 +1735,7 @@ function PropertyBookingDetail({
           ) : null}
 
           {helpRelevant ? (
-            <button type="button" onClick={onDesk} className="mt-4 min-h-11 w-full border-t border-[var(--wh-border-subtle)] pt-4 text-xs font-semibold text-violet-300">
+            <button type="button" onClick={onDesk} className="mt-4 min-h-11 w-full border-t border-[var(--wh-border-subtle)] pt-4 text-xs font-semibold text-[var(--wh-accent-text)]">
               Get help from WeHouse
             </button>
           ) : null}
@@ -1833,7 +1835,7 @@ function HotelBookingDetail({
         <div className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--wh-accent-text)]">
                 Hotel
               </p>
               <h2 className="mt-1 text-base font-bold leading-5">{name}</h2>
@@ -1853,8 +1855,8 @@ function HotelBookingDetail({
 
           {showCode ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-violet-500/[.07] px-3 py-2.5">
-              <div className="min-w-0"><p className="text-[10px] font-semibold text-violet-200">Booking reference</p><p className="mt-0.5 text-[10px] text-[var(--wh-text-secondary)]">Your booking ID; arrival and departure use a separate code.</p></div>
-              <p className="font-mono text-xs font-bold tracking-wider text-violet-200">{row.booking_code}</p>
+              <div className="min-w-0"><p className="text-[10px] font-semibold text-[var(--wh-accent-text)]">Booking reference</p><p className="mt-0.5 text-[10px] text-[var(--wh-text-secondary)]">Your booking ID; arrival and departure use a separate code.</p></div>
+              <p className="font-mono text-xs font-bold tracking-wider text-[var(--wh-accent-text)]">{row.booking_code}</p>
             </div>
           ) : null}
           {showCode ? <HotelPresenceCode bookingId={Number(row.booking_id)} status={journeyStatus as "confirmed" | "checked_in"} /> : null}
@@ -1864,7 +1866,7 @@ function HotelBookingDetail({
               href={directionsUrl(hotelAddress)}
               target="_blank"
               rel="noreferrer"
-              className="mt-2 inline-flex min-h-10 items-center text-xs font-semibold text-violet-300"
+              className="mt-2 inline-flex min-h-10 items-center text-xs font-semibold text-[var(--wh-accent-text)]"
             >
               Open road directions
             </a>
@@ -1925,7 +1927,7 @@ function HotelBookingDetail({
                   <p
                     className={`mt-1 text-[10px] ${
                       !stopped && index <= current
-                        ? "text-violet-300"
+                        ? "text-[var(--wh-accent-text)]"
                         : "text-[var(--wh-text-muted)]"
                     }`}
                   >
@@ -1936,7 +1938,7 @@ function HotelBookingDetail({
             </div>
             <p
               className={`mt-3 rounded-xl bg-[var(--wh-interactive)] px-3 py-2 text-xs leading-5 ${
-                stopped ? "text-amber-300" : "text-[var(--wh-text-secondary)]"
+                stopped ? "text-amber-800 dark:text-amber-300" : "text-[var(--wh-text-secondary)]"
               }`}
             >
               {next}
@@ -1964,7 +1966,7 @@ function HotelBookingDetail({
               <button type="button" disabled={busy} onClick={onPay} className="mt-5 min-h-11 w-full rounded-xl bg-violet-500 text-xs font-semibold disabled:opacity-40">
                 {busy ? "Opening payment…" : "Continue secure payment"}
               </button>
-              <button type="button" disabled={busy} onClick={onCancel} className="mt-2 min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-300 disabled:opacity-40">
+              <button type="button" disabled={busy} onClick={onCancel} className="mt-2 min-h-11 w-full rounded-xl border border-red-500/15 text-xs font-semibold text-red-700 dark:text-red-300 disabled:opacity-40">
                 Cancel reservation
               </button>
             </>
@@ -1979,7 +1981,7 @@ function HotelBookingDetail({
           {helpRelevant ? (
             <div className="mt-4 border-t border-[var(--wh-border-subtle)] pt-3">
               <p className="text-xs leading-5 text-[var(--wh-text-secondary)]">Need to cancel a paid stay or missed check-in? WeHouse reviews the booking’s rate rule and what happened. A missed arrival does not automatically create a refund.</p>
-              <button type="button" onClick={onDesk} className="mt-2 min-h-11 rounded-xl border border-violet-400/25 px-4 text-xs font-semibold text-violet-300">
+              <button type="button" onClick={onDesk} className="mt-2 min-h-11 rounded-xl border border-violet-400/25 px-4 text-xs font-semibold text-[var(--wh-accent-text)]">
                 Request cancellation or refund review
               </button>
             </div>
@@ -1990,153 +1992,7 @@ function HotelBookingDetail({
   );
 }
 
-function HotelPresenceCode({ bookingId, status }: { bookingId: number; status: "confirmed" | "checked_in" }) {
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const action = status === "confirmed" ? "checked_in" : "checked_out";
-  useEffect(() => { setCode(""); }, [bookingId, status]);
-  async function issue() {
-    if (busy) return;
-    setBusy(true);
-    const { code: next, error } = await issueMyHotelStayCode(bookingId, action);
-    setBusy(false);
-    if (error || !next) return toast.error(error?.message || "Could not prepare your guest code");
-    setCode(next);
-  }
-  return <div className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/[.06] p-3">
-    <p className="text-xs font-semibold text-violet-200">{status === "confirmed" ? "Arriving at the hotel" : "Leaving the hotel"}</p>
-    <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">{status === "confirmed" ? "When you are at reception, show this code to hotel staff so they can verify your arrival." : "When you leave, show a departure code to hotel staff. You may leave before the scheduled checkout time."}</p>
-    {code ? <p role="status" className="mt-3 rounded-lg bg-black/20 px-3 py-3 text-center font-mono text-lg font-semibold tracking-[.25em] text-white">{code}</p> : null}
-    {code ? <p className="mt-1 text-center text-[10px] text-[var(--wh-text-secondary)]">Valid for 10 minutes. Do not send it in chat.</p> : null}
-    <button type="button" disabled={busy} onClick={() => void issue()} className="mt-3 min-h-11 w-full rounded-xl border border-violet-400/25 text-xs font-semibold text-violet-200 disabled:opacity-40">{busy ? "Preparing code…" : code ? "Get a new code" : status === "confirmed" ? "Show arrival code" : "Show departure code"}</button>
-  </div>;
-}
 
-function AccommodationProtectionPanel({
-  protection,
-  onReport,
-}: {
-  protection: AccommodationProtection;
-  onReport: () => void;
-}) {
-  const deadline = protection.arrival_issue_deadline_at
-    ? new Date(protection.arrival_issue_deadline_at)
-    : null;
-  const open =
-    Boolean(protection.arrival_issue_case_id) ||
-    protection.protection_state === "disputed";
-  return (
-    <section
-      className={`mt-4 rounded-2xl border p-4 ${
-        open
-          ? "border-amber-500/20 bg-amber-500/[.045]"
-          : "border-emerald-500/15 bg-emerald-500/[.035]"
-      }`}
-    >
-      <p
-        className={`text-xs font-semibold uppercase tracking-wide ${
-          open ? "text-amber-300" : "text-emerald-300"
-        }`}
-      >
-        Payment Protection
-      </p>
-      <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
-        {open
-          ? "Arrival issue open. The accommodation payment is frozen for WeHouse review."
-          : deadline
-            ? `Protected until the arrival-issue window ends ${displayDateTime(deadline)}.`
-            : protection.protection_state === "released"
-              ? "Payment released to the property."
-              : protection.protection_state === "refunded"
-                ? "Payment refunded."
-                : protection.protection_state === "protected" && !protection.checked_in_at
-                  ? "Your payment is protected. The arrival-issue window starts when you check in."
-                  : "Open the payment details or contact WeHouse to check the release status."}
-      </p>
-      {protection.can_report_arrival_issue ? (
-        <button
-          type="button"
-          onClick={onReport}
-          className="mt-3 min-h-11 w-full rounded-xl border border-amber-500/25 bg-amber-500/[.07] text-xs font-semibold text-amber-300"
-        >
-          Report arrival issue
-        </button>
-      ) : null}
-    </section>
-  );
-}
-
-function ArrivalIssueDialog({
-  open,
-  label,
-  reason,
-  busy,
-  onReason,
-  onClose,
-  onSubmit,
-}: {
-  open: boolean;
-  label: string;
-  reason: string;
-  busy: boolean;
-  onReason: (value: string) => void;
-  onClose: () => void;
-  onSubmit: () => void;
-}) {
-  if (!open) return null;
-  return (
-    <div
-      className="fixed inset-0 z-[90] grid place-items-end bg-black/75 p-3 sm:place-items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="arrival-issue-title"
-    >
-      <div className="w-full max-w-lg rounded-3xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-5 text-[var(--wh-text)] shadow-2xl">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
-          Formal arrival issue
-        </p>
-        <h2 id="arrival-issue-title" className="mt-2 text-lg font-bold">
-          Report a problem with {label}
-        </h2>
-        <p className="mt-2 text-[10px] leading-5 text-[var(--wh-text-secondary)]">
-          This is different from an ordinary WeHouse message. Confirming
-          freezes only this accommodation payment and opens a specialist review
-          case.
-        </p>
-        <label className="mt-4 block">
-          <span className="text-xs text-[var(--wh-text-secondary)]">What is wrong?</span>
-          <textarea
-            autoFocus
-            value={reason}
-            onChange={(event) => onReason(event.target.value)}
-            maxLength={1500}
-            rows={5}
-            className="mt-2 w-full resize-none rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-3 text-xs outline-none focus:border-amber-500/35"
-            placeholder="Describe the room/property, access, safety, or listing mismatch."
-          />
-        </label>
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onClose}
-            className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] text-xs font-semibold disabled:opacity-50"
-          >
-            Not now
-          </button>
-          <button
-            type="button"
-            disabled={busy || reason.trim().length < 10}
-            onClick={onSubmit}
-            className="min-h-11 rounded-xl bg-amber-500 text-xs font-semibold text-[#1A1000] disabled:opacity-50"
-          >
-            {busy ? "Opening case…" : "Freeze payment & report"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function BookingDetailShell({
   title,

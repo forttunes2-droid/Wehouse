@@ -1,5 +1,6 @@
 const mode = new URLSearchParams(location.search).get('mode') || 'worker';
 const state = { mode, recover: false, failActivity:false, failReminderReceipt:false, rpcCalls: [] as Array<{ name: string; args: any }>, queries: [] as any[], invokeCalls: [] as any[] };
+let hotelPolicy:any={hotel_id:42,check_in_time:'14:00',check_out_time:'12:00',timezone:'Africa/Lagos',same_day_booking_cutoff:null,updated_at:'2026-10-31T12:00:00Z'};
 let propertyReview:any=null;
 let experienceSessionRows:any[]=[];
 const activityPhotoRows:any[]=(mode.includes('photo-review')||mode.includes('approval-'))?[{id:'10000000-0000-4000-8000-000000000002',activity_id:'10100000-0000-4000-8000-000000000091',revision:2,object_path:'10100000-0000-4000-8000-000000000091/10000000-0000-4000-8000-000000000002.jpg',byte_size:9,caption:'Guided orientation route',context_current:true,status:mode.includes('approval-')?'approved':'submitted'}]:[];
@@ -131,6 +132,26 @@ export const supabase: any = {
     return query;
   },
   async rpc(name: string, args: any = {}) {
+    if(mode.startsWith('hotel-policy-')){
+      state.rpcCalls.push({name,args});
+      if(name==='get_public_hotel_detail')return{data:{...hotelPolicy,policy_updated_at:hotelPolicy.updated_at},error:null};
+      if(name==='partner_update_hotel_stay_policy'){
+        if(mode==='hotel-policy-stale'&&!state.recover){hotelPolicy={...hotelPolicy,check_in_time:'16:00',same_day_booking_cutoff:'20:00',updated_at:'2026-10-31T12:01:00Z'};return{data:null,error:{code:'40001',message:'Hotel policy changed. Refresh before saving these choices'}};}
+        if(mode==='hotel-policy-failure'&&!state.recover)return{data:null,error:{message:'Hotel policy is temporarily unavailable'}};
+        hotelPolicy={...hotelPolicy,check_in_time:args.p_check_in_time,check_out_time:args.p_check_out_time,same_day_booking_cutoff:args.p_same_day_booking_cutoff,updated_at:new Date(Date.parse(hotelPolicy.updated_at)+1000).toISOString()};
+        if(mode==='hotel-policy-lost'&&!state.recover)throw Error('Policy connection interrupted');
+        return{data:mode==='hotel-policy-missing'&&!state.recover?null:hotelPolicy,error:null};
+      }
+      throw Error('Unexpected Hotel policy call '+name);
+    }
+
+    if(mode.startsWith('hotel-presence-')&&name==='issue_my_hotel_stay_code'){
+      state.rpcCalls.push({name,args});
+      if(mode==='hotel-presence-delay'&&args.p_booking_id===71)return new Promise(resolve=>{(window as any).__finishHotelCode=()=>resolve({data:'11112222',error:null});});
+      if(mode==='hotel-presence-failure'&&!state.recover)throw Error('Guest code connection interrupted');
+      if(mode==='hotel-presence-malformed'&&!state.recover)return{data:'not-a-code',error:null};
+      return{data:args.p_action==='checked_out'?'99998888':'55556666',error:null};
+    }
     if(mode.startsWith('share-journey-')){
       if(name==='get_my_roommate_peer_details')return {data:[{user_id:'roommate-peer',conversation_id:'roommate-chat',full_name:'Accepted Roommate',is_blocked:false}],error:null};
       if(name==='list_my_friends')return {data:[{user_id:'friend-peer',friend_id:'friend-chat',full_name:'Accepted Friend',status:'accepted'},{user_id:'blocked-peer',friend_id:'blocked-chat',full_name:'Blocked Friend',status:'blocked'},{user_id:'pending-peer',friend_id:'pending-chat',full_name:'Pending Friend',status:'pending'}],error:null};
@@ -244,7 +265,8 @@ export const supabase: any = {
     }
     if(name==='get_my_property_partner_stays'&&mode.startsWith('partner-stays-history')){
       state.rpcCalls.push({name,args});
-      const row=(id:string)=>({reservation_id:id,created_at:id==='old-stay'?null:'2026-01-01T10:00:00.123456+00:00',page_created_at:id==='old-stay'?'1970-01-01T00:00:00Z':'2026-01-01T10:00:00.123456+00:00',status:'completed',stay_type:'short_let',management_mode_snapshot:'host',payment_status:'paid',manual_payment_status:'paid',reservation_fee_status:'paid',check_in:'2026-01-10',check_out:'2026-01-11',guest_count:1});
+      const historyState=mode.split('history-')[1]||'';
+      const row=(id:string)=>({reservation_id:id,created_at:id==='old-stay'?null:'2026-01-01T10:00:00.123456+00:00',page_created_at:id==='old-stay'?'1970-01-01T00:00:00Z':'2026-01-01T10:00:00.123456+00:00',status:id==='old-stay'&&historyState==='fee-only'?'reserved':id==='old-stay'&&['cancelled','expired','refunded','payment_conflict'].includes(historyState)?historyState:'completed',stay_type:id==='old-stay'&&!mode.endsWith('linked')?'long_stay':'short_let',management_mode_snapshot:'host',payment_status:id==='old-stay'&&historyState==='refunded'?'refunded':id==='old-stay'&&historyState==='fee-only'?'not_started':'paid',manual_payment_status:'paid',reservation_fee_status:'paid',check_in:'2026-01-10',check_out:'2026-01-11',guest_count:id==='old-stay'?3:1,occupant_count:id==='old-stay'?3:1,payer_count:id==='old-stay'?2:1,booked_by_name:id==='old-stay'?'Amina Yusuf':null,tenancy_start_date:id==='old-stay'&&historyState==='fee-only'?null:'2026-01-10',tenancy_end_date:id==='old-stay'&&historyState==='fee-only'?null:'2027-01-10'});
       if(args.p_reservation_id)return{data:[row('old-stay')],error:null};
       if(args.p_before_id){if(mode==='partner-stays-history-error'&&!state.recover)return{data:null,error:{message:'Older history unavailable'}};return{data:[row('stay-1'),row('old-stay')],error:null};}
       return{data:Array.from({length:51},(_,i)=>row('stay-'+(51-i))),error:null};
@@ -498,3 +520,4 @@ export async function uploadStorageObjectWithProgress(){throw new Error('Uploads
 
 export { createInspectionRequest, createReservation, createShortStayReservation, cancelReservation, getInspectionRequestForReservation, getReservationForListing, initializeReservationPayment } from '../../src/lib/supabase/reservations';
 export { getListing } from '../../src/lib/supabase/listings';
+export const isWebPasskeyEnabled=false;

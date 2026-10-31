@@ -9,6 +9,8 @@ import PinnedMessagesBar, { scrollToMessage } from "@/components/PinnedMessagesB
 import { useCallback, useEffect, useRef, useState } from "react";
 import {createRefreshScheduler} from '@/lib/refreshScheduler';
 import {subscribeToFriendChatChanges} from '@/lib/friendChatLive';
+import {subscribeToPrivateIdentityChanges} from '@/lib/privateIdentityLive';
+import {mapConcurrent} from '@/lib/mapConcurrent';
 import {withTimeout} from '@/lib/withTimeout';
 import { toast } from "sonner";
 import { CalendarPlus, Mic } from "lucide-react";
@@ -96,14 +98,14 @@ function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend:
     if (error) { setHistoryError(true);toast.error(error.message || "Could not load messages"); return; }
     const decoded = await Promise.all(messages.map(async (m): Promise<Line> => {
       let content = "Message could not be decrypted on this device.";
-      try { content = await decryptPrivateMessage("friend", friend.friend_id, friend.user_id, m.ciphertext, m.encryption_iv); } catch { /* keep the placeholder */ }
+      try { content = await decryptPrivateMessage("friend", friend.friend_id, friend.user_id, m.ciphertext, m.encryption_iv,m.encryption_key_id); } catch { /* keep the placeholder */ }
       const attachments: string[] = [], types: string[] = [];
       for (const item of (m.encrypted_attachments || []) as EncryptedAttachment[]) {
         if(!current())break;
         const hit = media.current.get(item.path);
         if (hit) { attachments.push(hit.url); types.push(hit.type); }
       }
-      return { id: m.id, sender_id: m.sender_id, content, created_at: m.created_at, seen: true, attachments, attachment_types: types, reply_to_id: m.reply_to_id, reactions: m.reactions || {}, media_error: false, private_attachment_refs:m.encrypted_attachments as EncryptedAttachment[],media_pending:attachments.length<(m.encrypted_attachments||[]).length };
+      return { id: m.id, sender_id: m.sender_id, content, created_at: m.created_at, seen: true, attachments, attachment_types: types, reply_to_id: m.reply_to_id, reactions: m.reactions || {}, media_error: false, private_attachment_refs:(m.encrypted_attachments as EncryptedAttachment[]).map(item=>({...item,key_id:m.encryption_key_id??undefined})),media_pending:attachments.length<(m.encrypted_attachments||[]).length };
     }));
     if(current()) {
       const retained=new Set(messages.flatMap(m=>(m.encrypted_attachments||[]).map(item=>(item as EncryptedAttachment).path)));
@@ -120,12 +122,13 @@ function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend:
     const refresh=()=>{lastRecovery=Date.now();scheduler.request();};
     refresh();
     const unsubscribe=subscribeToFriendChatChanges(friend.friend_id,refresh,healthy=>{live=healthy;});
+    const unsubscribeKeys=subscribeToPrivateIdentityChanges(friend.user_id,refresh);
     window.addEventListener('focus',refresh);
     document.addEventListener('visibilitychange',refresh);
     // Recovery only; hidden tabs do no reads, and event bursts cannot overlap loads.
     const timer=window.setInterval(()=>{if(!live||Date.now()-lastRecovery>=300_000)refresh();},60_000);
     return()=>{
-      loadVersion.current++;scheduler.dispose();unsubscribe();window.clearInterval(timer);
+      loadVersion.current++;scheduler.dispose();unsubscribe();unsubscribeKeys();window.clearInterval(timer);
       window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);
     };
   }, [friend.friend_id,load]);
@@ -190,12 +193,12 @@ function FriendConversation({ friend, myUserId, onClose, onNavigate }: { friend:
       const content = preserveComposer ? text : workerDraft ? workerShareMessage(workerDraft, text) : propertyDraft ? propertyShareMessage(propertyDraft, text) : text;
       const signature = `friend-chat:${friend.friend_id}:${content}:${queued.map((f) => `${f.name}${f.size}`).join(",")}:${replyId}`;
       await runSafeAction(signature, async () => {
-        const uploaded = await Promise.all(queued.map((file) => uploadFriendChatAttachment(file, friend.friend_id, friend.user_id)));
+        const uploaded = await mapConcurrent(queued,2,(file) => uploadFriendChatAttachment(file, friend.friend_id, friend.user_id));
         const failed = uploaded.find((u) => u.error || !u.attachment);
         if (failed) throw failed.error || new Error("Could not upload the attachment");
-        const { ciphertext, iv } = await encryptPrivateMessage("friend", friend.friend_id, friend.user_id, content);
-        const { id, error } = await sendFriendEncryptedMessage(friend.friend_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined, requestKeyFor(signature));
-        if (error) throw error;
+        const { ciphertext, iv, envelopeToken } = await encryptPrivateMessage("friend", friend.friend_id, friend.user_id, content);
+        const { id, error } = await sendFriendEncryptedMessage(friend.friend_id, ciphertext, iv, uploaded.map((u) => u.attachment), replyId || undefined, requestKeyFor(signature),envelopeToken);
+        if (error) throw new Error(error.message||'Message was not sent. Your draft is kept.');
         if (typeof id !== 'string' || !id.trim()) throw new Error('Message delivery could not be confirmed. Your draft has been kept; refresh this conversation before retrying.');
         releaseRequestKey(signature);
       });

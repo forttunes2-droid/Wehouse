@@ -10,7 +10,7 @@ export default function ProviderOfferingEntry({ onService, onExperience }: {
       <div>
         <h2 className="text-xl font-semibold">What would you like to offer?</h2>
         <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">
-          Offer services customers request, scheduled Experiences, or both. Use the same
+          Offer services customers request, scheduled activities, or both. Use the same
           account, Inbox, Team and earnings. Adding an offering is free.
         </p>
       </div>
@@ -23,12 +23,12 @@ export default function ProviderOfferingEntry({ onService, onExperience }: {
           <Button type="button" onClick={onService}>Set up services</Button>
         </div>
         <div className="flex flex-col gap-3 rounded-xl border border-[var(--wh-border-subtle)] p-4">
-          <h3 className="font-semibold">Experience</h3>
+          <h3 className="font-semibold">Activity</h3>
           <p className="flex-1 text-sm leading-6 text-[var(--wh-text-secondary)]">
             Guide a class, garden visit, tour or activity. Apply with its details and your
             relevant expertise.
           </p>
-          <Button type="button" variant="outline" onClick={onExperience}>Add an Experience</Button>
+          <Button type="button" variant="outline" onClick={onExperience}>Add an activity</Button>
         </div>
       </div>
       <p className="text-sm leading-6 text-[var(--wh-text-secondary)]">

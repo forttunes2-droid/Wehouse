@@ -9,7 +9,7 @@ from discovery_requests import settled_search,install_read_counter
 OUT=Path('test-results/experience');B=Path('test-results/shared-discovery-offline')
 HOME={'id':'public-home','title':'Courtyard apartment','sub_type':'long_stay','property_type':'apartment','availability_status':'available','city':'Lafia','state':'Nasarawa','address':'Test road','status':'available','price':18000000,'images':['https://assets.wehouse.test/interior.jpg'],'amenities':[],'description':'Sample home','bedrooms':2,'bathrooms':1}
 RATES=[{'rate_plan_id':10,'room_id':9,'active':True,'name':'Room only','meal_plan':'room_only','payment_timing':'pay_now','refundable':False,'cancellation_hours':None,'price_per_night':30000,'included_features':[]},{'rate_plan_id':11,'room_id':9,'active':True,'name':'Breakfast stay','meal_plan':'breakfast','payment_timing':'pay_now','refundable':True,'cancellation_hours':48,'price_per_night':35000,'included_features':['Lounge access']}]
-HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','address':'Hotel test road','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':[],'max_guests':2,'bed_type':'Double bed','rate_plans':RATES}],'description':'Sample hotel.'}
+HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','address':'Hotel test road','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':['https://assets.wehouse.test/interior.jpg'],'max_guests':2,'bed_type':'Double bed','rate_plans':RATES}],'description':'Sample hotel.'}
 SCRIPT="""s=>{
  window.__browse=s;
  window.__browse.gatewayRequests=[];
@@ -18,13 +18,16 @@ SCRIPT="""s=>{
  window.__browseAPI=async(name,args)=>{
   const s=window.__browse;s.calls.push({name,args});
   if(name==='getHotels'){
-   const count=s.hotelCount||1,cursor=args[1];
-   const hotel=n=>({...s.hotel,hotel_id:6+n,name:n===1?s.hotel.name:s.hotel.name+' '+n,images:n>1&&n%2===0?['https://assets.wehouse.test/interior.jpg']:[]});
+   const count=s.hotelCount??1,cursor=args[1];
+   const hotel=n=>({...s.hotel,hotel_id:6+n,name:n===1?s.hotel.name:s.hotel.name+' '+n,images:(s.layoutCount!==undefined?n%4!==0:n>1&&n%2===0)?['https://assets.wehouse.test/interior.jpg']:[]});
    const hotels=cursor?[hotel(count),hotel(count+1),hotel(count+2)]:Array.from({length:count},(_,i)=>hotel(i+1));
    const more=count>6&&!cursor&&!args[0]?.search;
    return{hotels,error:null,hasMore:more,nextCursor:more?{featured:false,createdAt:'2026-10-30T00:00:00Z',id:count+6}:null};
   }
-  if(name==='getHotelById')return{hotel:s.hotel,error:null};
+  if(name==='getHotelById'){
+   if(s.holdHotel)return new Promise(resolve=>{window.__finishHotelInfo=()=>resolve({hotel:s.hotel,error:null});});
+   return{hotel:s.hotel,error:null};
+  }
   if(name==='getListing')return{listing:s.home,error:null};
   if(name==='getProfile')return{profile:{...s.profile,user_id:args[0],profile_complete:true,worker_occupation:'Carpenter',worker_skills:['Carpentry'],worker_price:1000,worker_bio:'Existing work biography',worker_experience:'4 years',worker_verified:true},error:null};
   if(name==='getProfileCountryOptions')return{countries:s.failCountryList?[]:[{country_code:'NG',name:'Nigeria'},{country_code:'GH',name:'Ghana'}],error:s.failCountryList?{message:'Synthetic country list unavailable'}:null};
@@ -35,6 +38,11 @@ SCRIPT="""s=>{
   if(name==='saveMyWorkerProfile'){s.workSave=args;return{profile:s.badWorkReceipt?null:{...s.profile,user_id:'qa-viewer',worker_verified:!s.workNeedsReview},error:s.failWorkSave?{message:'Synthetic work save failed'}:null};}
   if(name==='updateProfile'){s.profileUpdates=args[1];s.profile={user_id:args[0],...s.profile,...args[1]};return{profile:s.profile,error:null};}
   if(name==='getHotelReviews')return{reviews:[],eligible:false,error:null};
+  if(name==='checkSearchExpiry')return{prefs:{practical_preferences_version:2,search_status:'active',active:true,budget_min:200000,budget_max:500000,preferred_state:'Nasarawa',preferred_lga:'Lafia',school_match:false},error:null};
+  if(name==='getReceivedRoommateInterests')return{interests:[],error:null};
+  if(name==='getSavedMatchResults')return{matches:Array.from({length:s.layoutCount??0},(_,i)=>({id:'match-'+i,matched_user_id:'person-'+i,match_score:85,status:'new',matched_profile:{user_id:'person-'+i,full_name:'Sample person '+i,username:'sample'+i,avatar_url:null,city:'Lafia',state:'Nasarawa',compared_answers:4,match_highlights:['Similar rent budget','Same move-in area']}})),hasMore:false,error:null};
+  if(name==='getCategoryWithSubcategories')return{categories:[],error:null};
+  if(name==='rpc:search_service_providers')return{data:{items:Array.from({length:s.layoutCount??0},(_,i)=>{const id='provider-'+i,service='72700000-0000-4000-8000-'+String(i).padStart(12,'0'),photo='72700000-1000-4000-8000-'+String(i).padStart(12,'0'),base=id+'/'+service+'/'+photo+'/';return{user_id:id,full_name:'Sample professional '+i,worker_occupation:'Cleaner',worker_skills:['Cleaning'],worker_price:15000,city:'Lafia',state:'Nasarawa',rating:4.5,review_count:3,service_offer:{id:service,name:'Home cleaning '+i,price:15000,price_type:'fixed',cover:i%2?null:{id:photo,image:base+'full.jpg',preview:base+'preview.jpg',caption:'Example service cover'}}};}),has_more:false,next_cursor:null},error:null};
   if(name==='updatePrivacySettings'){s.privacy={...(s.privacy||{}),...args[1]};return{profile:{user_id:args[0],...s.privacy},error:null};}
   if(name==='rpc:get_my_private_call_preferences')return{data:{allow_audio_calls:true,allow_video_calls:true},error:null};
   if(name==='getReservationForListing')return{reservation:null,error:null};
@@ -46,15 +54,15 @@ SCRIPT="""s=>{
    return{data:{items:homes,has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
   }
   if(name==='rpc:get_sponsored_discovery')return{data:[],error:null};
-  if(name==='rpc:get_public_discovery_settings')return{data:[],error:null};
+  if(name==='rpc:get_public_discovery_settings')return{data:s.mode==='providers'?[{key:'worker_marketplace_launch_enabled',value:'true'}]:[],error:null};
   if(name==='rpc:get_my_page_distances')return{data:[{subject_type:'hotel',subject_id:'7',distance_km:2}],error:null};
   if(name==='rpc:get_my_workspace_access')return{data:{identity:{user_id:'qa-viewer'},personal_workspace:true,privileged_workspaces:[]},error:null};
-  if(['rpc:get_all_settings_v2','rpc:get_my_saved_searches','rpc:get_my_saved_hotels','rpc:get_my_saved_hotel_ids','rpc:get_my_shared_housing_groups','table:saved_searches','table:saved_hotels'].includes(name))return{data:[],error:null};
+  if(['rpc:get_all_settings_v2','rpc:get_my_workspace_inbox','rpc:get_my_saved_searches','rpc:get_my_saved_hotels','rpc:get_my_saved_hotel_ids','rpc:get_my_shared_housing_groups','table:saved_searches','table:saved_hotels'].includes(name))return{data:[],error:null};
   s.unexpected.push({name,args});throw new Error('Unexpected browse API '+name);
  };
 }"""
 async def main():
- subprocess.run(['node','tests/browser/build-shared-discovery.mjs'],check=True);OUT.mkdir(parents=True,exist_ok=True);results=[]
+ subprocess.run(['node','tests/browser/build-shared-discovery.mjs'],check=True,timeout=120);OUT.mkdir(parents=True,exist_ok=True);results=[]
  async with async_playwright() as p:
   options={'headless':True,'args':['--no-sandbox']}
   if os.getenv('CHROMIUM_PATH'):options['executable_path']=os.environ['CHROMIUM_PATH']
@@ -145,27 +153,33 @@ async def main():
     await expect(page.locator('[data-home-card]').first).to_contain_text('₦18,000,000')
     shelf=page.get_by_role('group',name='Homes to explore listings',exact=True)
     await expect(shelf).to_be_visible()
-    await expect(shelf.locator('[data-home-card]')).to_have_count(6)
-    await expect(shelf.get_by_text('Short Let',exact=True)).to_have_count(3)
-    await expect(shelf.get_by_text('Long Let',exact=True)).to_have_count(3)
-    grid=page.get_by_role('region',name='More homes',exact=True)
-    await expect(grid.locator('[data-home-card]')).to_have_count(2)
+    await expect(shelf.locator('[data-home-card]')).to_have_count(8)
+    await expect(shelf.get_by_text('Short Let',exact=True)).to_have_count(4)
+    await expect(shelf.get_by_text('Long Let',exact=True)).to_have_count(4)
+    grid=page.get_by_role('group',name='Homes to explore, row 2 listings',exact=True)
+    await expect(grid).to_have_count(0)
     requests=await page.evaluate('window.__browse.gatewayRequests.length')
-    next_homes=page.get_by_role('button',name='Next Homes to explore',exact=True)
-    await expect(next_homes).to_be_enabled();await next_homes.click()
+    next_homes=page.get_by_role('button',name='Scroll Homes to explore forward',exact=True)
+    if width>=640:
+     await expect(next_homes).to_be_enabled();await next_homes.click()
+    else:
+     await expect(next_homes).not_to_be_visible()
+     await shelf.focus();await page.keyboard.press('ArrowRight')
     await page.wait_for_function('document.querySelector(\'[aria-label="Homes to explore listings"]\').scrollLeft>0')
     await shelf.focus();await page.keyboard.press('ArrowLeft')
     assert await page.evaluate('window.__browse.gatewayRequests.length')==requests,'Rail browsing fetched the catalog again'
     await page.get_by_role('button',name='Show more homes',exact=True).click()
     await expect(page.locator('[data-home-card]')).to_have_count(10)
-    await expect(shelf.locator('[data-home-card]')).to_have_count(6)
-    await expect(grid.locator('[data-home-card]')).to_have_count(4)
+    await expect(shelf.locator('[data-home-card]')).to_have_count(8)
+    await expect(grid.locator('[data-home-card]')).to_have_count(2)
+    await expect(page.get_by_role('heading',name='More homes',exact=True)).to_have_count(0)
+    assert 'sr-only' in (await page.get_by_role('heading',name='Homes to explore, row 2',exact=True).get_attribute('class'))
     titles=await page.locator('[data-home-card] h3').all_text_contents()
     assert len(titles)==len(set(titles)),titles
     await grid.locator('[data-home-card]').first.get_by_role('button',name='Save home',exact=True).click()
-    assert await page.evaluate('window.__browse.savedId')=='public-home-7'
-    await grid.get_by_role('button',name='View Courtyard apartment 7',exact=True).click()
-    assert await page.evaluate('window.__browse.destination')=={'page':'detail','id':'public-home-7'}
+    assert await page.evaluate('window.__browse.savedId')=='public-home-9'
+    await grid.get_by_role('button',name='View Courtyard apartment 9',exact=True).click()
+    assert await page.evaluate('window.__browse.destination')=={'page':'detail','id':'public-home-9'}
     assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth')
     await page.evaluate('window.scrollTo(0,0)')
     await page.screenshot(path=str(OUT/f'homes-rail-grid-{width}-{theme}.png'),full_page=True)
@@ -192,16 +206,17 @@ async def main():
     await page.get_by_role('button',name='Clear',exact=True).click();await expect(shelf).to_be_visible()
     await page.screenshot(path=str(OUT/f'homes-rail-{width}-{theme}.png'),full_page=True)
     await page.evaluate('window.__switchBrowseMode("locations")')
-    await expect(page.get_by_role('button',name='Local Government Any local area',exact=True)).to_be_disabled()
-    await page.get_by_role('button',name='State Any region',exact=True).click()
-    await page.get_by_placeholder('Search regions').fill('nasar')
+    await expect(page.get_by_role('heading',name='Location',exact=True)).to_be_visible()
+    await expect(page.get_by_role('button',name='Local area (LGA) Any local area',exact=True)).to_be_disabled()
+    await page.get_by_role('button',name='State Any state',exact=True).click()
+    await page.get_by_placeholder('Search states').fill('nasar')
     await page.get_by_role('option',name='Nasarawa',exact=True).click()
-    await page.get_by_role('button',name='Local Government Any local area',exact=True).click()
+    await page.get_by_role('button',name='Local area (LGA) Any local area',exact=True).click()
     await page.get_by_placeholder('Search local areas').fill('laf')
     await page.get_by_role('option',name='Lafia',exact=True).click()
     await expect(page.get_by_label('Chosen local area')).to_have_text('Lafia')
     await page.get_by_role('button',name='State Nasarawa',exact=True).click()
-    await page.get_by_placeholder('Search regions').fill('lagos')
+    await page.get_by_placeholder('Search states').fill('lagos')
     await page.get_by_role('option',name='Lagos',exact=True).click()
     await expect(page.get_by_label('Chosen local area')).to_have_text('')
     # Existing profiles keep their own country when display defaults differ.
@@ -301,19 +316,26 @@ async def main():
     await page.evaluate('window.__browse.hotelCount=8;window.__switchBrowseMode("public");window.__browse.calls=[]')
     await page.get_by_role('button',name='Hotels',exact=True).click()
     hotels_shelf=page.get_by_role('group',name='Hotels to explore listings',exact=True)
-    await expect(hotels_shelf.locator('[data-hotel-card]')).to_have_count(6)
-    hotels_grid=page.get_by_role('region',name='More hotels',exact=True)
-    await expect(hotels_grid.locator('[data-hotel-card]')).to_have_count(2)
+    await expect(hotels_shelf.locator('[data-hotel-card]')).to_have_count(8)
+    hotels_grid=page.get_by_role('group',name='Hotels to explore, row 2 listings',exact=True)
+    await expect(hotels_grid).to_have_count(0)
     first_hotel=hotels_shelf.locator('[data-hotel-card]').first
     await expect(first_hotel.get_by_text('Photos not available',exact=True)).to_be_visible()
     await expect(first_hotel.locator('[data-media-state="loading"]')).to_have_count(0)
     hotel_reads=await page.evaluate('window.__browse.calls.filter(c=>c.name==="getHotels").length')
-    await page.get_by_role('button',name='Next Hotels to explore',exact=True).click()
+    next_hotels=page.get_by_role('button',name='Scroll Hotels to explore forward',exact=True)
+    if width>=640:
+     await next_hotels.click()
+    else:
+     await expect(next_hotels).not_to_be_visible()
+     await hotels_shelf.focus();await page.keyboard.press('ArrowRight')
     await page.wait_for_function('document.querySelector(\'[aria-label="Hotels to explore listings"]\').scrollLeft>0')
     assert await page.evaluate('window.__browse.calls.filter(c=>c.name==="getHotels").length')==hotel_reads
     await page.get_by_role('button',name='Show more hotels',exact=True).click()
     await expect(page.locator('[data-hotel-card]')).to_have_count(10)
-    await expect(hotels_grid.locator('[data-hotel-card]')).to_have_count(4)
+    await expect(hotels_grid.locator('[data-hotel-card]')).to_have_count(2)
+    media_boxes=[await hotels_shelf.locator('[data-hotel-media]').nth(i).bounding_box() for i in range(2)]
+    assert abs(media_boxes[0]['height']-media_boxes[1]['height'])<1,'Hotel photo and missing-photo tiles must keep the same comparison geometry'
     names=await page.locator('[data-hotel-card] h3').all_text_contents()
     assert len(names)==len(set(names))
     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
@@ -325,6 +347,10 @@ async def main():
     await page.get_by_placeholder('Search hotel name or location').fill('Keffi Garden')
     await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
     await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
+    await expect(page.get_by_role('navigation',name='Main navigation')).to_have_count(0)
+    next_action=page.get_by_role('button',name='Choose a room',exact=True)
+    await expect(next_action).to_be_visible()
+    assert await next_action.evaluate('(button)=>{const r=button.getBoundingClientRect();return button.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}'),'Guest navigation must not cover the Hotel booking action'
     gallery=page.get_by_role('region',name='Garden Lodge media',exact=True)
     await expect(gallery.get_by_text('Photos are not available.',exact=True)).to_be_visible()
     assert (await gallery.bounding_box())['height']<150
@@ -334,12 +360,30 @@ async def main():
     await expect(page.get_by_text('Non-refundable',exact=True)).to_be_visible()
     await page.get_by_role('button',name='Breakfast stay',exact=False).click()
     await expect(page.get_by_role('button',name='Breakfast stay',exact=False)).to_have_attribute('aria-pressed','true')
+    await page.wait_for_function('document.querySelector(\'[data-room-choice="9"] img\')?.naturalWidth > 0')
+    offers=page.get_by_role('group',name='Standard packages').get_by_role('button')
+    boxes=[await offers.nth(i).bounding_box() for i in range(2)]
+    assert (abs(boxes[0]['y']-boxes[1]['y'])<2) if width>=640 else (boxes[1]['y']>=boxes[0]['y']+boxes[0]['height']), 'Hotel packages compare side by side on wider screens and stack on phones'
     await page.locator('[data-room-choice="9"]').screenshot(path=str(OUT/f'hotel-room-and-offers-{width}-{theme}.png'))
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) or c['name'].startswith(('create_','saveHotel','rpc:save_')) for c in await page.evaluate('window.__browse.calls'))
+    await page.get_by_role('button',name='Back to hotels',exact=True).click()
+    await expect(page.get_by_role('navigation',name='Main navigation')).to_be_visible()
+    await page.evaluate('window.__browse.holdHotel=true')
+    await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
+    await expect(page.get_by_role('status',name='Loading hotel',exact=True)).to_be_visible()
+    await page.wait_for_function('typeof window.__finishHotelInfo === "function"')
+    await page.get_by_role('button',name='Back to hotels',exact=True).click()
+    await expect(page.get_by_role('navigation',name='Main navigation')).to_be_visible()
+    await page.evaluate('window.__browse.holdHotel=false;window.__finishHotelInfo()')
+    await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_have_count(0)
+    await expect(page.get_by_placeholder('Search hotel name or location')).to_have_value('Keffi Garden')
+    await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
+    await expect(page.get_by_role('button',name='Breakfast stay',exact=False)).to_have_attribute('aria-pressed','true')
     await page.get_by_role('button',name='Save hotel',exact=True).click()
     assert await page.evaluate('window.__browse.requested')
     intent=await page.evaluate('JSON.parse(sessionStorage.getItem("wh_public_property_intent_v1")).property')
     assert intent=={'kind':'hotel','id':'7'}
+    # The signed-in fixture renders Hotel detail without the guest app shell.
     await page.evaluate('window.__switchBrowseMode("hotel")')
     await expect(page.get_by_role('button',name='Breakfast stay',exact=False)).to_have_attribute('aria-pressed','true')
     assert await page.locator('[data-room-choice="9"] > button').get_attribute('aria-expanded')=='true'

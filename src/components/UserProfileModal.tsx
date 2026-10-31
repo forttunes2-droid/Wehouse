@@ -221,7 +221,7 @@ function Provider({ provider, onOpen }: { provider: ProviderRecord; onOpen: () =
       </section>
       <Section title="Professional profile">
         <Row label="Occupation" value={provider.occupation || "Not set"} />
-        <Row label="Experience" value={provider.experience || "Not set"} />
+        <Row label="Work experience" value={provider.experience || "Not set"} />
         <Row label="Service price" value={provider.price ? `${formatMoney(Number(provider.price))}` : "Not set"} />
         <Row label="WeHouse review" value={provider.reviewed ? "Reviewed" : "Not reviewed"} />
         <Row label="Completed-job earnings" value={`${formatMoney(Number(provider.completed_job_earnings || 0))}`} />

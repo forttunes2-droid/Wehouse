@@ -30,3 +30,4 @@ export const supabase={rpc:async(name:string,args:any={})=>{
 },functions:{invoke:async(name:string,args:any)=>{control.calls.push({name,args});if(name!=='payment-init'||args.body.reference!=='own-share-reference')throw new Error('Wrong payment');return{data:{success:true,already_paid:true,reference:args.body.reference,purpose:'shared_housing_share'},error:null};}}};
 w.__practicalTransport=control;
 export const uploadStorageObjectWithProgress=async()=>{throw new Error('Fixture uploads prohibited');};
+export const isWebPasskeyEnabled=false;

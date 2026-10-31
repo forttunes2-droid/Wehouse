@@ -58,7 +58,7 @@ async def main():
    await expect(page.get_by_label('Shared destination',exact=True)).to_contain_text('"page":"my_reservations"')
    assert json.loads(await page.get_by_label('Shared destination',exact=True).inner_text())['page']=='my_reservations'
    await page.get_by_role('button',name='Back',exact=True).click()
-   await expect(page.get_by_role('heading',name='Experiences',exact=True)).to_be_visible()
+   await expect(page.get_by_role('heading',name='Activities',exact=True)).to_be_visible()
    await page.get_by_role('region',name='Received activity',exact=True).get_by_role('button',name='Open shared activity',exact=True).click()
    await expect(page.get_by_role('heading',name='Choose a date',exact=True)).to_be_visible()
    unavailable=True

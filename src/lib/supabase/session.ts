@@ -1,5 +1,6 @@
 import { supabase } from './client';
 import { getRegionalDefaults } from '../regional';
+import {isEndedSessionReceipt} from '../authSessionReceipt';
 
 export type DeviceRegistration = {
   sessionId: string | null;
@@ -54,9 +55,10 @@ const DEVICE_STORAGE_KEY='wehouse_trusted_device_id';
 export function getStoredSessionId(){try{return localStorage.getItem(SESSION_STORAGE_KEY)}catch{return null}}
 export function clearStoredSessionId(){try{localStorage.removeItem(SESSION_STORAGE_KEY)}catch{}}
 export function getDeviceId(){try{let value=localStorage.getItem(DEVICE_STORAGE_KEY);if(value)return value;value=typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;localStorage.setItem(DEVICE_STORAGE_KEY,value);return value}catch{return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`}}
-export async function getUserSessionState(sessionId:string,userId:string,authId:string):Promise<{state:'active'|'pending'|'inactive'|'missing'|'foreign'|'error';error:any}>{const{data,error}=await supabase.from('user_sessions').select('id,user_id,auth_id,is_active,is_current,trust_status').eq('id',sessionId).maybeSingle();if(error)return{state:'error',error};if(!data)return{state:'missing',error:null};if(data.user_id!==userId||data.auth_id!==authId)return{state:'foreign',error:null};if(data.trust_status==='pending')return{state:'pending',error:null};return{state:data.is_active&&data.trust_status!=='rejected'?'active':'inactive',error:null}}
+export async function getUserSessionState(sessionId:string,userId:string,authId:string):Promise<{state:'active'|'pending'|'inactive'|'missing'|'foreign'|'error';error:any}>{const{data,error}=await supabase.from('user_sessions').select('id,user_id,auth_id,is_active,is_current,trust_status').eq('id',sessionId).maybeSingle();if(error)return{state:isEndedSessionReceipt(error)?'inactive':'error',error};if(!data)return{state:'missing',error:null};if(data.user_id!==userId||data.auth_id!==authId)return{state:'foreign',error:null};if(data.trust_status==='pending')return{state:'pending',error:null};return{state:data.is_active&&data.trust_status!=='rejected'?'active':'inactive',error:null}}
 
-export async function registerUserSession(userId:string,authId:string):Promise<DeviceRegistration>{
+export async function registerUserSession(_userId:string,_authId:string):Promise<DeviceRegistration>{
+  if(!_userId||!_authId)throw new Error("An active account is required to register this device");
   const existing=getStoredSessionId();
   const {device,os,browser}=parseDeviceInfo();
   const location=approximateDeviceLocation();
@@ -69,18 +71,11 @@ export async function registerUserSession(userId:string,authId:string):Promise<D
     localStorage.setItem(SESSION_STORAGE_KEY,sessionId);
     return{sessionId,trustStatus:(result.data.trust_status||'unknown') as DeviceRegistration['trustStatus'],newDevice:Boolean(result.data.new_device),device,os,browser,location};
   }
-  if(existing){
-    const{state}=await getUserSessionState(existing,userId,authId);
-    if(state==='active'){await updateSessionLastSeen(existing);return{sessionId:existing,trustStatus:'trusted',newDevice:false,device,os,browser,location}}
-    if(state==='pending')return{sessionId:existing,trustStatus:'pending',newDevice:true,device,os,browser,location};
-    if(state==='foreign'||state==='missing')clearStoredSessionId();
-    if(state==='inactive')return{sessionId:null,trustStatus:'rejected',newDevice:false,device,os,browser,location};
-  }
   if(result.error)console.error('[Session] Failed to register device:',result.error.message);
   return{sessionId:null,trustStatus:'unknown',newDevice:false,device,os,browser,location};
 }
 
 export async function createUserSession(userId:string,authId:string):Promise<string|null>{return(await registerUserSession(userId,authId)).sessionId}
-export async function deactivateUserSession(sessionId:string){await supabase.from('user_sessions').update({is_active:false,is_current:false,logout_time:new Date().toISOString()}).eq('id',sessionId);if(getStoredSessionId()===sessionId)clearStoredSessionId()}
+export async function deactivateUserSession(sessionId:string){await supabase.rpc('touch_current_device_session',{p_session_id:sessionId,p_end:true});if(getStoredSessionId()===sessionId)clearStoredSessionId()}
 export async function isSessionActive(sessionId:string){const{data}=await supabase.from('user_sessions').select('is_active').eq('id',sessionId).maybeSingle();return Boolean(data?.is_active)}
-export async function updateSessionLastSeen(sessionId:string){await supabase.from('user_sessions').update({last_seen:new Date().toISOString()}).eq('id',sessionId).eq('is_active',true)}
+export async function updateSessionLastSeen(sessionId:string){await supabase.rpc('touch_current_device_session',{p_session_id:sessionId,p_end:false})}

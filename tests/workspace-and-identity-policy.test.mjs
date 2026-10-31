@@ -23,7 +23,7 @@ test('Personal identity can add both Service Worker and Property Partner workspa
   );
   assert.match(account, /title="WeHouse"/);
   assert.match(account, /Service Worker/);
-  assert.match(account, /title="Offer services or Experiences"/);
+  assert.match(account, /title="Offer services or Activities"/);
   assert.match(account, /Property Partner/);
   assert.match(account, /title="List a property"/);
 });

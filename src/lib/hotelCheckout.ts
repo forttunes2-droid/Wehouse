@@ -25,8 +25,9 @@ export function hotelHoldReceipt(value:unknown,scope:HotelCheckoutScope):HotelHo
 }
 export function hotelQuoteReceipt(value:unknown){
  const row=record(value);
+ if(row.same_day_booking_cutoff_at!=null&&!moment(row.same_day_booking_cutoff_at))throw Error('The same-day booking deadline could not be confirmed. Please retry.');
  if(typeof row.available!=='boolean'||row.currency!==undefined&&row.currency!=='NGN'||row.available&&(!Number.isInteger(row.nights)||Number(row.nights)<1||Number(row.nights)>365||typeof row.total_price!=='number'||!Number.isFinite(row.total_price)||row.total_price<=0))throw Error('Live availability and price could not be confirmed. Please retry.');
- return row as {available:boolean;nights?:number;total_price?:number;blocked_date?:string;rate_plan_name?:string;cancellation_deadline?:string|null;cancellation_timezone?:string;refund_amount_ngn?:number;original_price?:number;discount_percent?:number;discount_amount?:number;wehouse_discount_percent?:number};
+ return row as {available:boolean;nights?:number;total_price?:number;blocked_date?:string;rate_plan_name?:string;cancellation_deadline?:string|null;cancellation_timezone?:string;refund_amount_ngn?:number;original_price?:number;discount_percent?:number;discount_amount?:number;wehouse_discount_percent?:number;same_day_booking_cutoff_at?:string|null};
 }
 export function hotelCheckoutState(booking:HotelHold,now=Date.now()){
  const recorded=booking.payment_recorded===true||booking.payment_status==='paid'||Boolean(booking.payment_protection_id)||['refunded','refund_pending','partially_refunded'].includes(booking.payment_status);

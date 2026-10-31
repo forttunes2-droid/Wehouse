@@ -1,5 +1,6 @@
 \set ON_ERROR_STOP on
 begin;
+\ir private_message_fixture_helpers.sql
 create function pg_temp.expect(value boolean,description text) returns void language plpgsql as $$begin if value is distinct from true then raise exception 'FAIL: %',description; end if; end $$;
 grant execute on function pg_temp.expect(boolean,text) to authenticated;
 set local session_replication_role=replica;
@@ -8,13 +9,14 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete,account_
 ('95100000-0000-4000-8000-000000000002','live-b@example.invalid','live-friend-b','user',true,'consumer');
 insert into public.friends(id,user_low,user_high,requested_by,status) values
 ('95100000-0000-4000-8000-000000000010','live-friend-a','live-friend-b','live-friend-a','accepted');
+select pg_temp.prepare_private_message_fixture(array['95100000']);
 set local session_replication_role=origin;
 insert into public.friend_messages(id,friend_id,sender_id,ciphertext,encryption_iv) values
 ('95100000-0000-4000-8000-000000000020','95100000-0000-4000-8000-000000000010','live-friend-a','ZmFrZQ==','aXY=');
 select pg_temp.expect((select count(*)=2 from realtime.messages where payload->>'message_id'='95100000-0000-4000-8000-000000000020'),'one private signal per participant');
 select pg_temp.expect(not exists(select 1 from realtime.messages where payload->>'message_id'='95100000-0000-4000-8000-000000000020' and
  (not private or payload ? 'ciphertext' or payload ? 'content' or payload ? 'reactions' or event<>'friend_chat_changed')),'signals contain no message, emoji map or ciphertext');
-select set_config('request.jwt.claims','{"sub":"95100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"95100000-0000-4000-8000-000000000002","session_id":"95100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
 set local role authenticated;
 select public.set_friend_message_reaction('95100000-0000-4000-8000-000000000010','95100000-0000-4000-8000-000000000020','👍');
 select public.set_friend_message_reaction('95100000-0000-4000-8000-000000000010','95100000-0000-4000-8000-000000000020','👍');
@@ -28,7 +30,7 @@ set local role authenticated;
 select pg_temp.expect(not exists(select 1 from realtime.messages where payload->>'message_id'='95100000-0000-4000-8000-000000000020'),'outsider cannot read participant signals');
 reset role;
 -- Return from the outsider read probe to the actual reacting participant.
-select set_config('request.jwt.claims','{"sub":"95100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"95100000-0000-4000-8000-000000000002","session_id":"95100000-0000-4000-8000-000000000002","role":"authenticated"}',true);
 set local role authenticated;
 select public.set_friend_message_reaction('95100000-0000-4000-8000-000000000010','95100000-0000-4000-8000-000000000020',null);
 reset role;

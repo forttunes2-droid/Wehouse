@@ -134,6 +134,8 @@ function friendlyError(raw: string) {
     return "This account has been deleted. Contact WeHouse if you believe this is an error.";
   if (msg.includes("invalid login credentials") || msg.includes("invalid credentials"))
     return "Invalid username, email or password. Please check and try again.";
+  if (msg.includes("temporary email addresses are not supported"))
+    return "Use a permanent email address.";
   if (msg.includes("review the current") || msg.includes("registration is unavailable") || msg.includes("choose create account") || msg.includes("registrations are currently closed") || msg.includes("under maintenance"))
     return raw;
   if (msg.includes("email not confirmed") || msg.includes("not confirmed"))

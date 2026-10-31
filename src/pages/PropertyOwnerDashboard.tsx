@@ -794,25 +794,32 @@ export function PropertyDetails({
                       </p>
                     ) : null}
                   </div>
-                  <span className="rounded-full bg-emerald-500/[.08] px-2 py-1 text-xs font-semibold text-emerald-300">
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${["Stay paid","Rent paid"].includes(partnerPaymentLabel(stay)) ? "bg-emerald-500/[.08] text-emerald-700 dark:text-emerald-300" : "bg-[var(--wh-interactive)] text-[var(--wh-text-secondary)]"}`}>
                     {partnerPaymentLabel(stay)}
                   </span>
                 </div>
+                {(stay.booked_by_name || Number(stay.payer_count)>1) && <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--wh-text-secondary)]">
+                  {stay.booked_by_name && <span>Booked by <span className="font-medium text-[var(--wh-text)]">{stay.booked_by_name}</span></span>}
+                  {Number(stay.payer_count)>1 && <span className="font-medium text-[var(--wh-accent-text)]">Shared costs · {stay.payer_count} payers</span>}
+                </div>}
                 {stay.stay_type === "short_let" ? (
                   <div className="mt-3 grid grid-cols-3 gap-2">
-                    <Info label="Check-in" value={partnerDate(stay.check_in)} />
+                    <Info compact label="Check-in" value={partnerDate(stay.check_in)} />
                     <Info
+                      compact
                       label="Checkout"
                       value={partnerDate(stay.check_out)}
                     />
                     <Info
+                      compact
                       label="Guests"
                       value={String(stay.guest_count || 1)}
                     />
                   </div>
                 ) : (
-                  <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="mt-3 grid grid-cols-3 gap-2">
                     <Info
+                      compact
                       label={stay.tenancy_start_date ? "Move-in" : "Requested arrival"}
                       value={
                         stay.tenancy_start_date
@@ -821,13 +828,15 @@ export function PropertyDetails({
                       }
                     />
                     <Info
+                      compact
                       label="Tenancy ends"
                       value={
                         stay.tenancy_end_date
                           ? partnerDate(stay.tenancy_end_date)
-                          : "Starts after handover"
+                          : ["cancelled","expired","refunded"].includes(stay.status) ? "Not started" : "Starts after handover"
                       }
                     />
+                    <Info compact label="Occupants" value={String(stay.occupant_count || 1)} />
                   </div>
                 )}
                 <p className="mt-3 text-xs leading-5 text-[var(--wh-text-secondary)]">
@@ -873,13 +882,13 @@ function FinanceTab({ profile }: { profile: Profile }) {
     </div>
   );
 }
-function Info({ label, value }: { label: string; value: string | number }) {
+function Info({ label, value, compact = false }: { label: string; value: string | number; compact?: boolean }) {
   return (
-    <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
-      <p className="text-xs uppercase tracking-wide text-[var(--wh-text-muted)]">
+    <div className={`min-w-0 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] ${compact ? "px-2 py-2.5" : "p-4"}`}>
+      <p className={`${compact ? "text-[10px]" : "text-xs"} uppercase tracking-wide text-[var(--wh-text-muted)]`}>
         {label}
       </p>
-      <p className="mt-1 break-words text-xs font-medium capitalize text-[#D3D4DC]">
+      <p className="mt-1 break-words text-xs font-medium text-[var(--wh-text)]">
         {value}
       </p>
     </div>
@@ -923,7 +932,7 @@ function Loading() {
 }
 function partnerDate(value?: string | null) {
   return value
-    ? new Date(`${value}T00:00:00`).toLocaleDateString()
+    ? new Date(`${value}T00:00:00`).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})
     : "Not started";
 }
 function partnerDateTime(value?: string | null) {
@@ -950,12 +959,16 @@ function partnerPropertyStateMessage(property: any, hostManaged = false, managem
     : "Published and available for a new reservation.";
 }
 function partnerStayMessage(stay: any) {
+  if (["cancelled","expired","refunded"].includes(stay.status))
+    return "This booking is no longer active. Payments and any refund remain recorded; cancellation does not by itself confirm a refund.";
+  if (stay.status === "payment_conflict")
+    return "Payment needs review. Arrival cannot be confirmed until the payment issue is resolved.";
   const hostManaged = stay.management_mode_snapshot === "host";
   if (stay.stay_type === "short_let") {
     if (stay.status === "occupied")
       return hostManaged ? `Guest checked in ${partnerDate(stay.check_in)} · manage stay issues from Inbox.` : `Guest checked in ${partnerDate(stay.check_in)} · WeHouse Operations is handling the stay.`;
     if (stay.status === "completed")
-      return `Stay completed ${partnerDate(stay.check_out)} · final payment and deposit checks are in progress.`;
+      return `Stay completed ${partnerDate(stay.check_out)} · payments and any deposit follow the saved booking terms.`;
     if (stay.status === "ready_for_move_in")
       return hostManaged ? `Guest expected ${partnerDate(stay.check_in)} · confirm arrival with the booking code.` : `Guest expected ${partnerDate(stay.check_in)} · WeHouse Operations will confirm arrival.`;
     if (stay.reservation_fee_status === "paid")
@@ -978,11 +991,15 @@ function partnerStayMessage(stay: any) {
 }
 
 function partnerStayStage(stay: any) {
+  if (stay.status === "cancelled") return "Booking cancelled";
+  if (stay.status === "expired") return "Reservation expired";
+  if (stay.status === "refunded") return "Booking refunded";
+  if (stay.status === "payment_conflict") return "Payment needs review";
   if (stay.stay_type === "short_let") {
     if (stay.status === "occupied") return "Guest checked in";
     if (stay.status === "completed") return "Guest checked out";
     if (stay.status === "ready_for_move_in") return "Guest expected";
-    return "Short Let booked";
+    return ["paid","upfront_paid","completed"].includes(stay.payment_status) ? "Short Let booked" : "Reservation in progress";
   }
   if (stay.status === "occupied") return "Occupant moved in";
   if (stay.status === "completed") return "Tenancy ended";
@@ -990,15 +1007,16 @@ function partnerStayStage(stay: any) {
     return stay.requested_move_in_at
       ? "Move-in scheduled"
       : "Waiting for move-in time";
-  return "Tenant found";
+  return ["paid","upfront_paid","completed"].includes(stay.payment_status) ? "Waiting for move-in" : "Reservation in progress";
 }
 function partnerPaymentLabel(stay: any) {
-  const paid = ["paid", "upfront_paid", "completed"].includes(
-    String(stay.payment_status || stay.manual_payment_status || ""),
-  );
+  if(stay.status==="refunded"||stay.payment_status==="refunded")return "Refund recorded";
+  if(stay.status==="payment_conflict"||stay.payment_status==="payment_conflict")return "Payment review";
+  const paid = ["paid", "upfront_paid", "completed"].includes(String(stay.payment_status || ""));
+  if(!paid&&(stay.reservation_fee_status==="paid"||["paid","completed"].includes(stay.manual_payment_status)))return "Reservation fee paid";
   if (stay.stay_type === "short_let")
     return paid ? "Stay paid" : "Payment pending";
-  return paid ? "Rent confirmed" : "Rent processing";
+  return paid ? "Rent paid" : "Rent processing";
 }
 function friendly(value: any) {
   return String(value || "")

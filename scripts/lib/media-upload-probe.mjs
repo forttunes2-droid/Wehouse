@@ -29,8 +29,10 @@ export async function checkMediaUploadReservations(origin,actors){
   const ticket=results[winner].data.id;assert.match(ticket,/^[0-9a-f-]{36}$/i);
   sql(`update private.media_upload_reservations set expires_at=now()-interval '1 minute' where id='${ticket}'::uuid`);
   const retry=await actors[1-winner].client.rpc('reserve_my_media_upload',{p_bucket:'avatars',p_name:racePaths[1-winner]});
-  assert.ok(retry.error,'Expiry alone incorrectly released space for an unfinished upload');
-  return {scope:'Disposable local Storage API',unreserved_upload_rejected:true,reserved_upload_completed:true,one_remaining_allocation_race:true,unfinished_expiry_keeps_budget:true,uploaded_bytes:png.byteLength};
+  assert.ok(!retry.error&&retry.data?.id,'Verified expiry did not reclaim the abandoned allocation');
+  const late=await actors[winner].client.storage.from('avatars').upload(racePaths[winner],png,{contentType:'image/png',upsert:false});
+  assert.ok(late.error,'An expired allocation still accepted a late file');
+  return {scope:'Disposable local Storage API',unreserved_upload_rejected:true,reserved_upload_completed:true,one_remaining_allocation_race:true,expired_capacity_reclaimed:true,late_expired_upload_rejected:true,uploaded_bytes:png.byteLength};
  }finally{
   sql(`update private.media_upload_policy set project_bytes=${previous} where singleton`);
   // These race tickets never started a Storage upload. Only test-owned private

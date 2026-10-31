@@ -6,7 +6,7 @@ import {useCreatorAuth} from '@/hooks/useCreatorAuth';
 type Receipt={configured:boolean;policy:null|{policy_key:string;version:number;value:{percent:number}}};
 export function experienceCommissionReceipt(value:unknown):Receipt {
  const row=value as Receipt;
- if(!row||typeof row.configured!=='boolean')throw Error('Experience commission could not be confirmed.');
+ if(!row||typeof row.configured!=='boolean')throw Error('Activity commission could not be confirmed.');
  if(!row.configured){if(row.policy!==null)throw Error('Invalid commission receipt.');return row;}
  const p=row.policy;
  if(!p||p.policy_key!=='commission_experience'||!Number.isSafeInteger(p.version)||p.version<1||typeof p.value?.percent!=='number'||!Number.isFinite(p.value.percent)||p.value.percent<0||p.value.percent>50)throw Error('Invalid commission receipt.');
@@ -28,13 +28,13 @@ export default function CreatorExperienceCommission(){
    const result=await withTimeout(supabase.rpc('creator_publish_experience_commission',{p_creator_elevation_id:elevation,p_expected_version:expected,p_percent:value,p_reason:reason.trim()}),20000,'Publication outcome is unknown. Refresh the saved policy before retrying.');
    if(result.error)throw result.error;const saved=experienceCommissionReceipt(result.data);
    if(!saved.policy||saved.policy.version!==expected+1||saved.policy.value.percent!==value)throw Error('Publication could not be confirmed. Refresh before retrying.');
-   if(request!==generation.current)return;setReceipt(saved);setReason('');setNotice('Experience commission published for new bookings. Existing booking terms are unchanged.');
+   if(request!==generation.current)return;setReceipt(saved);setReason('');setNotice('Activity commission published for new bookings. Existing booking terms are unchanged.');
   }catch(e){if(request===generation.current){setError(message(e));setReceipt(null);}}
   finally{locked.current=false;if(request===generation.current)setBusy(false);}
  }
  const input='mt-2 min-h-11 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-elevated)] px-3 py-2 text-base';
- return <section aria-label="Experience commission" className="space-y-3 rounded-2xl border border-[var(--wh-border-subtle)] p-4">
-  <h4 className="font-semibold">Experience commission</h4><p className="text-sm text-[var(--wh-text-secondary)]">Set WeHouse's percentage for new Experience bookings. Publishing a rate does not enable Experience sales.</p>
+ return <section aria-label="Activity commission" className="space-y-3 rounded-2xl border border-[var(--wh-border-subtle)] p-4">
+  <h4 className="font-semibold">Activity commission</h4><p className="text-sm text-[var(--wh-text-secondary)]">Set WeHouse's percentage for new Activity bookings. Publishing a rate does not enable Activity sales.</p>
   {error&&<p role="alert" className="text-sm text-[var(--wh-danger-text)]">{error}</p>}{notice&&<p role="status" className="text-sm">{notice}</p>}
   {receipt?<><p className="text-sm">{receipt.policy?`Published: ${receipt.policy.value.percent}% - Version ${receipt.policy.version}`:'Not configured. No commission rate has been assumed.'}</p>
   <label className="block text-sm">WeHouse commission (%)<input type="number" min="0" max="50" step="0.01" disabled={busy} value={percent} onChange={e=>setPercent(e.target.value)} className={input}/></label>

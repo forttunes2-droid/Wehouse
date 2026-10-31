@@ -15,12 +15,16 @@ insert into public.profiles(auth_id,email,user_id,role,profile_complete) values
 ('94000000-0000-4000-8000-000000000006','short-split-reviewer@example.invalid','short-split-reviewer','creator',true);
 insert into public.workspace_role_assignments(user_id,workspace_role,scope_type)
 values('short-split-owner','property_partner','global'),('short-split-reviewer','creator','global');
+insert into auth.users(id,aud,role,email,created_at,updated_at)
+values('94000000-0000-4000-8000-000000000006','authenticated','authenticated','short-split-reviewer@example.invalid',now(),now());
 insert into auth.sessions(id,user_id,created_at,updated_at)
 select auth_id::uuid,auth_id::uuid,now(),now() from public.profiles
-where user_id in('short-split-a','short-split-b','short-split-c','short-split-d','short-split-owner');
+where user_id in('short-split-a','short-split-b','short-split-c','short-split-d','short-split-owner','short-split-reviewer');
 insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
 select user_id,auth_id,auth_id,'short-split-contract-'||user_id,'Synthetic contract browser',true,'trusted'
-from public.profiles where user_id in('short-split-a','short-split-b','short-split-c','short-split-d','short-split-owner');
+from public.profiles where user_id in('short-split-a','short-split-b','short-split-c','short-split-d','short-split-owner','short-split-reviewer');
+insert into auth.mfa_factors(id,user_id,factor_type,status,secret,created_at,updated_at)
+values('94000000-0000-4000-8000-000000000060','94000000-0000-4000-8000-000000000006','totp','verified','ROLLBACK-ONLY-SYNTHETIC-FACTOR',now(),now());
 -- Short Let splits use friends. A Roommate conversation alone must not qualify (short-split-d).
 insert into public.friends(user_low,user_high,requested_by,status) values
 ('short-split-a','short-split-b','short-split-a','accepted'),
@@ -142,7 +146,7 @@ select public.accept_my_property_fees(public.get_provider_fee_disclosure('short_
 reset role;
 select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000001","session_id":"94000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;
-select set_config('test.verified_short_reservation',(select id from public.create_short_stay_reservation('94000000-0000-4000-8000-000000000020',current_date+30,current_date+31,3)),true);
+select set_config('test.verified_short_reservation',(select id from public.create_short_stay_reservation('94000000-0000-4000-8000-000000000020',timezone('Africa/Lagos',now())::date,timezone('Africa/Lagos',now())::date+1,3)),true);
 reset role;
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 do $$declare p public.booking_payments;receipt jsonb;begin
@@ -194,6 +198,23 @@ select pg_temp.expect((select count(*)=3 and sum(amount_total)=850 and sum(amoun
 select pg_temp.expect((select count(*)=3 and sum(amount_total)=500 and sum(amount_commission)=0 from public.payment_protection_transactions where subject_type='short_let_caution' and paystack_reference in(select reference from verified_short_shared_references)),'each payer has their own caution record with no commission');
 select pg_temp.expect((select count(*)=6 and sum(amount_total)=1350 and bool_and(protection_state='protected' and protected_ledger_transaction_id is not null) from public.payment_protection_transactions where paystack_reference in(select reference from verified_short_shared_references)),'no duplicate parent protection; all verified money reaches recorded protection');
 select pg_temp.expect((select status='ready_for_move_in' and rent_payment_status='paid' from public.reservations where id=current_setting('test.verified_short_reservation')),'all three verified shares confirm one stay');
+select pg_temp.expect((select count(*)=3 from public.activity_events e join public.activity_event_audiences a using(activity_event_id)
+ where e.subject_type='shared_payment' and e.subject_id=current_setting('test.verified_short_group') and e.event_type='reservation.reserved'
+ and e.route='my_reservations' and e.route_params->>'booking_id'=current_setting('test.verified_short_group') and a.workspace='personal'),
+ 'all three guests receive a confirmed stay destination after every share verifies');
+-- Use the real protected stay and current property date to exercise the entire
+-- WeHouse code wrapper, including its expanded composite receipt. No money or
+-- arrival trigger is disabled, and the Creator uses its one existing identity.
+select set_config('request.jwt.claims','{"sub":"94000000-0000-4000-8000-000000000006","session_id":"94000000-0000-4000-8000-000000000006","role":"authenticated","aal":"aal2"}',true);
+set local role authenticated;
+select public.wehouse_api_request_guard();
+do $$declare r public.reservations;code text;begin
+ select booking_code into code from public.reservations where id=current_setting('test.verified_short_reservation');
+ r:=public.confirm_short_stay_check_in_by_code(code,timezone('Africa/Lagos',now())::date);
+ perform pg_temp.expect(r.id=current_setting('test.verified_short_reservation') and r.status='occupied' and r.checked_in_at is not null,
+  'WeHouse arrival returns the exact occupied reservation, not a composite stuffed into its ID');
+end$$;
+reset role;
 select pg_temp.expect(not has_function_privilege('authenticated','private.shared_short_let_allocation(uuid)','execute') and not has_function_privilege('anon','private.capture_shared_short_let_checkout(uuid)','execute'),'private financial helpers cannot be called directly');
 select 'Actual two/three-payer verified Short Let charges, saved rates, discounts, components and idempotency passed; fixtures rolled back' as result;
 rollback;

@@ -68,7 +68,7 @@ export default function ReviewedDocuments({ requestId, accountId, operator = fal
       if (result.error) throw result.error;
       if (result.data?.success !== true) throw new Error('Requirements were not confirmed.');
       setEditing(false);
-    }, experience?'Evidence requirements saved. The Experience host can submit documents.':worker?'Credential requirements saved. The Service Worker can submit evidence.':'Document requirements saved. The Partner can submit evidence.');
+    }, experience?'Evidence requirements saved. The Activity host can submit documents.':worker?'Credential requirements saved. The Service Worker can submit evidence.':'Document requirements saved. The Partner can submit evidence.');
   }
   async function decide(document: PropertyDocument, decision: string) {
     await act(async () => {

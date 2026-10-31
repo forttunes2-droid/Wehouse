@@ -13,7 +13,7 @@ async def main():
     context=await browser.new_context(viewport={'width':width,'height':1000},service_workers='block')
     # Empty message fixture: exercise quote UI with an already-unlocked test identity.
     # This does not test encryption or manufacture a usable private key.
-    await context.add_init_script("sessionStorage.setItem('wehouse:e2ee:private-key:quote-customer','{}')")
+    await context.add_init_script("sessionStorage.setItem('wehouse:e2ee:private-key:quote-customer','{}'); sessionStorage.setItem('wehouse:e2ee:private-key:quote-customer:version','1')")
     page=await context.new_page()
     state={'amount':None,'hold':None,'held':False,'contract':False};counts={};errors=[];commands=[]
     page.on('pageerror',lambda error:errors.append(str(error)))
@@ -31,7 +31,7 @@ async def main():
        data.update(service_quote_revision=1,service_quote={'revision':1,'booking_id':'quote-booking','customer_id':'quote-customer','provider_id':'quote-provider','amount':amount,'currency':'NGN','customer_service_charge':0,'scope':'Clean a two-bedroom flat','address':'Agreed customer address','starts_at':'2027-01-02T09:00:00Z','timezone':'Africa/Lagos','cancellation':{'version':'service-standard-24h-v1','full_refund_until':'2027-01-01T09:00:00Z','late_cancellation':'wehouse_review','provider_cancellation':'full_refund'}})
       if state['hold'] is not None and not state['held']:
        state['held']=True;await state['hold'].wait()
-     elif name=='user_encryption_identities':data={'user_id':'quote-customer'}
+     elif name=='user_encryption_identities':data={'user_id':'quote-customer','key_version':1}
      elif name=='conversation_key_envelopes':data={'recipient_user_id':'quote-customer'}
      elif name=='get_my_private_conversation_profile':data=None
      elif name=='accept_my_service_quote':

@@ -99,7 +99,7 @@ test('an unknown Service Worker job state cannot become a new request or a confi
 
 test('booking adapters reject missing cancellation, inspection and move-in receipts',async()=>{
  let data=null;
- const api=moduleAt('src/lib/supabase/reservations.ts',{'./housing-payments':{initializePaymentReference:async()=>{throw Error('This test must never initiate payment');}},'./client':{supabase:{rpc:async()=>({data,error:null})}},'@/lib/locationPresentation':{}});
+ const api=moduleAt('src/lib/supabase/reservations.ts',{'./housing-payments':{initializePaymentReference:async()=>{throw Error('This test must never initiate payment');}},'./client':{supabase:{rpc:async()=>({data,error:null})}},'@/lib/locationPresentation':{},'@/lib/propertyManagement':moduleAt('src/lib/propertyManagement.ts')});
  assert.ok((await api.cancelReservation('booking')).error);
  assert.ok((await api.cancelPaidShortLetStay('booking')).error);
  assert.ok((await api.createInspectionRequest('booking')).error);

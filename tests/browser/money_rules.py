@@ -69,10 +69,10 @@ async def main():
      fee_commands=[c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_booking_money_rules_v4']
      assert len(fee_commands)==1 and list(fee_commands[0]['args']['p_rules'])==['commissions']
      assert fee_commands[0]['args']['p_rules']['commissions']['short_let_wehouse_percent']==policy['active']['commission_short_let']['value']['percent']+3
-     experience=page.get_by_role('region',name='Experience commission',exact=True)
+     experience=page.get_by_role('region',name='Activity commission',exact=True)
      await expect(experience.get_by_text('Not configured. No commission rate has been assumed.',exact=True)).to_be_visible()
      await experience.get_by_label('WeHouse commission (%)',exact=True).fill('9.25')
-     await experience.get_by_label('Reason for change',exact=True).fill('Fixture-only Experience commission')
+     await experience.get_by_label('Reason for change',exact=True).fill('Fixture-only Activity commission')
      await experience.get_by_role('button',name='Confirm and publish commission',exact=True).click()
      await expect(experience.get_by_text('Published: 9.25% - Version 1',exact=True)).to_be_visible()
      commands=[c for c in await page.evaluate('window.__moneyTest.calls') if c['name']=='creator_publish_experience_commission']

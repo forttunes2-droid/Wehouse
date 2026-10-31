@@ -1,5 +1,6 @@
 import SponsoredPlacement from "@/components/SponsoredPlacement";
 import DiscoveryRail from '@/components/DiscoveryRail';
+import DiscoveryRows,{DiscoveryGrid} from '@/components/DiscoveryRows';
 import {matchesDiscoveryText, homeDiscoveryFields} from '@/lib/discoveryText';
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import { homeStyleValue } from '@/lib/homeStyles';
@@ -416,8 +417,7 @@ export default function Search({
   // One ordered result collection. A small browsing shelf leads into the grid;
   // let type remains a filter and never creates competing result sections.
   const showBrowseRail = !query.trim() && !hasFilters && !location && filtered.length > 6;
-  const browseHomes = showBrowseRail ? filtered.slice(0, 6) : [];
-  const resultHomes = showBrowseRail ? filtered.slice(6) : filtered;
+
   const homeCard = ({ listing, distance }: (typeof filtered)[number]) => (
     <ListingCard key={listing.id} listing={listing} distanceKm={distance}
       onClick={() => onNavigate('detail', listing.id)} isSaved={savedIds.has(listing.id)}
@@ -517,13 +517,8 @@ export default function Search({
           />
         ) : (
           <>
-            {showBrowseRail && <DiscoveryRail title="Homes to explore">{browseHomes.map(homeCard)}</DiscoveryRail>}
-            <section aria-label={showBrowseRail ? 'More homes' : 'Home results'} className="space-y-4">
-              {showBrowseRail && <h2 className="text-lg font-semibold tracking-tight">More homes</h2>}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {resultHomes.map(homeCard)}
-              </div>
-            </section>
+            {showBrowseRail ? <DiscoveryRows title="Homes to explore">{filtered.map(homeCard)}</DiscoveryRows> :
+              <DiscoveryGrid label="Home results">{filtered.map(homeCard)}</DiscoveryGrid>}
             {hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()}
               className="mx-auto mt-4 block min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-5 text-xs font-semibold text-[var(--wh-accent-text)] disabled:opacity-50">
               {loadingMore ? "Loading more…" : "Show more homes"}

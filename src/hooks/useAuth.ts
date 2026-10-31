@@ -767,6 +767,7 @@ export function useAuth() {
       try {
         if (sid) {
           const current = await getUserSessionState(sid, uid, aid);
+          if(stopped||logoutBusyRef.current||confirmedAuthIdRef.current!==aid)return;
           if (current.state === "active") {
             await updateSessionLastSeen(sid);
             return;

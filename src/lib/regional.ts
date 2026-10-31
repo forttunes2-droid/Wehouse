@@ -117,14 +117,12 @@ export function zonedInputToISO(value: string, zone?: string | null): string {
   if (!match) return new Date(NaN).toISOString();
   const [year, month, day, hour, minute] = match.slice(1).map(Number);
   const wallClock = Date.UTC(year, month - 1, day, hour, minute);
-  let instant = wallClock;
-  // Two passes settle the offset, including around daylight-saving changes.
-  for (let pass = 0; pass < 2; pass += 1) {
-    const shown = dateTimeInputInZone(new Date(instant), zone);
-    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(shown);
-    if (!m) break;
-    const shownMs = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
-    instant += wallClock - shownMs;
-  }
-  return new Date(instant).toISOString();
+  const asWallClock = (at: number) => Date.parse(dateTimeInputInZone(new Date(at), zone) + ':00Z');
+  const offsets = new Set([-86400000, 0, 86400000].map(delta => asWallClock(wallClock + delta) - wallClock - delta));
+  const choices = [...offsets].map(offset => wallClock - offset);
+  const exact = choices.filter(at => asWallClock(at) === wallClock);
+  // Match PostgreSQL: repeated local times use the later occurrence; missing
+  // spring-forward times use the pre-transition offset and move forward.
+  const after = choices.filter(at => asWallClock(at) > wallClock).sort((a,b) => asWallClock(a)-asWallClock(b));
+  return new Date(exact.length ? Math.max(...exact) : after[0] ?? NaN).toISOString();
 }

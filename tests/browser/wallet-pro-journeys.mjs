@@ -67,7 +67,75 @@ async function dismissToast(page,{clocked=false}={}){
 }
 try {
   browser = await chromium.launch({ headless: true });
-  if(process.argv.includes('--viewing-journeys-only')){
+  if(process.argv.includes('--hotel-policy-only')){
+    for(const theme of ['light','dark'])for(const width of [390,1440])for(const scenario of ['success','failure','missing','lost','stale','readonly']){
+      const page=await browser.newPage({viewport:{width,height:1000}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+      await page.goto(base+'/?mode=hotel-policy-'+scenario);await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
+      await page.getByRole('heading',{name:'Arrival and booking times',exact:true}).waitFor();
+      if(scenario==='readonly'){
+        assert.equal(await page.getByRole('switch').count(),0);assert.equal(await page.getByRole('button',{name:'Save Hotel policy',exact:true}).count(),0);
+        assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.length),0);
+      }else{
+        await page.getByRole('switch',{name:'Allow same-day bookings',exact:true}).click();
+        assert.equal(await page.getByLabel('Same-day booking cutoff',{exact:true}).inputValue(),'');
+        assert.equal(await page.getByRole('button',{name:'Save Hotel policy',exact:true}).isDisabled(),true);
+        await page.getByLabel('Same-day booking cutoff',{exact:true}).fill('21:00');await page.getByLabel('Check-in time',{exact:true}).fill('15:15');
+        assert.equal(await page.getByLabel('Same-day booking cutoff',{exact:true}).evaluate(input=>getComputedStyle(input).colorScheme),theme,'Native time controls follow the chosen theme');
+        assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.length),0,'Editing policy must not send database writes');
+        await page.getByRole('button',{name:'Save Hotel policy',exact:true}).click();
+        if(scenario!=='success'){
+          await page.getByRole('alert').waitFor();assert.equal(await page.getByLabel('Same-day booking cutoff',{exact:true}).inputValue(),'21:00');
+          assert.equal(await page.evaluate(()=>Boolean(window.__hotelPolicyUpdated)),false,'A missing or failed receipt must not show a saved policy');
+          await page.evaluate(()=>{window.__walletPro.recover=true;});
+          if(scenario==='stale'){
+            await page.getByRole('button',{name:'Discard edits and reload',exact:true}).click();
+            await page.waitForFunction(()=>window.__hotelPolicyUpdated?.same_day_booking_cutoff==='20:00');
+            assert.equal(await page.getByLabel('Check-in time',{exact:true}).inputValue(),'16:00');
+            await page.getByLabel('Same-day booking cutoff',{exact:true}).fill('21:00');
+          }
+          await page.getByRole('button',{name:'Save Hotel policy',exact:true}).click();
+        }
+        await page.waitForFunction(()=>window.__hotelPolicyUpdated?.same_day_booking_cutoff==='21:00');
+        assert.equal(await page.evaluate(()=>window.__hotelPolicyUpdated.check_in_time),scenario==='stale'?'16:00':'15:15');
+        assert.equal(await page.getByRole('button',{name:'Save Hotel policy',exact:true}).count(),0);
+        await page.screenshot({path:output+'/hotel-policy-'+scenario+'-'+theme+'-'+width+'.png',fullPage:true});
+        await page.getByRole('switch',{name:'Allow same-day bookings',exact:true}).click();await page.getByRole('button',{name:'Save Hotel policy',exact:true}).click();
+        await page.waitForFunction(()=>window.__hotelPolicyUpdated?.same_day_booking_cutoff===null);
+        const call=await page.evaluate(()=>window.__walletPro.rpcCalls.filter(call=>call.name==='partner_update_hotel_stay_policy').at(-1));
+        assert.equal(call.args.p_same_day_booking_cutoff,null);assert.ok(Number.isFinite(Date.parse(call.args.p_expected_revision)));
+      }
+      assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);results.push('Hotel policy '+scenario+' '+theme+' '+width);await page.close();
+    }
+  }else if(process.argv.includes('--hotel-presence-only')){
+    for(const theme of ['light','dark'])for(const scenario of ['success','failure','malformed','delay','timeout']){
+      const mode='hotel-presence-'+(scenario==='timeout'?'delay':scenario);
+      const page=await browser.newPage({viewport:{width:390,height:900}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+      if(scenario==='timeout')await page.clock.install();
+      await page.goto(base+'/?mode='+mode);await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
+      await page.getByRole('button',{name:'Show arrival code',exact:true}).click();
+      if(scenario==='delay'||scenario==='timeout'){
+        await page.waitForFunction(()=>typeof window.__finishHotelCode==='function');
+        if(scenario==='timeout'){
+          await page.clock.fastForward(10001);await page.getByText('Code preparation is delayed. Try again at reception.',{exact:true}).waitFor();
+          await page.getByRole('button',{name:'Show arrival code',exact:true}).waitFor();
+        }
+        await page.getByRole('button',{name:'Open another stay',exact:true}).click();await page.getByRole('heading',{name:'Stay 72',exact:true}).waitFor();
+        await page.getByRole('button',{name:'Show arrival code',exact:true}).click();await page.getByRole('status').filter({hasText:'55556666'}).waitFor();
+        await page.evaluate(async()=>{window.__finishHotelCode();await Promise.resolve();await Promise.resolve();});
+        assert.equal(await page.getByText('11112222',{exact:true}).count(),0);
+      }else if(scenario==='failure'||scenario==='malformed'){
+        await page.getByText(scenario==='failure'?'Guest code connection interrupted':'Could not verify your guest code. Please try again.',{exact:true}).waitFor();
+        assert.equal(await page.getByText('not-a-code',{exact:true}).count(),0);
+        await page.evaluate(()=>{window.__walletPro.recover=true;});await page.getByRole('button',{name:'Show arrival code',exact:true}).click();
+      }
+      await page.getByRole('status').filter({hasText:'55556666'}).waitFor();
+      await page.getByRole('button',{name:'Arrival recorded',exact:true}).click();assert.equal(await page.getByText('55556666',{exact:true}).count(),0);
+      await page.getByRole('button',{name:'Show departure code',exact:true}).click();await page.getByRole('status').filter({hasText:'99998888'}).waitFor();
+      assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.at(-1).args.p_action),'checked_out');
+      assert.deepEqual(errors,[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      await page.screenshot({path:output+'/hotel-presence-'+scenario+'-'+theme+'.png',fullPage:true});results.push('Hotel presence '+scenario+' '+theme);await page.close();
+    }
+  }else if(process.argv.includes('--viewing-journeys-only')){
     for(const theme of ['light','dark'])for(const state of ['reserved','scheduled','completed','cancelled','unprotected']){
       const page=await browser.newPage({viewport:{width:390,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base+'/?mode=viewing-journey-'+state);await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
       await page.getByText('Reservation fee',{exact:true}).last().waitFor();
@@ -192,7 +260,7 @@ try {
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);assert.deepEqual(errors,[]);await page.screenshot({path:output+'/'+mode+'-'+theme+'-'+width+'.png',fullPage:true});results.push(mode+' '+theme+' '+width+'px');await page.close();
     }
   }else if(process.argv.includes('--partner-history-only')){
-    for(const theme of ['light','dark'])for(const width of [320,1440])for(const mode of ['partner-stays-history','partner-stays-history-error','partner-stays-history-linked']){
+    for(const theme of ['light','dark'])for(const width of [320,1440])for(const mode of ['partner-stays-history','partner-stays-history-error','partner-stays-history-linked','partner-stays-history-cancelled','partner-stays-history-expired','partner-stays-history-refunded','partner-stays-history-payment_conflict','partner-stays-history-fee-only']){
       const page=await browser.newPage({viewport:{width,height:1000}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
       await page.goto(base+'/?mode='+mode);await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
       await page.getByText(mode.endsWith('linked')?'51 loaded':'50 loaded',{exact:true}).waitFor();
@@ -204,8 +272,21 @@ try {
       }
       const count=page.getByText('52 loaded',{exact:true});await count.waitFor();await count.scrollIntoViewIfNeeded();
       assert.equal(await page.getByRole('button',{name:'Load older reservations',exact:true}).count(),0);assert.equal(await page.locator('#partner-stay-old-stay').count(),1);
+      const sharedStay=page.locator('#partner-stay-old-stay');
+      await sharedStay.getByText('Amina Yusuf',{exact:true}).waitFor();await sharedStay.getByText('Shared costs · 2 payers',{exact:true}).waitFor();
+      await sharedStay.getByText(mode.endsWith('linked')?'Guests':'Occupants',{exact:true}).waitFor();await sharedStay.getByText('3',{exact:true}).waitFor();
+      const expectedStage=mode.endsWith('cancelled')?'Booking cancelled':mode.endsWith('expired')?'Reservation expired':mode.endsWith('refunded')?'Booking refunded':mode.endsWith('payment_conflict')?'Payment needs review':null;
+      if(expectedStage){await sharedStay.getByText(expectedStage,{exact:true}).waitFor();assert.equal(await sharedStay.getByRole('button',{name:'Confirm',exact:true}).count(),0);}
+      if(mode.endsWith('refunded')){await sharedStay.getByText('Refund recorded',{exact:true}).waitFor();assert.equal(await sharedStay.getByText('Rent paid',{exact:true}).count(),0);}
+      if(mode.endsWith('fee-only')){await sharedStay.getByText('Reservation in progress',{exact:true}).waitFor();await sharedStay.getByText('Reservation fee paid',{exact:true}).waitFor();assert.equal(await sharedStay.getByText('Rent paid',{exact:true}).count(),0);}
+      assert.equal(await sharedStay.getByText(/final payment and deposit checks are in progress/).count(),0);
+      const dates=await sharedStay.locator('.grid > div > p:last-child').evaluateAll(nodes=>nodes.filter(node=>/\d{4}/.test(node.textContent||'')).map(node=>{
+        const text=node.firstChild;const match=(text?.textContent||'').match(/\d{4}/);if(!text||!match)return false;
+        const range=document.createRange();range.setStart(text,match.index);range.setEnd(text,match.index+4);
+        return range.getClientRects().length===1&&node.getBoundingClientRect().height<=parseFloat(getComputedStyle(node).lineHeight)*2;
+      }));assert.deepEqual(dates,mode.endsWith('fee-only')?[]:[true,true],'Arrival dates must retain an intact year and fit two lines on narrow Host cards');
       assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.filter(call=>call.args.p_before_id).every(call=>call.args.p_before_id==='stay-2'&&call.args.p_before_created_at==='2026-01-01T10:00:00.123456+00:00')),true);
-      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);assert.deepEqual(errors,[]);await page.screenshot({path:output+'/'+mode+'-'+theme+'-'+width+'.png'});
+      await sharedStay.scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);assert.deepEqual(errors,[]);await page.screenshot({path:output+'/'+mode+'-'+theme+'-'+width+'.png'});
       results.push(mode+' '+theme+' '+width+'px');await page.close();
     }
   }else if(process.argv.includes('--hotel-cancellation-only')){
@@ -475,7 +556,7 @@ try {
     for(const theme of ['light','dark'])for(const width of [320,768,1440]){
       const page=await browser.newPage({viewport:{width,height:1000}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
       await page.goto(base+'/?mode=experience-applications-create');await page.evaluate(theme=>{document.documentElement.dataset.whTheme=theme;document.documentElement.classList.toggle('dark',theme==='dark');},theme);
-      await page.getByRole('button',{name:'Create an Experience',exact:true}).click();
+      await page.getByRole('button',{name:'Create an activity',exact:true}).click();
       for(const label of ['State or region','Local government or district','City or town'])assert.equal(await page.getByLabel(label,{exact:true}).inputValue(),'','New activity location is entered explicitly, not copied from a private home');
       await page.getByLabel('Category',{exact:true}).selectOption('culture_tours');
       await page.getByLabel('Activity name',{exact:true}).fill('Campus orientation walk');
@@ -496,9 +577,9 @@ try {
       const page=await browser.newPage({viewport:{width:390,height:900}});await page.goto(base+'/?mode='+mode);
       if(mode.endsWith('category-error')){
         await page.getByRole('button',{name:/Campus orientation walk/}).waitFor();await page.getByRole('button',{name:'Retry categories',exact:true}).waitFor();
-        assert.equal(await page.getByRole('button',{name:'Create an Experience',exact:true}).isDisabled(),true);
+        assert.equal(await page.getByRole('button',{name:'Create an activity',exact:true}).isDisabled(),true);
         await page.evaluate(()=>{window.__walletPro.recover=true;});await page.getByRole('button',{name:'Retry categories',exact:true}).click();
-        await page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Create an Experience')?.disabled);
+        await page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Create an activity')?.disabled);
       }else if(mode.endsWith('linked')){
         await page.getByRole('button',{name:'Retry application link',exact:true}).waitFor();await page.evaluate(()=>{window.__walletPro.recover=true;});await page.getByRole('button',{name:'Retry application link',exact:true}).click();
         await page.getByLabel('Activity name',{exact:true}).waitFor();assert.equal(await page.getByLabel('Activity name',{exact:true}).inputValue(),'Campus orientation walk');
@@ -1246,7 +1327,7 @@ try {
   }
   }
   }
-  const resultsFile=process.argv.includes('--viewing-journeys-only')?'results-viewing-journeys.json':process.argv.includes('--share-journeys-only')?'results-share-journeys.json':process.argv.includes('--service-activity-only')?'results-service-activity.json':process.argv.includes('--property-reviews-only')?'results-property-reviews.json':process.argv.includes('--experience-sessions-only')?'results-experience-sessions.json':process.argv.includes('--site-offers-only')?'results-site-offers.json':process.argv.includes('--hosting-controls-only')?'results-hosting-controls.json':process.argv.includes('--space-review-only')?'results-space-review.json':process.argv.includes('--partner-history-only')?'results-partner-history.json':process.argv.includes('--hotel-cancellation-only')?'results-hotel-cancellation.json':process.argv.includes('--partner-assets-only')?'results-partner-assets.json':process.argv.includes('--property-spaces-only')?'results-property-spaces.json':process.argv.includes('--private-calls-only')?'results-private-calls.json':process.argv.includes('--wallet-snapshots-only')?'results-wallet-snapshots.json':process.argv.includes('--finance-summary-only')?'results-finance-summary.json':process.argv.includes('--finance-recovery-only')?'results-finance-recovery.json':process.argv.includes('--experience-applications-only')?'results-experience-applications.json':process.argv.includes('--worker-profile-only')?'results-worker-profile.json':process.argv.includes('--credentials-only')?'results-credentials.json':process.argv.includes('--bank-search-only')?'results-bank-search.json':process.argv.includes('--phone-notifications-only')?'results-phone-notifications.json':process.argv.includes('--notifications-only')?'results-notifications.json':process.argv.includes('--security-only')?'results-security.json':process.argv.includes('--friends-only')?'results-friends.json':process.argv.includes('--management-only')?'results-management.json':'results.json';
+  const resultsFile=process.argv.includes('--hotel-policy-only')?'results-hotel-policy.json':process.argv.includes('--hotel-presence-only')?'results-hotel-presence.json':process.argv.includes('--viewing-journeys-only')?'results-viewing-journeys.json':process.argv.includes('--share-journeys-only')?'results-share-journeys.json':process.argv.includes('--service-activity-only')?'results-service-activity.json':process.argv.includes('--property-reviews-only')?'results-property-reviews.json':process.argv.includes('--experience-sessions-only')?'results-experience-sessions.json':process.argv.includes('--site-offers-only')?'results-site-offers.json':process.argv.includes('--hosting-controls-only')?'results-hosting-controls.json':process.argv.includes('--space-review-only')?'results-space-review.json':process.argv.includes('--partner-history-only')?'results-partner-history.json':process.argv.includes('--hotel-cancellation-only')?'results-hotel-cancellation.json':process.argv.includes('--partner-assets-only')?'results-partner-assets.json':process.argv.includes('--property-spaces-only')?'results-property-spaces.json':process.argv.includes('--private-calls-only')?'results-private-calls.json':process.argv.includes('--wallet-snapshots-only')?'results-wallet-snapshots.json':process.argv.includes('--finance-summary-only')?'results-finance-summary.json':process.argv.includes('--finance-recovery-only')?'results-finance-recovery.json':process.argv.includes('--experience-applications-only')?'results-experience-applications.json':process.argv.includes('--worker-profile-only')?'results-worker-profile.json':process.argv.includes('--credentials-only')?'results-credentials.json':process.argv.includes('--bank-search-only')?'results-bank-search.json':process.argv.includes('--phone-notifications-only')?'results-phone-notifications.json':process.argv.includes('--notifications-only')?'results-notifications.json':process.argv.includes('--security-only')?'results-security.json':process.argv.includes('--friends-only')?'results-friends.json':process.argv.includes('--management-only')?'results-management.json':'results.json';
   fs.writeFileSync(`${output}/${resultsFile}`, JSON.stringify(results, null, 2));
   console.log(`Wallet/Pro browser journeys passed: ${results.length}`);
 } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }

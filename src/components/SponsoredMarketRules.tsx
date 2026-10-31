@@ -28,7 +28,7 @@ type Campaign={ campaign_id:string; resource_type:ResourceType; status:string;
 type StoreProduct={rule_id:string;duration_days:number;platform:"apple"|"google";
   product_id:string;price_ngn:number;enabled:boolean};
 
-const resourceLabels:Record<ResourceType,string>={worker:"Service profiles",property:"Homes",hotel:"Hotels",experience:"Experiences"};
+const resourceLabels:Record<ResourceType,string>={worker:"Service profiles",property:"Homes",hotel:"Hotels",experience:"Activities"};
 
 export default function SponsoredMarketRules(){
   const{requestElevation}=useCreatorAuth();

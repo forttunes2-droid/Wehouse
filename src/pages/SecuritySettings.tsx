@@ -5,11 +5,13 @@ import { getAuthenticationRequirement } from '@/lib/accountAuthentication';
 import { withTimeout } from '@/lib/withTimeout';
 import AccountShell, { AccountInfo } from '@/components/AccountShell';
 import AccountPasskeySettings from '@/components/AccountPasskeySettings';
+import SecureMessagesPanel from '@/components/SecureMessagesPanel';
 import type { Profile } from '@/types';
 
 type Props={profile:Profile;onBack?:()=>void;onLogout?:()=>Promise<unknown>;embedded?:boolean;focus?:'all'|'password'|'sessions'|'close'};
 type DeviceSession={id:string;device:string|null;browser:string|null;os:string|null;ip_address:string|null;is_current:boolean;login_time:string;last_seen:string|null;trust_status:'trusted'};
 export default function SecuritySettings({profile,onBack,onLogout,embedded=false,focus='all'}:Props){
+  const [showChatEncryption,setShowChatEncryption]=useState(false);
   const [emailVerified,setEmailVerified]=useState<boolean|null>(null);
   const [sessions,setSessions]=useState<DeviceSession[]>([]);
   const [loading,setLoading]=useState(true);
@@ -159,6 +161,7 @@ export default function SecuritySettings({profile,onBack,onLogout,embedded=false
   const content=<>
 
     {(focus==='all'||focus==='password')&&<AccountPasskeySettings/>}
+    {(focus==='all'||focus==='password')&&<div className="space-y-3"><button type="button" aria-expanded={showChatEncryption} onClick={()=>setShowChatEncryption(value=>!value)} className="min-h-12 w-full rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] px-4 py-3 text-left text-sm font-semibold">Private chat encryption<span className="mt-1 block text-xs font-normal text-[var(--wh-text-secondary)]">Device keys and optional history backup</span></button>{showChatEncryption&&<SecureMessagesPanel key={profile.user_id}/>}</div>}
 
     {(focus==='all'||focus==='sessions')&&<section className="grid gap-3 sm:grid-cols-3"><AccountInfo label="Email" value={emailVerified===null?'Checking…':emailVerified?'Verified':'Verification required'}/><AccountInfo label="Current device" value={`${device.device} · ${device.browser}`}/><AccountInfo label="Active sessions" value={loading?'Checking…':String(sessions.length)}/></section>}
 

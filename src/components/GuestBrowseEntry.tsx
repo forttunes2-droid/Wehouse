@@ -63,7 +63,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
     requireSignIn();
   }
   const access = useMemo(() => ({ busy, requireSignIn: () => requireSignIn(), notice: <>
-    {isTestEnvironment && <p className="mx-auto max-w-7xl px-4 py-2 text-sm text-[var(--wh-text-secondary)]">Test preview · Live accounts don’t work here. <a className="text-violet-300" href="https://www.wehouse.com.ng/">Open live WeHouse</a></p>}
+    {isTestEnvironment && <p className="mx-auto max-w-7xl px-4 py-2 text-sm text-[var(--wh-text-secondary)]">Test preview · Live accounts don’t work here. <a className="text-[var(--wh-accent-text)]" href="https://www.wehouse.com.ng/">Open live WeHouse</a></p>}
     {notice && <p role="status" className="mx-auto max-w-7xl px-4 py-2 text-sm">{notice}</p>}
   </> }), [busy, target, notice, onSignIn]);
   if (!active && !showSignedOutNav) return <>{children}</>;
@@ -103,7 +103,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
           )
           : page === 'hotels' ? <HotelsHome onNavigate={navigate} /> : <Search savedIds={noSavedHomes} onToggleSave={id => requireSignIn({ kind: 'listing', id })} onNavigate={navigate} />}
       </Suspense> : <GuestAccess section={section} onSignIn={() => requireSignIn(null, section)} busy={busy} />}
-      <PersonalBottomNav
+      {target?.kind !== 'hotel' && <PersonalBottomNav
         activePage={sectionPage[section]}
         onNavigate={(page) => {
           if (page === 'profile') { setSection('explore'); requireSignIn(null, 'account'); return; }
@@ -114,7 +114,7 @@ export default function GuestBrowseEntry({ active, busy = false, showSignedOutNa
         }}
         signedOut
         busy={busy}
-      />
+      />}
     </div>
   </DiscoveryAccessContext.Provider>;
 }

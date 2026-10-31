@@ -16,12 +16,12 @@ function localSql(sql) {
   }).trim();
 }
 
-async function signup(legalReview = {}) {
+async function signup(legalReview = {}, domain = 'example.invalid') {
   const response = await fetch(new URL('/auth/v1/signup', origin), {
     method: 'POST',
     headers: { apikey: publishableKey, 'content-type': 'application/json' },
     body: JSON.stringify({
-      email: `legal-gate-${randomBytes(8).toString('hex')}@example.invalid`,
+      email: `legal-gate-${randomBytes(8).toString('hex')}@${domain}`,
       password: randomBytes(24).toString('base64url'),
       data: { legal_review: legalReview },
     }),
@@ -38,6 +38,13 @@ assert.equal(localSql("select count(*) from public.creator_policy_versions where
 let result = await signup();
 assert.equal(result.status, 200, 'Unpublished documents must allow identity creation');
 assert.equal(result.hasUser, true);
+for (const domain of ['mailinator.com', 'child.mailinator.com']) {
+  result = await signup({}, domain);
+  assert.equal(result.status, 403, 'Direct Auth signup must reject temporary email, not only the app form');
+  assert.equal(result.hasUser, false);
+  assert.match(result.message, /Temporary email addresses/);
+}
+assert.equal(localSql("select count(*) from auth.users where email like 'legal-gate-%@%mailinator.com';"), '0', 'Rejected signups must not create identities');
 
 try {
   localSql(`
@@ -60,4 +67,4 @@ try {
 } finally {
   localSql("begin; set local session_replication_role=replica; delete from public.creator_policy_versions where policy_version_id='88888888-1111-4111-8111-888888888888'; commit;");
 }
-console.log('Auth HTTP confirms unpublished signup is allowed and published documents reject missing/stale acceptance.');
+console.log('Auth HTTP confirms disposable email is rejected before user creation, unpublished signup is allowed, and published documents require current acceptance.');

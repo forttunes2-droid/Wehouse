@@ -1,16 +1,20 @@
 import { supabase } from './client';
 import type { Profile } from '@/types';
 import {withTimeout} from '@/lib/withTimeout';
+import {servicePhoto,type ServiceOfferCard} from '@/lib/serviceOfferPhotos';
+
+export type ServiceProvider=Profile&{service_offer?:ServiceOfferCard|null};
 
 export type ServiceProviderCursor={rating:number;reviews:number;id:string};
 export type ServiceProviderFilters={country:string;query:string;category:string;specialty:string;state:string;city:string};
-function providerRows(value:unknown,ids?:string[]):Profile[]{
+function providerRows(value:unknown,ids?:string[]):ServiceProvider[]{
   if(!Array.isArray(value)||value.length>(ids?.length??24))throw Error('Service results could not be confirmed. Please retry.');
   const seen=new Set<string>();
   return value.map(row=>{
     if(!row||typeof row!=='object'||typeof row.user_id!=='string'||!row.user_id||row.user_id.length>120||seen.has(row.user_id)||ids&&!ids.includes(row.user_id)||
       typeof row.rating!=='number'||!Number.isFinite(row.rating)||row.rating<0||row.rating>5||typeof row.review_count!=='number'||!Number.isInteger(row.review_count)||row.review_count<0)throw Error('Service results could not be confirmed. Please retry.');
     seen.add(row.user_id);
+    if(row.service_offer!=null){const offer=row.service_offer;if(typeof offer.id!=='string'||typeof offer.name!=='string'||!offer.name.trim()||typeof offer.price!=='number'||!Number.isSafeInteger(offer.price)||offer.price<0||typeof offer.price_type!=='string')throw Error('Service details could not be confirmed.');if(offer.cover!=null)servicePhoto(offer.cover,offer.id,row.user_id);}
     return {...row,role:'worker',profile_complete:true,worker_status:'verified',worker_verified:true,available:true,deleted:false,suspended:false,banned:false} as Profile;
   });
 }

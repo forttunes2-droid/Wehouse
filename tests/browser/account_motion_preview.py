@@ -88,7 +88,7 @@ async def main():
    await page.evaluate("theme=>{localStorage.setItem('wehouse:appearance',theme);window.dispatchEvent(new StorageEvent('storage',{key:'wehouse:appearance'}));window.__showProviderEntry();}",theme)
    opener=page.get_by_role('button',name='Open workspace switcher',exact=True);await opener.click()
    dialog=page.get_by_role('dialog',name='Switch workspace',exact=True)
-   await expect(dialog).to_be_visible();await expect(dialog).to_contain_text('Your services, Experiences, bookings and earnings')
+   await expect(dialog).to_be_visible();await expect(dialog).to_contain_text('Your services, Activities, bookings and earnings')
    await page.keyboard.press('Shift+Tab');assert await page.evaluate("document.activeElement.textContent.includes('Property Partner')")
    await page.keyboard.press('Tab');await expect(page.get_by_role('button',name='Close workspace switcher',exact=True)).to_be_focused()
    await dialog.get_by_role('button',name='Service Worker' if theme=='light' else 'Property Partner',exact=False).click();await expect(dialog).to_have_count(0)
@@ -98,7 +98,7 @@ async def main():
    await page.keyboard.press('Escape');await expect(dialog).to_have_count(0)
   await page.evaluate("window.__activationCalls=0;window.__activateFixture=async()=>{window.__activationCalls++;throw Error('Synthetic setup connection failure');};window.__showProviderOnboarding();")
   await page.get_by_role('button',name='Switch workspace',exact=False).click()
-  offer=page.get_by_role('button',name='Offer services or Experiences',exact=False)
+  offer=page.get_by_role('button',name='Offer services or Activities',exact=False)
   await offer.evaluate('(node)=>{node.click();node.click();}')
   await expect(page.get_by_text('Synthetic setup connection failure',exact=True)).to_be_visible();await expect(offer).to_be_enabled()
   assert await page.evaluate('window.__activationCalls')==1

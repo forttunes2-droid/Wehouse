@@ -1,6 +1,11 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import DateField from "@/components/BookingDateField";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {useHotelBookingWindow} from '@/hooks/useHotelBookingWindow';
+import {useDeadlineClock} from '@/hooks/useDeadlineClock';
+import {hotelBookingCancellationText} from '@/lib/hotelCancellation';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import HotelBookingShares from '@/components/HotelBookingShares';
+const SharedHousingDetails=lazy(()=>import('@/components/SharedHousingDetails'));
 import {
   createHotelBooking,
   getRoomById,
@@ -44,6 +49,7 @@ type Quote = {
   discount_percent?: number;
   discount_amount?: number;
   wehouse_discount_percent?: number;
+  same_day_booking_cutoff_at?: string | null;
 };
 
 const money = (value: number) => formatRecordedMoney(value);
@@ -84,13 +90,8 @@ function HotelBookingForm({
   const actionLock=useRef(false),alive=useRef(true);
   const submitting=Boolean(action)||loading;
   const [pendingBooking, setPendingBooking] = useState<PendingHotelBooking | null>(null);
-  const [clock,setClock]=useState(()=>Date.now());
-  useEffect(()=>{
-    const update=()=>setClock(Date.now());update();window.addEventListener('focus',update);
-    const until=Date.parse(pendingBooking?.payment_expires_at||'')-Date.now();
-    const timer=until>0&&until<2147483647?window.setTimeout(update,until+25):undefined;
-    return()=>{if(timer!==undefined)window.clearTimeout(timer);window.removeEventListener('focus',update);};
-  },[pendingBooking?.booking_id,pendingBooking?.payment_expires_at,pendingBooking?.payment_status]);
+  const clock=useDeadlineClock([pendingBooking?.payment_expires_at,pendingBooking?.cancellation_snapshot.deadline,quote?.cancellation_deadline]);
+  const bookingWindow=useHotelBookingWindow(room?.hotels);
 
   useEffect(() => {
     let live=true;setLoading(true);setError('');
@@ -114,7 +115,7 @@ function HotelBookingForm({
 
   useEffect(() => {
     setQuote(null);
-    if (!checkIn || !checkOut || !ratePlan || pendingBooking) {
+    if (!checkIn || !checkOut || !ratePlan || pendingBooking || checkIn<bookingWindow.earliest || checkOut>bookingWindow.latest) {
       setQuote(null);
       setQuoteLoading(false);
       return;
@@ -139,14 +140,15 @@ function HotelBookingForm({
       live = false;
       window.clearTimeout(timer);
     };
-  }, [checkIn, checkOut, hotelId, ratePlan, ratePlanId, roomId,pendingBooking,attempt]);
+  }, [checkIn, checkOut, hotelId, ratePlan, ratePlanId, roomId,pendingBooking,attempt,bookingWindow.earliest,bookingWindow.latest]);
 
-  const today=new Date().toISOString().slice(0,10),tomorrowString=hotelCalendarDay(today),windowEndString=hotelCalendarDay(today,366);
+  const tomorrowString=bookingWindow.earliest,windowEndString=bookingWindow.latest;
   const minimumCheckout=hotelCalendarDay(checkIn)||tomorrowString;
 
   async function book() {
     if(actionLock.current||submitting)return;
     if (!room || !ratePlan) return toast.error("Room package is unavailable");
+    if(checkIn<bookingWindow.earliest||checkOut>bookingWindow.latest)return toast.error("Choose currently available stay dates");
     if (!quote?.available || !quote.nights || !quote.total_price)
       return toast.error("Choose available dates first");
     if(!guestName.trim()){setError('Enter the guest’s full name.');return;}
@@ -205,15 +207,14 @@ function HotelBookingForm({
     finally{actionLock.current=false;if(alive.current)setAction(null);}
   }
 
+  if (pendingBooking?.shared_payment_group_id) return <Suspense fallback={<WeHouseLoadingState label="Loading shared Hotel booking"/>}><SharedHousingDetails
+    groupId={pendingBooking.shared_payment_group_id} userId={profile.user_id} onBack={()=>onComplete(pendingBooking.booking_id)}
+    onChanged={()=>setAttempt(value=>value+1)}/></Suspense>;
   if (pendingBooking) {
     const state=hotelCheckoutState(pendingBooking,clock);
     if(!state.canPay)return <HotelCheckoutStatus state={state} error={error} busy={submitting} onBack={onBack} onBookings={()=>onComplete(pendingBooking.booking_id)} onStart={startFreshCheckout} onRefresh={()=>setAttempt(value=>value+1)}/>;
     const savedCancellation = pendingBooking.cancellation_snapshot;
-    const cancellationTerms = savedCancellation
-      ? savedCancellation.refundable
-        ? `Full refund ${money(Number(savedCancellation.refund_amount_ngn))} if cancelled by ${formatDeadline(savedCancellation.deadline, savedCancellation.timezone)}. These terms are saved for this booking.`
-        : "This rate is non-refundable for ordinary cancellation or missed arrival. A payment or stay problem can still be reported to WeHouse for review."
-      : "Saved cancellation terms are not available. Payment is disabled until the booking can show the terms.";
+    const cancellationTerms=hotelBookingCancellationText(savedCancellation,money(Number(savedCancellation.refund_amount_ngn)),formatDeadline(savedCancellation.deadline,savedCancellation.timezone),clock);
 
     const pendingRows = [
       { label: "Hotel", value: room?.hotels.name || "Selected hotel" },
@@ -247,6 +248,7 @@ function HotelBookingForm({
               onEdit={() => void editPendingBooking()}
               onConfirm={() => void openPayment()}
             />
+            <HotelBookingShares booking={pendingBooking} userId={profile.user_id} onCreated={group=>setPendingBooking(current=>current!==null&&current.booking_id===group.hotel_booking_id?{...current,shared_payment_group_id:group.id}:current)}/>
           </div>
         </div>
       </main>
@@ -305,11 +307,16 @@ function HotelBookingForm({
         <section className="rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
           <h2 className="text-sm font-semibold">Stay dates</h2>
           <p className="mt-1 text-xs text-[var(--wh-text-muted)]">Check-in from {formatHotelTime(room.hotels.check_in_time, "14:00")} · Check-out by {formatHotelTime(room.hotels.check_out_time, "12:00")}</p>
+          <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">{bookingWindow.cutoffTime
+            ? bookingWindow.sameDayOpen ? `Book and complete payment for today by ${bookingWindow.cutoffLabel} (${bookingWindow.timeZone}).`
+              : "Today's booking deadline has passed. Choose a later check-in date."
+            : "This Hotel accepts bookings from tomorrow."}</p>
           <div className="mt-3 grid grid-cols-2 gap-3">
-            <DateField label="Check-in" value={checkIn} min={tomorrowString} max={windowEndString} onChange={(value) => { setCheckIn(value); if (checkOut && checkOut <= value) setCheckOut(""); }} />
+            <DateField label="Check-in" value={checkIn} min={tomorrowString} max={bookingWindow.lastCheckIn} onChange={(value) => { setCheckIn(value); if (checkOut && checkOut <= value) setCheckOut(""); }} />
             <DateField label="Check-out" value={checkOut} min={minimumCheckout} max={windowEndString} onChange={setCheckOut} />
           </div>
           {quoteLoading ? <p className="mt-3 text-xs text-violet-700 dark:text-violet-300">Checking live room inventory…</p> : null}
+          {quote?.same_day_booking_cutoff_at&&<p className="mt-3 text-xs leading-5 text-[var(--wh-text-secondary)]">Today's payment deadline: {formatDeadline(quote.same_day_booking_cutoff_at,bookingWindow.timeZone)}. Your room hold may expire sooner.</p>}
           {!quoteLoading && quote && !quote.available ? <p className="mt-3 rounded-xl bg-amber-500/[.08] p-3 text-xs text-amber-700 dark:text-amber-200">Unavailable on {quote.blocked_date ? new Date(`${quote.blocked_date}T00:00:00`).toLocaleDateString() : "one of these dates"}. Choose different dates.</p> : null}
           {quote?.available && quote.nights && quote.total_price ? (
             <div className="mt-4 flex items-center justify-between border-t border-[var(--wh-border-subtle)] pt-3"><p className="text-[10px] text-[var(--wh-text-muted)]">{quote.nights} night{quote.nights === 1 ? "" : "s"} · live price</p><div className="text-right">{quote.discount_percent ? <p className="text-xs text-[var(--wh-text-muted)]"><span className="line-through">{formatRecordedMoney(Number(quote.original_price),quote.currency)}</span> · {quote.discount_percent}% off{quote.wehouse_discount_percent ? ` · includes ${quote.wehouse_discount_percent}% from WeHouse` : " from the hotel"}</p> : null}<p className="text-lg font-bold">{formatRecordedMoney(Number(quote.total_price),quote.currency)}</p></div></div>
@@ -337,11 +344,10 @@ function HotelBookingForm({
         <section className="rounded-2xl border border-violet-400/20 bg-violet-500/[.06] p-4" aria-label="Cancellation and arrival terms">
           <h2 className="text-sm font-semibold text-[var(--wh-text)]">Cancellation and arrival</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--wh-text-secondary)]">
-            {ratePlan.refundable
+            {quote?.cancellation_deadline ? hotelBookingCancellationText({refundable:ratePlan.refundable,deadline:quote.cancellation_deadline},money(Number(quote.refund_amount_ngn||0)),formatDeadline(quote.cancellation_deadline,propertyTimeZone(quote.cancellation_timezone)),clock) : ratePlan.refundable
               ? `This rate is refundable when you request cancellation at least ${ratePlan.cancellation_hours ?? 0} hours before the hotel's check-in time. After that deadline, a refund is not automatic.`
               : "This rate is non-refundable if you cancel or do not arrive. A payment or stay problem can still be reported to WeHouse for review."}
           </p>
-          {quote?.cancellation_deadline && <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Full refund {money(Number(quote.refund_amount_ngn || 0))} if cancelled by {new Date(quote.cancellation_deadline).toLocaleString(undefined,{timeZone:propertyTimeZone(quote.cancellation_timezone)})} ({propertyTimeZone(quote.cancellation_timezone)}). The confirmed booking saves these terms.</p>}
           <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">Eligible paid bookings can be cancelled from your booking. Refunds go to the original payment method and remain processing until confirmed. Contact WeHouse for exceptions or a stay the hotel could not provide.</p>
         </section>
 

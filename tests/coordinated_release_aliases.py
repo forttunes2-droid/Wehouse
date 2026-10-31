@@ -162,6 +162,15 @@ class ProductionAliases(unittest.TestCase):
                          release.migration_body("begin;\nselect 'unchanged';\ncommit;"))
         self.assertIn("'\ufeff'", release.migration_body("select '\ufeff';"))
 
+    def test_release_preserves_service_rows_and_already_deployed_gallery_fields(self):
+        self.assertEqual(release.snapshot_queries()['worker_services'],
+                         'select to_jsonb(t) as row from public.worker_services t')
+        sql = release.release_sql([], self.applied, 'check')
+        self.assertIn("array['photos','photo_revision']", sql)
+        self.assertIn("a.attrelid='public.worker_services'::regclass and a.attname=name", sql)
+        self.assertIn('to_jsonb(t)-array(select name from wh_release_added_service_fields)', sql)
+        self.assertIn('Existing records changed unexpectedly: worker_services', sql)
+
 
 if __name__ == "__main__":
     unittest.main()

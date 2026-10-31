@@ -195,7 +195,7 @@ function AccountCenterContent({
       items.push({
         role: "worker",
         label: "Service Worker",
-        detail: "Services, Experiences, bookings and earnings",
+        detail: "Services, Activities, bookings and earnings",
       });
     if (hasPartnerWorkspace)
       items.push({
@@ -402,7 +402,7 @@ function AccountCenterContent({
           <AccountSection title="Get started">
             {!hasServiceProviderWorkspace ? (
               <AccountRow
-                title="Offer services or Experiences"
+                title="Offer services or Activities"
                 detail="Set up your Services workspace"
                 onClick={() => void startProfessionalOnboarding("worker")}
                 disabled={activatingWorkspace !== null}

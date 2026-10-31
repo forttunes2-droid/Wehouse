@@ -7,8 +7,9 @@ import ts from 'typescript';
 
 const compile=source=>ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const markets={};vm.runInNewContext(compile(fs.readFileSync('supabase/functions/_shared/payment-market.ts','utf8')),{exports:markets});
-async function harness(name,{purpose='other',receipt={success:false,error:'Unsupported payment purpose'},status='pending',provider={},rpcFailure}={}){
- let handler;const calls=[];
+const smallJson={};vm.runInNewContext(compile(fs.readFileSync('supabase/functions/_shared/smallJsonRequest.ts','utf8')),{exports:smallJson,TextDecoder,Uint8Array});
+async function harness(name,{purpose='other',receipt={success:false,error:'Unsupported payment purpose'},status='pending',provider={},rpcFailure,authenticated=true,configured=true,rateAllowed=true}={}){
+ let handler;const calls=[],budgets=[];let providerFetches=0;
  const secret='sk_test_fixture';
  const row={id:'payment',user_id:'customer',payer_user_id:'customer',purpose,status,currency:'NGN',amount_total:42};
  const admin={auth:{getUser:async()=>({data:{user:{id:'auth-customer'}},error:null})},
@@ -16,15 +17,24 @@ async function harness(name,{purpose='other',receipt={success:false,error:'Unsup
   rpc:async(name,args)=>{calls.push({name,args});return{data:name==='record_verified_payment_mode'?true:receipt,error:rpcFailure===name?{message:'Fixture unavailable'}:null};}};
  const data={id:123,reference:'reference',amount:4200,currency:'NGN',status:'success',domain:'test',paid_at:'2026-10-23T12:00:00Z',...provider};
  vm.runInNewContext(compile(fs.readFileSync(`supabase/functions/${name}/index.ts`,'utf8').replace(/^import .*;\r?\n/gm,'')),{
-  exports:{},Request,Response,URL,TextEncoder,crypto:webcrypto,console,
-  Deno:{env:{get:key=>({SUPABASE_URL:'https://qoobnkedfyosnizrlttt.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'fixture',PAYSTACK_SECRET_KEY:secret})[key]},serve:fn=>{handler=fn;}},
-  serve:fn=>{handler=fn;},createClient:()=>admin,hasLiveSession:async()=>true,...markets,
-  fetch:async()=>Response.json({status:true,data}),
+  exports:{},Request,Response,URL,TextEncoder,AbortSignal,crypto:webcrypto,console,
+  Deno:{env:{get:key=>({SUPABASE_URL:'https://qoobnkedfyosnizrlttt.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'fixture',PAYSTACK_SECRET_KEY:configured?secret:undefined})[key]},serve:fn=>{handler=fn;}},
+  serve:fn=>{handler=fn;},createClient:()=>admin,hasLiveSession:async()=>true,...markets,...smallJson,
+  consumeUserAction:async(...args)=>{budgets.push(args.slice(1));return {allowed:rateAllowed,retryAfterSeconds:rateAllowed?0:30};},
+  fetch:async()=>{providerFetches++;return Response.json({status:true,data});},
  });
  const body=JSON.stringify(name==='paystack-webhook'?{event:'charge.success',data}:{reference:'reference'});
- const response=await handler(new Request('https://test.invalid',{method:'POST',headers:{authorization:'Bearer fixture','x-paystack-signature':createHmac('sha512',secret).update(body).digest('hex')},body}));
- return{response,calls,body:await response.text()};
+ const response=await handler(new Request('https://test.invalid',{method:'POST',headers:{...(authenticated?{authorization:'Bearer fixture'}:{}),'x-paystack-signature':createHmac('sha512',secret).update(body).digest('hex')},body}));
+ return{response,calls,budgets,providerFetches,body:await response.text()};
 }
+
+test('payment verification denies missing authentication and exhausted budgets without provider traffic',async()=>{
+ const anonymous=await harness('paystack-verify',{authenticated:false,configured:false});
+ assert.equal(anonymous.response.status,401);assert.equal(anonymous.providerFetches,0);assert.equal(anonymous.calls.length,0);
+ const limited=await harness('paystack-verify',{rateAllowed:false});
+ assert.equal(limited.response.status,429);assert.equal(limited.response.headers.get('retry-after'),'30');assert.equal(limited.providerFetches,0);assert.equal(limited.calls.length,0);
+ assert.equal(limited.budgets[0][1],'payment_verify');assert.equal(limited.budgets[0][2],20);assert.equal(limited.budgets[0][3],300);
+});
 
 for(const name of ['paystack-verify','paystack-webhook']){
  test(`${name}: unsupported and previously paid purposes cannot bypass the provider-event gateway`,async()=>{

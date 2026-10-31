@@ -90,6 +90,8 @@ Deno.serve(async (request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data, error } = await auth.auth.signInWithPassword({ email, password });
+    if (error?.status === 429)
+      return json({ error: "Too many sign-in attempts. Wait briefly and try again." }, 429);
     if (error || !data.session)
       return json({ error: "Invalid username, email or password" }, 400);
 

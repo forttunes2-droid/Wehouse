@@ -565,7 +565,7 @@ function ShortStayCase({
     )
       return;
     setBusy(true);
-    const { error } = await confirmShortStayCheckIn(bookingCode, checkInDate);
+    const { error } = await confirmShortStayCheckIn(bookingCode, checkInDate, String(row.current_reservation_id));
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success("Guest checked in. The Property Partner has been notified.");
@@ -767,7 +767,7 @@ function HousingCase({
     conversation_id?: string | null;
     assigned_field_officer_id?: string | null;
     assigned_field_officer_name?: string | null;
-    candidates?: Array<{ user_id: string; name: string; username?: string | null }>;
+    candidates?: Array<{ user_id: string; name: string; username?: string | null; is_creator_self?: boolean }>;
   } | null>(null);
   const [assignmentLoading, setAssignmentLoading] = useState(true);
   const [assignmentBusy, setAssignmentBusy] = useState(false);
@@ -887,7 +887,7 @@ function HousingCase({
     )
       return;
     setBusy(true);
-    const { error } = await confirmApartmentHandover(verifiedCode, startDate);
+    const { error } = await confirmApartmentHandover(verifiedCode, startDate, String(row.current_reservation_id));
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success("Tenancy activated. Property is now Occupied.");
@@ -1109,7 +1109,7 @@ function HousingCase({
               >
                 <option value="">Choose Field Operations</option>
                 {assignment.candidates.map((officer) => (
-                  <option key={officer.user_id} value={officer.user_id}>{officer.name}{officer.username ? ` · @${officer.username}` : ""}</option>
+                  <option key={officer.user_id} value={officer.user_id}>{officer.name}{officer.is_creator_self ? " · You (Creator)" : officer.username ? ` · @${officer.username}` : ""}</option>
                 ))}
               </WeHouseChoice>
               <button type="button" disabled={assignmentBusy || !selectedOfficer} onClick={() => void assignFieldOfficer()} className="h-11 rounded-xl bg-violet-500 px-4 text-[10px] font-semibold disabled:opacity-40">

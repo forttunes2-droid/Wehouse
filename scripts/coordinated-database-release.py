@@ -123,6 +123,7 @@ def snapshot_queries():
         # listing's original identity, owner and publication must survive.
         "listings": "select jsonb_build_object('id',id,'listing_id',listing_id,'title',title,'status',status,'availability_status',availability_status,'owner_id',owner_id,'partner_id',partner_id,'approved_at',approved_at,'deleted_at',deleted_at) as row from public.listings",
         "worker_verifications": "select to_jsonb(t) as row from public.worker_verifications t",
+        "worker_services": "select to_jsonb(t) as row from public.worker_services t",
         "identity_evidence": "select jsonb_build_object('worker_id',worker_id,'enrollment',enrollment_photo_path,'latest',latest_reference_photo_path,'captured_at',captured_at,'consent_at',consent_at,'challenge_result',challenge_result,'attempt_count',attempt_count) as row from public.worker_identity_checks",
     }
     for table in ["auth.users", "public.reservations", "public.hotels", "public.hotel_bookings", "public.wallets", "public.ledger_entries", "public.ledger_transactions", "public.payment_protection_transactions", "public.financial_action_outbox", "public.booking_payments"]:
@@ -169,6 +170,13 @@ select name from unnest(array['credential_requirements','credential_revision',
 where not exists(select 1 from pg_attribute a
  where a.attrelid='public.worker_verifications'::regclass and a.attname=name
   and a.attnum>0 and not a.attisdropped);
+-- Preserve existing service identities, prices and any already-deployed photos.
+-- Ignore only these two reviewed columns when they are genuinely new here.
+create temporary table wh_release_added_service_fields on commit drop as
+select name from unnest(array['photos','photo_revision']) fields(name)
+where not exists(select 1 from pg_attribute a
+ where a.attrelid='public.worker_services'::regclass and a.attname=name
+  and a.attnum>0 and not a.attisdropped);
 """]
     for remote_version, name, digest in aliases:
         parts.append(f"""do $$ begin
@@ -197,6 +205,8 @@ end $$;""")
     for name, query in queries.items():
         if name == "worker_verifications":
             query = "select to_jsonb(t)-array(select name from wh_release_added_worker_fields) as row from public.worker_verifications t"
+        if name == "worker_services":
+            query = "select to_jsonb(t)-array(select name from wh_release_added_service_fields) as row from public.worker_services t"
         parts.append(f"do $$ begin if (select digest from wh_release_snapshot where name={literal(name)}) is distinct from ({digest_query(query)}) then raise exception 'Existing records changed unexpectedly: {name}'; end if; end $$;")
     parts.append("""
 do $$ begin

@@ -6,6 +6,7 @@ import {useDialogInteraction} from '@/hooks/useDialogInteraction';
 import {useRecordScreenBack} from '@/hooks/useRecordScreenBack';
 import {getSharedHousingGroup,initializeSharedHousingPayment,respondToSharedHousingInvite,type SharedHousingGroup} from '@/lib/supabase/shared-housing';
 import SharedLongLetRentAgreement from '@/components/SharedLongLetRentAgreement';
+import SharedHotelDetails from '@/components/SharedHotelDetails';
 import {RentAgreementSummary} from '@/components/LongLetBookingAgreement';
 import LaterRentHistory from '@/components/LaterRentHistory';
 import StayArrivalInstructions from '@/components/StayArrivalInstructions';
@@ -16,13 +17,13 @@ import { formatMoney } from "@/lib/regional";
 // Shared checkout currently supports NGN only. Changing presentation region
 // must never relabel an existing NGN obligation as another currency.
 const money=(n:unknown)=>formatMoney(Number(n),{currency:'NGN'});
-export default function SharedHousingDetails({groupId,userId,onBack,onChanged,onOpenListing,onOpenBooking,onRentHelp}:{groupId:string;userId:string;onBack:()=>void;onChanged?:()=>void;onOpenListing?:(id:string)=>void;onOpenBooking?:(id:string)=>void;onRentHelp?:(reservationId:string)=>void}) {
+export default function SharedHousingDetails({groupId,userId,onBack,onChanged,onOpenListing,onOpenBooking,onRentHelp,onOpenHotel,onOpenHotelBooking}:{groupId:string;userId:string;onBack:()=>void;onChanged?:()=>void;onOpenListing?:(id:string)=>void;onOpenBooking?:(id:string)=>void;onRentHelp?:(reservationId:string)=>void;onOpenHotel?:(id:number)=>void;onOpenHotelBooking?:(id:number)=>void}) {
   const [group, setGroup] = useState<SharedHousingGroup | null>(null);
   const [error, setError] = useState(''), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
   const [reviewedRent,setReviewedRent]=useState(false);
   const generation = useRef(0), requestSequence = useRef(0), inFlight = useRef(false), reading = useRef(false);
   const refreshRef = useRef<() => void>(() => {});
-  const dismiss = useRecordScreenBack(onBack), ref = useDialogInteraction(dismiss);
+  const dismiss = useRecordScreenBack(onBack), ref = useDialogInteraction(dismiss,group?.product_type!=='hotel');
 
   useEffect(() => {
     const actorGeneration = ++generation.current;
@@ -118,6 +119,7 @@ export default function SharedHousingDetails({groupId,userId,onBack,onChanged,on
     window.dispatchEvent(new CustomEvent('openSupportChat',{detail:{subject:short?'Shared stay booking':'Shared rent payment or early exit',category:'payment_issue',contextType:'contextual_help',contextId:id,
       contextSnapshot:{reason_code:'payment_issue',subject_type:'shared_payment',source_type:'shared_payment',source_id:id,linked_label:group.listing.title,requester_workspace:'personal'}}}));
   }
+  if(group?.product_type==='hotel')return <SharedHotelDetails key={`${userId}:${group.id}`} group={group} userId={userId} busy={busy} error={error} onBack={dismiss} onRefresh={()=>refreshRef.current()} onAction={action} onOpenHotel={onOpenHotel} onOpenBooking={onOpenHotelBooking}/>;
   return createPortal(<div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={short?"Shared stay":"Shared home"} className="fixed inset-0 z-[100030] overflow-y-auto bg-[var(--wh-bg)] text-[var(--wh-text)]">
     <div className="mx-auto max-w-2xl px-4 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6">
       <header className="sticky top-0 flex items-center gap-3 border-b border-[var(--wh-border-subtle)] bg-[var(--wh-surface)]/95 py-4 shadow-[var(--wh-shadow-sm)] backdrop-blur-xl"><BackButton onClick={dismiss} ariaLabel={short?"Back from shared stay":"Back from shared home"}/><h2 className="flex-1 text-lg font-semibold">{short?"Shared stay":"Shared home"}</h2><button type="button" disabled={busy || loading} onClick={() => refreshRef.current()} className="min-h-11 px-2 text-sm font-semibold text-[var(--wh-accent-text)]">Refresh</button></header>
@@ -149,7 +151,7 @@ export default function SharedHousingDetails({groupId,userId,onBack,onChanged,on
         {hasLaterHistory&&<LaterRentHistory reservationId={group.reservation_id!} userId={userId} onDiscuss={rentHelp}/>}
         {group.reservation_id&&group.created_by===userId&&onOpenBooking&&<button type="button" onClick={()=>onOpenBooking(group.reservation_id!)} className="min-h-11 w-full text-sm font-semibold text-[var(--wh-accent-text)]">Open reservation</button>}
         {!hasLaterHistory&&<button type="button" onClick={rentHelp} className="min-h-11 w-full text-sm font-semibold text-[var(--wh-accent-text)]">Get help with this shared booking</button>}
-        {onOpenListing&&<button type="button" onClick={()=>onOpenListing(group.listing_id)} className="min-h-11 w-full text-sm font-semibold text-[var(--wh-accent-text)]">View property</button>}
+        {onOpenListing&&group.listing_id&&<button type="button" onClick={()=>onOpenListing(group.listing_id!)} className="min-h-11 w-full text-sm font-semibold text-[var(--wh-accent-text)]">View property</button>}
       </main>}
     </div>
   </div>,document.body);

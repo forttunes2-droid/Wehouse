@@ -261,7 +261,7 @@ export default function StaffWorkerReviewModern() {
               </p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Info
-                  label="Experience"
+                  label="Work experience"
                   value={
                     selected.worker_experience ||
                     evidence?.years_of_experience ||

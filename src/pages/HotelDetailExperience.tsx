@@ -3,6 +3,8 @@ import { publicPropertyImages } from "@/lib/publicPropertyMedia";
 import { browseDate, readPublicBrowseDraft, savePublicBrowseDraft } from "@/lib/publicBrowseDraft";
 import PropertyMediaCarousel from "@/components/PropertyMediaCarousel";
 import HotelRoomChoices from "@/components/HotelRoomChoices";
+import {useHotelBookingWindow} from '@/hooks/useHotelBookingWindow';
+import {hotelCalendarDay} from '@/lib/hotelCheckout';
 import PropertyShareDialog from "@/components/PropertyShareDialog";
 import ReportListingDialog from "@/components/ReportListingDialog";
 import { sharePropertyExternally } from "@/lib/propertyShare";
@@ -146,22 +148,14 @@ export default function HotelDetailExperience({
     if (!loading && hotel && String(hotel.hotel_id) === String(hotelId)) savePublicBrowseDraft('hotel', String(hotelId), { roomId: selectedRoom?.room_id || null, rateId: selectedRate?.rate_plan_id || null, checkIn, checkOut });
   }, [loading, hotel, hotelId, selectedRoom, selectedRate, checkIn, checkOut]);
 
-  const tomorrow = useMemo(() => {
-    const value = new Date();
-    value.setDate(value.getDate() + 1);
-    return value.toISOString().split("T")[0];
-  }, []);
-  const bookingWindowEnd = useMemo(() => {
-    const value = new Date();
-    value.setDate(value.getDate() + 366);
-    return value.toISOString().split("T")[0];
-  }, []);
-  const minCheckout = useMemo(() => {
-    if (!checkIn) return tomorrow;
-    const value = new Date(`${checkIn}T12:00:00`);
-    value.setDate(value.getDate() + 1);
-    return value.toISOString().split("T")[0];
-  }, [checkIn, tomorrow]);
+  const bookingWindow=useHotelBookingWindow(hotel);
+  const tomorrow=bookingWindow.earliest,bookingWindowEnd=bookingWindow.latest;
+  const minCheckout=hotelCalendarDay(checkIn)||tomorrow;
+  useEffect(()=>{
+    if(!loading&&hotel&&String(hotel.hotel_id)===String(hotelId)&&checkIn&&(checkIn<bookingWindow.earliest||checkOut>bookingWindow.latest)){
+      setCheckIn('');setCheckOut('');
+    }
+  },[loading,hotel,hotelId,checkIn,checkOut,bookingWindow.earliest,bookingWindow.latest]);
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0;
     const start = new Date(`${checkIn}T12:00:00`).getTime();
@@ -236,6 +230,7 @@ export default function HotelDetailExperience({
     if (!checkIn || !checkOut)
       return toast.error("Choose check-in and check-out dates");
     if (nights < 1) return toast.error("Check-out must be after check-in");
+    if(checkIn<bookingWindow.earliest||checkOut>bookingWindow.latest)return toast.error("Choose currently available stay dates");
     onBook(
       hotelId,
       selectedRoom.room_id,
@@ -266,7 +261,9 @@ export default function HotelDetailExperience({
 
   if (loading)
     return (
-      <WeHouseLoadingState compact label="Loading" />
+      <div className="min-h-[70dvh] bg-[var(--wh-bg)] px-4 py-4 text-[var(--wh-text)]">
+        <div className="mx-auto max-w-5xl"><BackButton onClick={onBack} ariaLabel="Back to hotels" /><WeHouseLoadingState label="Loading hotel" /></div>
+      </div>
     );
 
   if (!hotel)
@@ -274,11 +271,11 @@ export default function HotelDetailExperience({
       <div className="grid min-h-[70dvh] place-items-center bg-[var(--wh-bg)] px-5 text-[var(--wh-text)]">
         <div className="text-center">
           <p className="text-sm font-semibold">Hotel information could not be loaded</p>
-          <button onClick={() => setAttempt(value => value + 1)} className="min-h-11 px-3 text-sm text-violet-300">Try again</button>
+          <button onClick={() => setAttempt(value => value + 1)} className="min-h-11 px-3 text-sm text-[var(--wh-accent-text)]">Try again</button>
           <button
             type="button"
             onClick={onBack}
-            className="mt-4 text-xs font-semibold text-violet-300"
+            className="mt-4 min-h-11 px-3 text-xs font-semibold text-[var(--wh-accent-text)]"
           >
             Back to hotels
           </button>
@@ -327,7 +324,7 @@ export default function HotelDetailExperience({
                 </p>
               </div>
               {Number(hotel.rating || 0) > 0 ? (
-                <span className="shrink-0 text-sm font-semibold text-amber-300">
+                <span className="shrink-0 text-sm font-semibold text-amber-700 dark:text-amber-300">
                   ★ {Number(hotel.rating).toFixed(1)}
                 </span>
               ) : null}
@@ -344,7 +341,7 @@ export default function HotelDetailExperience({
       void sharePropertyExternally({ kind: "hotel", id: String(hotelId) }, hotel.name)
         .then(result => { if (result === "copied") toast.success("Hotel link copied"); })
         .catch(() => toast.error("This hotel could not be shared"));
-    }} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-violet-300">Share ↗</button></div>
+    }} className="min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-4 text-sm font-semibold text-[var(--wh-accent-text)]">Share ↗</button></div>
 
         {amenities.length ? (
           <section className="border-y border-[var(--wh-border-subtle)] py-4">
@@ -354,7 +351,7 @@ export default function HotelDetailExperience({
                 <button
                   type="button"
                   onClick={() => setShowAllAmenities((value) => !value)}
-                  className="text-xs font-semibold text-violet-300"
+                  className="text-xs font-semibold text-[var(--wh-accent-text)]"
                 >
                   {showAllAmenities ? "Show less" : `+${amenities.length - 6} more`}
                 </button>
@@ -393,12 +390,16 @@ export default function HotelDetailExperience({
         {selectedRate ? (
           <section id="hotel-stay-dates" className="scroll-mt-4 border-y border-[var(--wh-border-subtle)] py-5">
             <h2 className="text-sm font-semibold">Choose stay dates</h2>
+            <p className="mt-2 text-xs leading-5 text-[var(--wh-text-secondary)]">{bookingWindow.cutoffTime
+              ? bookingWindow.sameDayOpen ? `Book and complete payment for today by ${bookingWindow.cutoffLabel} (${bookingWindow.timeZone}).`
+                : "Today's same-day booking deadline has passed. Choose a later check-in date."
+              : "This Hotel accepts bookings from tomorrow."}</p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <DateField
                 label="Check-in"
                 value={checkIn}
                 min={tomorrow}
-                max={bookingWindowEnd}
+                max={bookingWindow.lastCheckIn}
                 onChange={(value) => {
                   setCheckIn(value);
                   if (checkOut && checkOut <= value) setCheckOut("");
@@ -419,10 +420,10 @@ export default function HotelDetailExperience({
                     {nights} night{nights === 1 ? "" : "s"} · {selectedRate.name}
                   </p>
                   <p className="mt-1 text-xs text-[var(--wh-text-muted)]">
-                    Availability is rechecked before payment.
+                    Final price and availability are checked before payment.
                   </p>
                 </div>
-                <p className="text-lg font-bold">{formatMoney(total)}</p>
+                <div className="shrink-0 text-right"><p className="text-[10px] text-[var(--wh-text-muted)]">Estimated total</p><p className="text-lg font-bold">{formatMoney(total)}</p></div>
               </div>
             ) : null}
           </section>
@@ -440,7 +441,7 @@ export default function HotelDetailExperience({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold">{venue.name}</p>
-                      <p className="mt-1 text-xs uppercase tracking-wide text-violet-300">
+                      <p className="mt-1 text-xs uppercase tracking-wide text-[var(--wh-accent-text)]">
                         {venue.kind}
                       </p>
                     </div>
@@ -456,7 +457,7 @@ export default function HotelDetailExperience({
                     </p>
                   ) : null}
                   {venue.package_notes ? (
-                    <p className="mt-2 text-xs text-emerald-300">
+                    <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
                       Package access: {venue.package_notes}
                     </p>
                   ) : null}
@@ -480,7 +481,7 @@ export default function HotelDetailExperience({
                 href={directionsUrl(locationLabel(hotel.address, hotel.area, hotel.city, hotel.state))}
                 target="_blank"
                 rel="noreferrer"
-                className="shrink-0 text-xs font-semibold text-violet-300"
+                className="shrink-0 text-xs font-semibold text-[var(--wh-accent-text)]"
               >
                 Road directions
               </a>
@@ -500,7 +501,7 @@ export default function HotelDetailExperience({
               <button
                 type="button"
                 onClick={() => setShowReviewForm((value) => !value)}
-                className="text-xs font-semibold text-violet-300"
+                className="text-xs font-semibold text-[var(--wh-accent-text)]"
               >
                 {showReviewForm ? "Cancel" : "Write review"}
               </button>
@@ -516,7 +517,7 @@ export default function HotelDetailExperience({
                     type="button"
                     onClick={() => setReviewRating(value)}
                     className={`text-lg ${
-                      value <= reviewRating ? "text-amber-300" : "text-[var(--wh-text-muted)]"
+                      value <= reviewRating ? "text-amber-700 dark:text-amber-300" : "text-[var(--wh-text-muted)]"
                     }`}
                   >
                     ★
@@ -534,7 +535,7 @@ export default function HotelDetailExperience({
                 type="button"
                 onClick={() => void submitReview()}
                 disabled={submittingReview}
-                className="mt-3 h-11 rounded-xl bg-violet-500 px-5 text-sm font-semibold disabled:opacity-50"
+                className="mt-3 h-11 rounded-xl bg-violet-600 px-5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {submittingReview ? "Submitting…" : "Publish review"}
               </button>
@@ -548,7 +549,7 @@ export default function HotelDetailExperience({
                   <p className="text-sm font-semibold">
                     @{review.profiles?.username || "guest"}
                   </p>
-                  <p className="text-xs text-amber-300">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
                     {"★".repeat(Number(review.rating || 0))}
                   </p>
                 </div>
@@ -573,7 +574,7 @@ export default function HotelDetailExperience({
           <button
             type="button"
             onClick={messageWeHouse}
-            className="h-12 rounded-2xl border border-violet-400/20 bg-violet-500/[.07] px-4 text-sm font-semibold text-violet-200"
+            className="h-12 rounded-2xl border border-violet-400/20 bg-violet-500/[.07] px-4 text-sm font-semibold text-[var(--wh-accent-text)]"
           >
             Message WeHouse
           </button>
@@ -584,7 +585,7 @@ export default function HotelDetailExperience({
               if (section) document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               else proceed();
             }}
-            className="h-12 min-w-0 rounded-2xl bg-violet-500 px-4 text-xs font-semibold disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
+            className="h-12 min-w-0 rounded-2xl bg-violet-600 px-4 text-xs font-semibold text-white disabled:bg-[var(--wh-interactive)] disabled:text-[var(--wh-text-muted)]"
           >
             {!selectedRoom
               ? "Choose a room"

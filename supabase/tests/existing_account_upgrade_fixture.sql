@@ -16,4 +16,6 @@ insert into public.worker_identity_checks(worker_id,status,enrollment_photo_path
 values('upgrade-approved','passed','upgrade-approved/private.jpg','upgrade-approved/private.jpg','2026-09-10','2026-09-10',1,'{"automatic":true}');
 insert into public.wallets(owner_id,owner_type,available_balance,pending_balance)
 values('upgrade-approved','worker',123.45,50);
+insert into public.worker_services(id,worker_id,service_name,price,price_type,description)
+values('99999999-3333-4333-8333-999999999999','upgrade-approved','Existing reviewed service',15000,'starting_from','Keep this existing service and its price.');
 commit;

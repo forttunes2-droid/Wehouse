@@ -116,6 +116,7 @@ export default function AccountPasskeySettings() {
             <AlertDialogTitle>Remove this passkey?</AlertDialogTitle>
             <AlertDialogDescription className="text-[var(--wh-text-secondary)]">
               You will no longer be able to sign in with {passkeyToRemove?.friendly_name || "this passkey"}. Keep another sign-in or recovery method available.
+              {' '}This does not remove an encrypted chat backup or delete the passkey from your device. Manage chat recovery in Private chat encryption before deleting a backup passkey from your password manager.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

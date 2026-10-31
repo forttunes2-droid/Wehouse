@@ -167,6 +167,7 @@ test('Accommodation arrival issues preserve the agreed money window',()=>{
   const migration=read('supabase/migrations/20260913154000_accommodation_arrival_issue_and_release_window.sql');
   const client=read('src/lib/supabase/accommodation-protection.ts');
   const bookings=read('src/pages/MyReservations.tsx');
+  const panel=read('src/components/AccommodationProtectionPanel.tsx');
   assert.match(migration,/default 2/i);
   assert.match(migration,/between 2 and 4/);
   assert.match(migration,/arrival_issue_deadline_at/);
@@ -174,8 +175,10 @@ test('Accommodation arrival issues preserve the agreed money window',()=>{
   assert.match(migration,/protection_state.*disputed/s);
   assert.match(migration,/financial_action_outbox/);
   assert.match(client,/report_my_accommodation_arrival_issue/);
-  assert.match(bookings,/Report arrival issue/);
-  assert.match(bookings,/different from an ordinary WeHouse message/);
+  assert.match(bookings,/<AccommodationProtectionPanel/);
+  assert.match(panel,/Report arrival issue/);
+  assert.match(panel,/pauses release of the protected accommodation payments/);
+  assert.match(panel,/opens a WeHouse review case/);
 });
 
 test('Short Let caution never awards the Partner from silence',()=>{

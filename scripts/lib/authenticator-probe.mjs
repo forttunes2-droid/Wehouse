@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createHmac,randomBytes,randomUUID} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 
-function totp(secret){
+export function totp(secret){
  const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';let bits='';
  for(const char of secret.toUpperCase().replace(/=+$/,'')){const n=alphabet.indexOf(char);assert.ok(n>=0);bits+=n.toString(2).padStart(5,'0');}
  const key=Buffer.from(bits.match(/.{8}/g).map(b=>parseInt(b,2)));const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(Math.floor(Date.now()/30000)));
@@ -42,6 +42,11 @@ export async function checkAuthenticatorBoundary(admin,makeClient){
   assert.equal((await client.auth.mfa.listFactors()).data.totp.filter(f=>f.status==='verified').length,1);
   assert.ifError((await client.auth.mfa.unenroll({factorId:factor})).error);
   await requirement('setup');await denied();
-  return {optional_enrollment:true,primary_session_denied:true,incorrect_code_denied:true,verified_session_allowed:true,personal_factor_reused_for_admin_and_staff:true,missing_internal_factor_requires_setup:true};
+  // Keep the already-issued bearer to prove the entry hook checks the actual
+  // session, independently of this identity's missing-factor denial above.
+  execFileSync('docker',['exec','-i','supabase_db_wehouse','psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1','-c',`delete from auth.sessions where user_id='${id}';`],{stdio:['ignore','pipe','pipe']});
+  const endedRpc=await client.rpc('get_my_workspace_access');assert.equal(endedRpc.error?.code,'PT401');
+  const endedTable=await client.from('profiles').select('user_id').eq('auth_id',id);assert.equal(endedTable.error?.code,'PT401');
+  return {optional_enrollment:true,primary_session_denied:true,incorrect_code_denied:true,verified_session_allowed:true,personal_factor_reused_for_admin_and_staff:true,missing_internal_factor_requires_setup:true,ended_session_rpc_and_table_denied:true};
  }finally{await client.auth.signOut();const removed=await admin.auth.admin.deleteUser(id);assert.ifError(removed.error);}
 }

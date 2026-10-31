@@ -33,7 +33,7 @@ import { useProviderWorkspaceCapabilities } from '@/hooks/useProviderWorkspaceCa
 type Tab = "experiences" | "home" | "jobs" | "inbox" | "showcase" | "earnings" | "account";
 
 const COMMON_NAV = [
-  { id: "experiences", label: "Experiences" },
+  { id: "experiences", label: "Activities" },
   { id: "inbox", label: "Inbox" },
   { id: "earnings", label: "Earnings" },
   { id: "account", label: "Account" },
@@ -242,7 +242,7 @@ function WorkerWorkspaceContent({
           ? "Publish and manage the work customers see on your profile."
           : safeTab === "jobs"
             ? "Track each job from request to completion, including its earnings."
-            : "Manage requested services and Experiences from one workspace. Each offering has its own review requirements.";
+            : "Manage requested services and Activities from one workspace. Each offering has its own review requirements.";
 
   const workspace = (
     <WorkspaceFrameV2

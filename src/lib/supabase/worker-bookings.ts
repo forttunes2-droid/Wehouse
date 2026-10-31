@@ -1,7 +1,7 @@
 import { prepareChatVideo, validateChatUpload } from "@/lib/chatMediaPolicy";
 import { supabase } from './client';
 import { prepareChatImageFile } from './utils';
-import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, preparePrivateConversation, type EncryptedAttachment } from '@/lib/e2ee';
+import { decryptPrivateAttachment, decryptPrivateMessage, encryptPrivateAttachment, encryptPrivateMessage, encryptedAttachmentsForSend, preparePrivateConversation, invalidatePrivateConversationKey, type EncryptedAttachment } from '@/lib/e2ee';
 import { normalizeWorkerBookingRow } from '@/lib/workerBookingContract';
 import { withTimeout } from '@/lib/withTimeout';
 
@@ -62,7 +62,7 @@ export async function getBookingMessages(conversationId:string,peerUserId?:strin
     let content=String(msg.legacy_content||'');
     let decryptionFailed=false;
     if(msg.ciphertext&&msg.encryption_iv&&peerUserId){
-      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
+      try{content=await decryptPrivateMessage('worker',conversationId,peerUserId,msg.ciphertext,msg.encryption_iv,msg.encryption_key_id)}catch{decryptionFailed=true;content='🔒 Message locked on this device'}
     }
     // Keep authenticated metadata next to the decrypted URL. Blob URLs have no
     // extension: discarding MIME turns voice notes and photos into documents.
@@ -71,7 +71,7 @@ export async function getBookingMessages(conversationId:string,peerUserId?:strin
     let attachmentFailed=Boolean(signed.error && msg.legacy_attachments?.length) || media.length < (Array.isArray(msg.legacy_attachments)?msg.legacy_attachments.length:0);
     if(peerUserId){
       const decrypted=await Promise.all((Array.isArray(msg.encrypted_attachments)?msg.encrypted_attachments:[]).map(async(item:any)=>{
-        try{return await decryptPrivateAttachment('worker',conversationId,peerUserId,item as EncryptedAttachment)}
+        try{return await decryptPrivateAttachment('worker',conversationId,peerUserId,{...item,key_id:msg.encryption_key_id} as EncryptedAttachment)}
         catch{return null}
       }));
       for(const item of decrypted){
@@ -101,7 +101,9 @@ export async function reactToBookingMessage(
 export async function sendBookingMessage(conversationId:string,peerUserId:string,content:string,attachments:EncryptedAttachment[]=[],replyToId:string|null=null){
   try{
     const encrypted=await encryptPrivateMessage('worker',conversationId,peerUserId,content);
-    const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'worker',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:attachments,p_reply_to_id:replyToId});
+    const preparedAttachments=encryptedAttachmentsForSend(attachments,encrypted.envelopeToken);
+    const{data,error}=await supabase.rpc('send_private_encrypted_message',{p_conversation_kind:'worker',p_conversation_id:conversationId,p_ciphertext:encrypted.ciphertext,p_encryption_iv:encrypted.iv,p_encrypted_attachments:preparedAttachments,p_reply_to_id:replyToId,p_envelope_token:encrypted.envelopeToken});
+    if(error?.code==='40001')invalidatePrivateConversationKey('worker',conversationId);
     return{messageId:data,error};
   }catch(error:any){return{messageId:null,error:{message:error?.message||'Encrypted message could not be sent'} as any}}
 }
@@ -118,7 +120,7 @@ export async function uploadBookingChatAttachment(file:File,conversationId:strin
     const encrypted=await encryptPrivateAttachment('worker',conversationId,peerUserId,upload,{name:`${safeBase}.${extension}`,type:contentType});
     const path=`e2ee/worker/${conversationId}/${Date.now()}-${crypto.randomUUID()}.bin`;
     const{error}=await supabase.storage.from('chat-files').upload(path,encrypted.blob,{contentType:'application/octet-stream',upsert:false});
-    return{path:error?null:path,attachment:error?null:{path,file_iv:encrypted.file_iv,metadata_ciphertext:encrypted.metadata_ciphertext,metadata_iv:encrypted.metadata_iv},signedUrl:null,error};
+    return{path:error?null:path,attachment:error?null:{path,file_iv:encrypted.file_iv,metadata_ciphertext:encrypted.metadata_ciphertext,metadata_iv:encrypted.metadata_iv,prepared_envelope_token:encrypted.envelopeToken},signedUrl:null,error};
   }catch(e:any){return{path:null,signedUrl:null,error:{message:e?.message||'Upload failed'} as any}}
 }
 
