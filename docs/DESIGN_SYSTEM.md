@@ -61,16 +61,41 @@ status color with a label or icon.
 - Cards describe a record or a clearly actionable destination. Dashboards
   summarize work and next actions instead of duplicating the full navigation.
 
-Explore uses the shared `DiscoveryRows` / `DiscoveryRail` presentation and
-`DiscoveryGrid` for narrowed results. Media cards use a 4:3 photo area, including
+Explore currently uses `DiscoveryRows` / `DiscoveryRail` and `DiscoveryGrid`.
+The owner rejected the automatic eight-card continuation rows on 31 October;
+that implementation is not the accepted collection design. Passing responsive
+checks does not establish that the information architecture is correct.
+
+Media cards use a 4:3 photo area, including
 honest missing-photo states; names, location and recorded prices sit beneath it.
 They remain open on the page rather than adding a bordered panel around every
-record. Browse rows hold at most eight already-loaded records, then continue in
-another row without repeating the visible heading. Desktop media rows/results
+record. Desktop media rows/results
 use up to five columns; phone rows show the next card edge to indicate swiping.
 Roommate identity cards use wider columns for living preferences and connection
 actions. Services lead with the offering's photo, separately from the Provider's
 avatar. These layouts never change ranking, create records or fetch while swiping.
+
+### Browse references inspected on 31 October
+
+- [Airbnb's official release interface](https://www.airbnb.com/resources/hosting-homes/a/now-theres-even-more-to-airbnb-763)
+  distinguishes destination recommendations from bookable offers. Its published
+  screenshot was inspected, rather than inferring layout from the page's text.
+- [Captured Airbnb iOS screens](https://revyl.com/atlas/airbnb/) show distinct
+  collections: popular homes in a named place, selected hotels, and a dated
+  availability collection. The Services capture separates category tiles from
+  rows of actual offerings. This is a third-party capture, not a live session;
+  the exact interaction of each heading arrow was not verified.
+- [Booking.com's official Android screenshots](https://play.google.com/store/apps/details?id=com.booking&hl=en)
+  show horizontal destination deal cards on the browse screen and a vertical
+  comparison list with Sort, Filter and Map on the results screen. These are
+  published marketing captures, not a live personalised homepage.
+
+A collection needs a real membership/query boundary and an honest label. A new
+heading, hidden continuation title or eight-card slice does not create that
+boundary. Do not invent popularity, availability, proximity, counts or editorial
+selection to fill the screen. The rejected proposal to regroup the loaded page
+by city has not been accepted or implemented. Keep browse collections and search
+results distinct when resolving WR-15/16 in the existing release register.
 
 ## Controls and feedback
 

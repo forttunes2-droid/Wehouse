@@ -197,6 +197,20 @@ The actual [Airbnb 2026 Explore and Hotel references](https://news.airbnb.com/pr
 were checked; its additional product categories/features are not copied into scope.
 No ranking, filter, pagination, booking, paid entitlement or country is changed.
 
+**Owner rejection and reference review:** the automatic eight-card continuation
+rows and generic bottom "Show more homes/hotels" treatment were rejected later
+on 31 October. The proposed replacement using city groupings was also not
+accepted and has not been implemented. The passing geometry/read-bound tests
+below do not close that product-design defect. Source at `d39cc4c3` still has
+the rejected slicing logic; no replacement collection architecture is claimed.
+Actual Airbnb official/captured screens and Booking.com official app screenshots
+were visually inspected. They distinguish meaningful browse collections from
+comparison results; they do not justify inventing popularity, availability or
+collection counts from the first loaded page. The sources and observation limits
+are recorded in [the existing design system](DESIGN_SYSTEM.md#browse-references-inspected-on-31-october).
+Keep this work in WR-15/16; do not open a duplicate roadmap or treat it as accepted
+because its responsive fixture passed.
+
 Candidate `d2c2769c` passes six required workflows, all 892 source tests,
 fresh/upgrade validation and 24 Hotel policy browser cases. The broader browser
 job found a new test expecting the IANA zone string where the shared formatter
