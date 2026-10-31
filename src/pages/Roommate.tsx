@@ -391,6 +391,7 @@ export default function RoommateWorkspace({
       onNavigate={onNavigate}
     >
       <main className="mx-auto max-w-4xl space-y-4 px-4 py-4 sm:px-6">
+        <p className="text-sm text-[var(--wh-text-secondary)]">Find people to share a Long Let.</p>
         <header className="flex items-center gap-3 border-y border-[var(--wh-border-subtle)] py-3">
           <ProfileImage
             src={profile.avatar_url}
@@ -661,7 +662,7 @@ function Matches({
 
 function sameSchool(filter:string, candidate?:string|null){return Boolean(filter.trim()&&candidate?.trim()&&filter.trim().toLocaleLowerCase()===candidate.trim().toLocaleLowerCase())}
 function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onInterest,connectionLimitReached}:{items:RoommateMatchResult[];focusedId:string|null;busyId:string|null;schoolFilter:string;onOpenProfile:(id:string)=>void;onChat?:(row:RoommateMatchResult)=>void;onInterest:(row:RoommateMatchResult,status:"accepted"|"viewed")=>void;connectionLimitReached?:boolean}) {
-  return <DiscoveryRows title="Roommate profiles" moreTitle="More roommate profiles" headingLevel={3} hideFirstTitle itemLabel="profiles">{items.map((row)=>{
+  return <DiscoveryRows title="Roommate profiles" headingLevel={3} hideFirstTitle itemLabel="profiles">{items.map((row)=>{
     const p=row.matched_profile,score=row.match_score,connected=Boolean(row.mutual_accepted||row.conversation_id),sent=row.status==="accepted";
     const name=p.full_name||`@${p.username||"user"}`;
     const contextIds=[row.id,row.conversation_id].filter(Boolean).join(" "),focused=[row.id,row.conversation_id].filter(Boolean).some(id=>String(id)===focusedId);

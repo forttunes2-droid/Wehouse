@@ -1,6 +1,8 @@
 import WeHouseLoadingState from "@/components/WeHouseLoadingState";
 import DateField from "@/components/BookingDateField";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import HotelBookingShares from '@/components/HotelBookingShares';
+const SharedHousingDetails=lazy(()=>import('@/components/SharedHousingDetails'));
 import {
   createHotelBooking,
   getRoomById,
@@ -205,6 +207,9 @@ function HotelBookingForm({
     finally{actionLock.current=false;if(alive.current)setAction(null);}
   }
 
+  if (pendingBooking?.shared_payment_group_id) return <Suspense fallback={<WeHouseLoadingState label="Loading shared Hotel booking"/>}><SharedHousingDetails
+    groupId={pendingBooking.shared_payment_group_id} userId={profile.user_id} onBack={()=>onComplete(pendingBooking.booking_id)}
+    onChanged={()=>setAttempt(value=>value+1)}/></Suspense>;
   if (pendingBooking) {
     const state=hotelCheckoutState(pendingBooking,clock);
     if(!state.canPay)return <HotelCheckoutStatus state={state} error={error} busy={submitting} onBack={onBack} onBookings={()=>onComplete(pendingBooking.booking_id)} onStart={startFreshCheckout} onRefresh={()=>setAttempt(value=>value+1)}/>;
@@ -247,6 +252,7 @@ function HotelBookingForm({
               onEdit={() => void editPendingBooking()}
               onConfirm={() => void openPayment()}
             />
+            <HotelBookingShares booking={pendingBooking} userId={profile.user_id} onCreated={group=>setPendingBooking(current=>current?.booking_id===group.hotel_booking_id?{...current,shared_payment_group_id:group.id}:current)}/>
           </div>
         </div>
       </main>

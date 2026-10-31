@@ -478,7 +478,7 @@ export default function WorkerDiscovery({
             text="Try a broader service or location."
           />
         ) : (
-          <DiscoveryRows title="Services near you" moreTitle="More services" itemLabel="providers">
+          <DiscoveryRows title="Services near you" itemLabel="providers">
             {shown.map((worker) => (
               <WorkerCard
                 key={worker.user_id}

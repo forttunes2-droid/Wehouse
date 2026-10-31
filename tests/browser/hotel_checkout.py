@@ -10,12 +10,12 @@ async def main():
  async with async_playwright() as pw:
   browser=await pw.chromium.launch(args=['--no-sandbox'])
   for theme,width in [('light',390),('dark',1280)]:
-   for mode in ('success','lost-hold','wrong-receipt','lost-release','paid-race','recorded-charge','expired','bad-url','wrong-reference'):
-    ctx=await browser.new_context(viewport={'width':width,'height':1000},timezone_id='Asia/Tokyo',service_workers='block');page=await ctx.new_page();calls=[];errors=[];saved=None;lost=True
+   for mode in ('success','lost-hold','wrong-receipt','lost-release','paid-race','recorded-charge','expired','bad-url','wrong-reference','shared'):
+    ctx=await browser.new_context(viewport={'width':width,'height':1000},timezone_id='Asia/Tokyo',service_workers='block');page=await ctx.new_page();calls=[];errors=[];saved=None;shared=None;lost=True
     today=datetime.now(timezone.utc).date();checkin=str(today+timedelta(days=3));checkout=str(today+timedelta(days=5));deadline=str(today+timedelta(days=2))+'T13:00:00Z'
     def hold(key):return {'booking_id':77,'hotel_id':7,'room_id':12,'rate_plan_id':13,'rate_plan_name':'Room only','user_id':'hold-guest','request_key':key,'check_in':checkin,'check_out':checkout,'guest_count':1,'total_nights':2,'total_price':40000,'guest_name':'Sample Guest','guest_phone':'08000000000','special_requests':None,'status':'pending','payment_status':'unpaid','payment_expires_at':iso(datetime.now(timezone.utc)+timedelta(minutes=30)),'cancellation_snapshot':{'refundable':True,'deadline':deadline,'timezone':'Africa/Lagos','refund_amount_ngn':40000}}
     async def route(handler):
-     nonlocal saved,lost
+     nonlocal saved,shared,lost
      req=handler.request
      if req.url.startswith('https://checkout.paystack.com/'):
       return await handler.fulfill(status=200,content_type='text/html',body='<h1>Controlled checkout destination</h1>')
@@ -28,7 +28,7 @@ async def main():
      elif name=='get_my_hotel_booking_hold':data=copy.deepcopy(saved) if saved and saved['request_key']==args['p_request_key'] else None
      elif name=='quote_hotel_room_rate':data={'available':True,'nights':2,'total_price':40000,'rate_plan_name':'Room only','cancellation_deadline':deadline,'cancellation_timezone':'Africa/Lagos','refund_amount_ngn':40000}
      elif name=='create_my_hotel_booking_with_rate':
-      saved=saved if saved and saved['request_key']==args['p_request_key'] else hold(args['p_request_key']);data=copy.deepcopy(saved)
+      saved=saved if saved and saved['request_key']==args['p_request_key'] else hold(args['p_request_key']);saved['guest_count']=args['p_guest_count'];data=copy.deepcopy(saved)
       if mode=='lost-hold' and lost:lost=False;status=503;data={'message':'The room hold result is unknown'}
       elif mode=='wrong-receipt' and lost:lost=False;data['user_id']='another-person'
       elif mode=='expired':saved['payment_expires_at']=iso(datetime.now(timezone.utc)-timedelta(seconds=1));data=copy.deepcopy(saved)
@@ -39,13 +39,23 @@ async def main():
        saved.update(status='cancelled',payment_status='expired');data=True
        if mode=='lost-release' and lost:lost=False;status=503;data={'message':'The release result is unknown'}
      elif name=='create_hotel_booking_payment':data={'success':True,'reference':'WHH_fixture_77','already_paid':False}
-     elif name=='payment-init':data={'success':True,'purpose':'hotel_booking','reference':'wrong-reference' if mode=='wrong-reference' else 'WHH_fixture_77','authorization_url':'https://untrusted.example.invalid/pay' if mode=='bad-url' else 'https://checkout.paystack.com/fixture'}
+     elif name=='list_my_friends':data=[{'friend_id':'79700000-0000-4000-8000-000000000009','user_id':'joining-friend','full_name':'Joining Friend','username':'joiningfriend','status':'accepted','requested_by_me':False}]
+     elif name=='create_my_shared_hotel':
+      assert args=={'p_booking_id':77,'p_user_ids':['joining-friend']}
+      gid='79700000-0000-4000-8000-000000000001';saved['shared_payment_group_id']=gid
+      shared={'id':gid,'canonical_group_id':gid,'created_by':'hold-guest','listing_id':None,'hotel_id':7,'hotel_booking_id':77,'status':'inviting','product_type':'hotel','payment_phase':'short_stay','expires_at':saved['payment_expires_at'],'checkout_attempt':1,'total_amount':40000,'guest_count':2,'stay_check_in':checkin,'stay_check_out':checkout,'booking_status':'pending','cancellation_snapshot':saved['cancellation_snapshot'],'hotel_arrival':None,'listing':{'id':'7','title':'Garden Hotel · Standard room'},'members':[{'user_id':'hold-guest','name':'Sample Guest','invitation_status':'accepted','share_amount':20000,'payment_status':'not_started'},{'user_id':'joining-friend','name':'Joining Friend','invitation_status':'invited','share_amount':20000,'payment_status':'not_started'}]};data=copy.deepcopy(shared)
+     elif name=='get_my_shared_housing_group':data=copy.deepcopy(shared)
+     elif name=='create_my_shared_housing_payment':
+      assert shared['status']=='payment_pending' and all(m['invitation_status']=='accepted' for m in shared['members'])
+      data={'success':True,'reference':'WHH_shared_fixture_77','amount':20000}
+     elif name=='payment-init':data={'success':True,'purpose':'shared_housing_share' if mode=='shared' else 'hotel_booking','reference':'WHH_shared_fixture_77' if mode=='shared' else 'wrong-reference' if mode=='wrong-reference' else 'WHH_fixture_77','authorization_url':'https://untrusted.example.invalid/pay' if mode=='bad-url' else 'https://checkout.paystack.com/fixture'}
      else:raise AssertionError('Unexpected Hotel API '+name)
      await handler.fulfill(status=status,headers=headers,content_type='application/json',body=json.dumps(data))
     page.on('pageerror',lambda error:errors.append(str(error)));await page.route('**/*',route)
     await page.goto(BASE+'/tests/browser/hotel-checkout.html?theme='+theme)
     await expect(page.get_by_role('button',name='Review booking',exact=False)).to_be_enabled()
     await expect(page.get_by_label('Full name',exact=True)).to_have_value('Sample Guest')
+    if mode=='shared':await page.get_by_role('button',name='Add guest',exact=True).click()
     await page.get_by_role('button',name='Review booking',exact=False).evaluate('(button)=>{button.click();button.click();}')
     creates=lambda:[c for c in calls if c['name']=='create_my_hotel_booking_with_rate']
     if mode in ('lost-hold','wrong-receipt'):
@@ -60,7 +70,22 @@ async def main():
      key=creates()[0]['args']['p_request_key'];await page.reload()
      await expect(page.get_by_role('heading',name='Review your stay',exact=True)).to_be_visible();assert len(creates())==1
      assert [c for c in calls if c['name']=='get_my_hotel_booking_hold'][-1]['args']['p_request_key']==key
-     if mode in ('lost-release','paid-race'):
+     if mode=='shared':
+      await page.get_by_role('button',name='Share this stay',exact=False).click()
+      await page.get_by_role('checkbox',name='Invite Joining Friend',exact=True).check()
+      await expect(page.get_by_text('₦20,000.00',exact=True)).to_have_count(2)
+      await page.get_by_role('button',name='Invite people',exact=True).click()
+      await expect(page.get_by_role('dialog',name='Shared Hotel booking',exact=True)).to_be_visible()
+      await expect(page.get_by_role('button',name='Complete my payment',exact=False)).to_have_count(0)
+      await page.screenshot(path=str(OUT/f'shared-inviting-{theme}.png'),full_page=True)
+      shared['members'][1]['invitation_status']='accepted';shared['status']='payment_pending'
+      await page.get_by_role('button',name='Refresh',exact=True).click()
+      await expect(page.get_by_role('button',name='Complete my payment',exact=False)).to_be_enabled()
+      await page.get_by_role('button',name='Complete my payment',exact=False).click()
+      await expect(page.get_by_role('heading',name='Controlled checkout destination',exact=True)).to_be_visible()
+      assert not any(c['name']=='create_hotel_booking_payment' for c in calls)
+      assert len([c for c in calls if c['name']=='create_my_shared_housing_payment'])==1
+     elif mode in ('lost-release','paid-race'):
       await page.get_by_role('button',name='Edit booking',exact=True).click();await expect(page.get_by_role('alert')).to_be_visible()
       await page.get_by_role('button',name='Refresh room hold',exact=True).click()
       await expect(page.get_by_role('heading',name='Booking already confirmed' if mode=='paid-race' else 'Unpaid room hold released',exact=True)).to_be_visible()

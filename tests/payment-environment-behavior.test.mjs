@@ -75,6 +75,7 @@ async function checkoutHarness(name, overrides = {}, sessionExists = true, extra
       if(name==='creator_set_worker_pro_setting')return{data:extraRows.savedPlanReceipt??true,error:null};
       if(name==='begin_my_sponsored_checkout')return {data:{reference},error:null};
       if(name==='validate_shared_housing_checkout'){assert.equal(params.p_customer_user_id,'fixture-worker');return{data:{valid:!extraRows.sharedInvalid},error:null};}
+      if(name==='validate_hotel_checkout'){assert.equal(params.p_customer_user_id,'fixture-worker');assert.equal(params.p_payment_id,rows.booking_payments.id);return{data:{valid:!extraRows.hotelInvalid},error:extraRows.hotelValidationError?{message:'Hotel checkout validation unavailable'}:null};}
       if (name === 'user_has_active_workspace') {
         assert.equal(params.p_user_id, 'fixture-worker');
         assert.ok(['worker','property_partner','creator'].includes(params.p_workspace_role));
@@ -290,6 +291,13 @@ test('checkout requires throttling and a persisted pending session before succes
 });
 test('checkout rejects provider initialization belonging to another reference',async()=>{
  const checkout=await checkoutHarness('payment-init',{},true,{...hotelRows(),providerInitialization:{reference:'another-payment'}});assert.equal((await checkout.request()).status,400);assert.equal(checkout.initialized.length,1);
+});
+
+test('Hotel initialization rejects missing, stale or unavailable saved fee validation before accessing Paystack',async()=>{
+ for(const denied of [{hotelInvalid:true},{hotelValidationError:true}]){
+  const checkout=await checkoutHarness('payment-init',{},true,{...hotelRows(),...denied});
+  assert.equal((await checkout.request()).status,409);assert.equal(checkout.initialized.length,0);
+ }
 });
 test('shared checkout uses the service-owned linked identity rather than treating its compound subject as a UUID',async()=>{
  const payment={id:'fixture-payment',user_id:'fixture-worker',payer_user_id:'fixture-worker',status:'pending',amount_total:42,currency:'NGN',purpose:'shared_housing_share',metadata:{shared_member_id:'member:short_stay:1',legacy_shared_member_id:'member'}};

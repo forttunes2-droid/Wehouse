@@ -689,6 +689,7 @@ export interface HotelBooking {
   status: HotelBookingStatus;
   payment_status?: string | null;
   payment_protection_id?: string | null;
+  shared_payment_group_id?: string | null;
   booking_code?: string | null;
   guest_name: string | null;
   guest_phone: string | null;

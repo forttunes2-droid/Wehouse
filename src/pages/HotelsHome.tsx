@@ -443,7 +443,7 @@ export default function HotelsHome({ onNavigate, sessionKey='guest' }: Props) {
           />
         ) : (
           <>
-            {showBrowseRail ? <DiscoveryRows title="Hotels to explore" moreTitle="More hotels">{filtered.map(hotelCard)}</DiscoveryRows> :
+            {showBrowseRail ? <DiscoveryRows title="Hotels to explore">{filtered.map(hotelCard)}</DiscoveryRows> :
               <section aria-label="Hotel results" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.map(hotelCard)}</section>}
           </>
         )}

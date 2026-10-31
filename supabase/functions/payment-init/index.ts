@@ -114,6 +114,8 @@ serve(async(req)=>{
   }
 
   if(payment.purpose==='hotel_booking'){
+   const {data:valid,error:validationError}=await db.rpc('validate_hotel_checkout',{p_payment_id:payment.id,p_customer_user_id:profile.user_id});
+   if(validationError||valid?.valid!==true)return json({success:false,error:'The Hotel checkout price, Partner earnings or room hold could not be confirmed. Refresh the booking before paying.'},409);
    const hotelBookingId=Number(payment.hotel_booking_id??meta.hotel_booking_id??0);if(!Number.isInteger(hotelBookingId)||hotelBookingId<=0)return json({success:false,error:'Hotel booking link is missing'},409);
    const{data:booking,error:bookingError}=await db.from('hotel_bookings').select('booking_id,user_id,status,payment_status,payment_reference,payment_expires_at,total_price,booking_code').eq('booking_id',hotelBookingId).maybeSingle();
    if(bookingError)return json({success:false,error:bookingError.message},500);if(!booking||booking.user_id!==profile.user_id)return json({success:false,error:'Hotel booking does not belong to this account'},403);if(booking.status!=='pending'||booking.payment_status!=='payment_pending'||booking.payment_reference!==reference)return json({success:false,error:'Hotel booking is no longer awaiting this payment'},409);if(booking.payment_expires_at&&new Date(booking.payment_expires_at).getTime()<Date.now())return json({success:false,error:'Hotel checkout hold has expired. Choose the room again.'},409);if(!sameMoney(booking.total_price,amount))return json({success:false,error:'Hotel booking amount mismatch'},409);

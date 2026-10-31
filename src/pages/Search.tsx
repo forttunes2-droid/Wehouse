@@ -517,7 +517,7 @@ export default function Search({
           />
         ) : (
           <>
-            {showBrowseRail ? <DiscoveryRows title="Homes to explore" moreTitle="More homes">{filtered.map(homeCard)}</DiscoveryRows> :
+            {showBrowseRail ? <DiscoveryRows title="Homes to explore">{filtered.map(homeCard)}</DiscoveryRows> :
               <section aria-label="Home results" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{filtered.map(homeCard)}</section>}
             {hasMore && <button type="button" disabled={loadingMore} onClick={() => void loadMore()}
               className="mx-auto mt-4 block min-h-11 rounded-xl border border-[var(--wh-border-subtle)] px-5 text-xs font-semibold text-[var(--wh-accent-text)] disabled:opacity-50">

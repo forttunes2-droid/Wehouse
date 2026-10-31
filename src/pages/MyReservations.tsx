@@ -15,6 +15,7 @@ import { sharedHousingLane } from "@/lib/sharedHousingPresentation";
 import { withTimeout } from "@/lib/withTimeout";
 import HotelSpecialRequest from "@/components/HotelSpecialRequest";
 import HotelCancellationPanel from "@/components/HotelCancellationPanel";
+import HotelPresenceCode from '@/components/HotelPresenceCode';
 import StayArrivalInstructions from "@/components/StayArrivalInstructions";
 import WorkerCustomerRecordConsent from "@/components/WorkerCustomerRecordConsent";
 import { shortLetPayment,shortLetBookingPrice } from "@/lib/shortLetPayment";
@@ -38,7 +39,6 @@ import {
 } from "@/lib/supabase/housing-payments";
 import {
   getHotelBookingsForUser,
-  issueMyHotelStayCode,
   initializeHotelBookingPayment,
   updateBookingStatus,
 } from "@/lib/supabase/hotels";
@@ -367,7 +367,7 @@ export default function MyReservations({
           row,
           date: row.created_at || "",
         })),
-        ...hotels.map((row) => ({
+        ...hotels.filter(row=>!sharedGroups.some(group=>group.id===row.shared_payment_group_id)).map((row) => ({
           kind: "hotel" as const,
           row,
           date: row.created_at || "",
@@ -382,9 +382,9 @@ export default function MyReservations({
           if (view === "services") return item.kind === "service";
           if (view === "experiences") return item.kind === "experience";
           if (view === "all") return true;
-          if (stayFilter === "short_let") return item.kind === "housing" && String(item.row.stay_type) === "short_let";
-          if (stayFilter === "long_let") return item.kind === "housing" && String(item.row.stay_type) !== "short_let";
-          if (stayFilter === "hotels") return item.kind === "hotel";
+          if (stayFilter === "short_let") return item.kind === "housing" && String(item.row.stay_type) === "short_let" || item.kind==='shared'&&item.row.product_type==='short_let';
+          if (stayFilter === "long_let") return item.kind === "housing" && String(item.row.stay_type) !== "short_let" || item.kind==='shared'&&item.row.product_type==='long_let';
+          if (stayFilter === "hotels") return item.kind === "hotel" || item.kind==='shared'&&item.row.product_type==='hotel';
           return item.kind === "housing" || item.kind === "hotel" || item.kind === "shared";
         })
         .sort(
@@ -776,6 +776,7 @@ export default function MyReservations({
     );
 
   if(activeShared) return <SharedHousingDetails groupId={activeShared} userId={profile.user_id} onBack={()=>{setActiveShared(null);void load(true);}} onChanged={()=>void load(true)}
+    onOpenHotelBooking={id=>{const row=hotels.find(item=>Number(item.booking_id)===id);if(row){setActiveShared(null);setActiveHotel(row);}else toast.error("Refresh Bookings to load your room booking.");}}
     onOpenListing={onOpenListing ? id=>{setActiveShared(null);onOpenListing(id);} : undefined}
     onOpenBooking={id=>{const row=housing.find(item=>String(item.id)===id);if(row){setActiveShared(null);setActiveHousing(row);}else toast.error("Refresh Bookings to load your booking.");}} />;
 
@@ -983,7 +984,7 @@ export default function MyReservations({
                       {item.kind==='experience'?<BookingCard eyebrow="Activity" title={item.row.contract.title} subtitle={item.row.host_name||'Activity host'} image={null} fallback="◎" status={experienceBookingLabel(item.row)} meta={[displayDateTimeAtProperty(item.row.contract.starts_at,item.row.contract.timezone),`${item.row.participants} participants`,formatRecordedMoney(item.row.contract.total_minor/100,item.row.contract.currency)]} next="View booking and next steps" onOpen={()=>setActiveExperience(item.row.id)} compact/>:item.kind === "housing" ? (
                         <HousingCard row={item.row} onOpen={() => setActiveHousing(item.row)} compact />
                       ) : item.kind === "shared" ? (
-                        <BookingCard eyebrow={item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
+                        <BookingCard eyebrow={item.row.product_type==='hotel'?'Hotel · Shared':item.row.product_type==="short_let"?"Short Let · Shared":"Long Let · Shared"}
                           title={item.row.listing.title||"Shared home"} subtitle={item.row.members.filter((m:any)=>m.user_id!==profile.user_id).map((m:any)=>m.name).join(", ")}
                           image={item.row.listing.image||null} fallback="⌂" meta={item.row.stay_check_in ? [`${date(item.row.stay_check_in)} – ${date(item.row.stay_check_out)}`] : []}
                           status={item.row.members.find((m:any)=>m.user_id===profile.user_id)?.invitation_status==='invited' ? "To do" : "Shared"}
@@ -1990,27 +1991,6 @@ function HotelBookingDetail({
   );
 }
 
-function HotelPresenceCode({ bookingId, status }: { bookingId: number; status: "confirmed" | "checked_in" }) {
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const action = status === "confirmed" ? "checked_in" : "checked_out";
-  useEffect(() => { setCode(""); }, [bookingId, status]);
-  async function issue() {
-    if (busy) return;
-    setBusy(true);
-    const { code: next, error } = await issueMyHotelStayCode(bookingId, action);
-    setBusy(false);
-    if (error || !next) return toast.error(error?.message || "Could not prepare your guest code");
-    setCode(next);
-  }
-  return <div className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/[.06] p-3">
-    <p className="text-xs font-semibold text-violet-200">{status === "confirmed" ? "Arriving at the hotel" : "Leaving the hotel"}</p>
-    <p className="mt-1 text-xs leading-5 text-[var(--wh-text-secondary)]">{status === "confirmed" ? "When you are at reception, show this code to hotel staff so they can verify your arrival." : "When you leave, show a departure code to hotel staff. You may leave before the scheduled checkout time."}</p>
-    {code ? <p role="status" className="mt-3 rounded-lg bg-black/20 px-3 py-3 text-center font-mono text-lg font-semibold tracking-[.25em] text-white">{code}</p> : null}
-    {code ? <p className="mt-1 text-center text-[10px] text-[var(--wh-text-secondary)]">Valid for 10 minutes. Do not send it in chat.</p> : null}
-    <button type="button" disabled={busy} onClick={() => void issue()} className="mt-3 min-h-11 w-full rounded-xl border border-violet-400/25 text-xs font-semibold text-violet-200 disabled:opacity-40">{busy ? "Preparing code…" : code ? "Get a new code" : status === "confirmed" ? "Show arrival code" : "Show departure code"}</button>
-  </div>;
-}
 
 function AccommodationProtectionPanel({
   protection,

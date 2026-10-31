@@ -21,7 +21,7 @@ export default function SharedHomeLifecyclePanel({ profileId, onOpenConversation
     void withTimeout(getMySharedHousingGroups(), 15000, 'Shared payments took too long.').then(result => {
       if (current !== generation.current) return;
       if (result.error) throw result.error;
-      setGroups((result.groups as SharedHousingGroup[]).filter(group => group.members?.some(member => member.user_id === profileId)));
+      setGroups((result.groups as SharedHousingGroup[]).filter(group => group.product_type==='long_let'&&group.members?.some(member => member.user_id === profileId)));
     }).catch(() => { if (current === generation.current) setError('Your shared payments could not be loaded. Please try again.'); })
       .finally(() => { if (current === generation.current) setLoading(false); });
     return () => { generation.current += 1; };

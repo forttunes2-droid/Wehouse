@@ -47,7 +47,7 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 | ID | Outcome / owner and dependencies | Current boundary | Completion test |
 |---|---|---|---|
-| WR-01 | **Shared accommodation payments**. Bookings; depends on WR-05/06/09. | **Shared Long Let and Short Let implemented/Test verified; Hotel integration open.** Existing shared commands connect reservation fees, reviewed terms, each person's initial rent/protection and own later-year plan/history/debit consent to one booking. Partner totals, late-receipt refund actions and arrival visibility pass rollback/browser cases. Actual two/three-payer Short Let gateway receipts conserve stay/caution protection, saved management fees and funded discounts. Hotel sharing with accepted Friends remains unimplemented. | Complete accepted two/three-payer agreement and consent, per-payer initial protection, later-year shares/history/separate automatic-debit consent and combined Partner view. Preserve occupant capacity independently from payer count. Exercise invitation/eligibility, exact payer/reference/phase/attempt, duplicate and late payments, hold expiry, original-payer refunds, fulfillment and operator permissions. Reconcile all payer totals with one booking and use WR-06 for provider proof. |
+| WR-01 | **Shared accommodation payments**. Bookings; depends on WR-05/06/09. | **Shared Long Let/Short Let verified; Hotel checkout and refund integration implemented on Test.** Existing shared commands connect reservation fees, reviewed terms, each person's initial protection and own later-year plan/history/debit consent to one booking. Hotel guests use the same group/member/component records, frozen earnings, dated acceptance, separate receipts and original-payer refunds. Two/three-payer gateway rollback cases cover guest limits, partial funding, changed rates, duplicate receipts, cancellation and late-charge recovery. Hotel browser, expiry/arrival/operator evidence still needs completion; no second wallet or fabricated Home listing. | Complete accepted two/three-payer agreement and consent, per-payer initial protection, later-year shares/history/separate automatic-debit consent and combined Partner view. Preserve occupant capacity independently from payer count. Exercise invitation/eligibility, exact payer/reference/phase/attempt, duplicate and late payments, hold expiry, original-payer refunds, fulfillment and operator permissions. Reconcile all payer totals with one booking and use WR-06 for provider proof. |
 | WR-02 | **Long Let terms, later-year collection and exit**. Bookings; WR-06/21. | **Implemented in part; recovery/evidence open.** Manual and optional automatic later-year collection, accepted terms, immutable fees, rent-year credit/history and payment Help are implemented on Test. Initial Year 1 protection remains; later-year payments do not create a new hold. | Verify full upfront terms and Partner-approved monthly terms without offering one-year monthly rent. Preserve eight payments funding each later year, separate debit consent/pause/cancel, due dates and accepted snapshots. Finish lawful arrears/grace/exit/dispute operations after the named policy decisions; test failed/late collection and Partner/customer recovery. Provider debit/settlement proof is recorded once in WR-06. |
 | WR-03 | **Property and Worker evidence lifecycle**. Account/operations; WR-10/22. | **Implemented in part; recertification/terms open.** Private evidence, independent scoped correction/review, expiry and new-publication/new-job enforcement exist. Access footage is not title or safety proof. | Complete structured guest/tenancy terms and booking snapshots, already-live property/provider recertification, advance expiry reminders, appeals and evidence retention/deletion. Run actual owner/reviewer/outsider upload, partial-upload/replacement, expired-document, self-review-denial, publication and recovery cases. Verify category/market requirements and shared-person identity without adding another publication switch. Local forms/credential approval are EX-01; live identity adapter is WR-10. |
 | WR-04 | **Buildings, spaces and availability**. Bookings; WR-03/09. | **Implemented; integrated verification pending.** Shared physical registry, whole/private disclosure, per-space terms, grouped offers, Partner management and operating schedule are implemented. Do not rebuild the hierarchy. | Demonstrate atomic whole-unit/child-room and Short Let/Long Let conflict prevention on the deployed Test configuration, mixed-building availability/calendar parity, ownership isolation, edits/cancellations and customer/Partner lost-response recovery. Keep one physical occupancy authority and existing Hotel inventory. |
@@ -83,8 +83,34 @@ reference. The actual checkout/provider-gateway rollback contract passes a funde
 offer, changed Creator rate, duplicate receipt, tampered earnings/booking identity
 and an unfundable offer rejected before provider initialization. Existing paid
 cancellation/PMS, recorded-charge and discount contracts also pass on Test. These
-are controlled provider-boundary fixtures, not live PSP settlement proof. Hotel
-shared checkout remains in progress; this prerequisite does not close WR-01.
+are controlled provider-boundary fixtures, not live PSP settlement proof.
+
+Test migrations `20261031114800` and `20261031120326` connect Hotel shared checkout
+to the actual Hotel booking and existing canonical/compatibility group records.
+The original room hold is not extended by an invitation. Each accepted guest has
+dated consent, their own frozen fee/net allocation, protected balance and receipt.
+The room confirms only after all shares are verified. The installed rollback
+contract passes two/three-payer minor-unit conservation, declined/foreign access,
+single-payer exclusion, partial funding, duplicate receipts, aggregate cancellation,
+original-payer refund completion and a late third charge that is refunded without
+reviving the cancelled room. Customer screens reuse one stay invitation picker,
+the existing Bookings list, receipt, cancellation and arrival components. Test
+`payment-init` v16 also validates frozen single-payer Hotel terms before provider
+initialization. Hotel expiry/arrival/operator and candidate browser checks remain
+explicit acceptance cases; this evidence does not close the whole release register.
+
+WR-13/15/16: Roommate discovery is explicitly for sharing a Long Let. Friends
+sharing Hotel/Short Let costs do not become Roommates. Continued discovery rows
+now have one visible section heading instead of repeated artificial “More homes”
+headings. Phone rows retain sideways browsing without arrow controls; desktop
+controls describe row scrolling. Homes, Hotels, Providers and Activities share
+this presentation. Location filters show the configured country under Location,
+with consistent State/LGA labels for Nigeria and region/local-area labels elsewhere;
+no country or payment market is activated. Updated browser checks cover row
+continuation, desktop/phone controls, no duplicate cards/extra requests, and local
+area reset after changing State. Current local validation: 886 source tests,
+application TypeScript, focused lint, Edge typecheck and production build pass.
+The updated browser journeys are queued for exact-candidate CI.
 
 WR-09/11/19: four additional review findings have forward fixes on Test in
 `20261031064345` and `20261031064817`. Hotel revocation withdraws the tracked
