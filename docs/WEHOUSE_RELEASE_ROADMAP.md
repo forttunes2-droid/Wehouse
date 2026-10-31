@@ -113,6 +113,16 @@ Local validation passes 888 source tests, production build and focused lint.
 The changed Partner history browser journeys and fresh/upgrade replay still need
 the new exact-commit CI run; this evidence does not close the wider register.
 
+Candidate `7f3ed81b` passed the source/build, upgrade, security, catalog and
+Partner-history browser checks. Its fresh replay found a missing rollback fixture
+prerequisite, not an activated commercial rate: the new assignment test relied on
+Test's existing Creator commission. It now supplies a rollback-only policy when
+none exists, preserving the actual snapshot trigger. Hosted replay of that test
+passes. Arrival text now uses readable light/dark colors. Hotel code preparation
+also bounds the wait, rejects malformed results, handles connection errors and
+ignores responses after switching bookings or arrival/departure stage. New isolated
+browser cases cover those failures and recovery; their exact-commit run is pending.
+
 WR-01/05/06: Hotel sharing is limited to accepted Friends joining the stay,
 with two/three payers and the room's declared guest limit still enforced (owner
 decision, 31 October). Its integration extends the existing shared-payment records.

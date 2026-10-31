@@ -2,6 +2,15 @@ begin;
 create function pg_temp.expect(value boolean,description text) returns void language plpgsql as $$begin
  if value is distinct from true then raise exception 'FAIL: %',description;end if;end$$;
 grant execute on function pg_temp.expect(boolean,text) to authenticated;
+-- Rollback-only prerequisite for the real assignment UPDATE below. A fresh
+-- database intentionally has no activated commercial rate; never rely on Test's
+-- configured policy or disable the reservation's commission snapshot trigger.
+insert into public.creator_policy_versions(
+ policy_key,scope_type,scope_key,version,value,value_schema,status,effective_from,
+ public_disclosure,disclosure_text,legal_review_state,reason,checksum,published_at)
+values('commission_long_let_wehouse_managed','global','*',999999,'{"percent":10}'::jsonb,'{"type":"percent"}'::jsonb,
+ 'active',now()-interval '1 minute',true,'Rollback fixture only','pending','Booking notification contract fixture','booking-notice-commission-fixture',now())
+on conflict do nothing;
 -- Metadata fixtures only. Financial truth and successful arrival are exercised
 -- by the actual provider-gateway shared Short Let/Hotel contracts.
 set local session_replication_role=replica;

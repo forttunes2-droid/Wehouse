@@ -48,6 +48,9 @@ jobs:
       - name: Check Hotel cancellation preview, confirmation and lost-response recovery
         if: ${{ !cancelled() && steps.browser-ready.outcome == 'success' }}
         run: node tests/browser/wallet-pro-journeys.mjs --hotel-cancellation-only
+      - name: Check Hotel arrival codes, failed requests and switching stays
+        if: ${{ !cancelled() && steps.browser-ready.outcome == 'success' }}
+        run: node tests/browser/wallet-pro-journeys.mjs --hotel-presence-only
       - uses: actions/upload-artifact@v4
         if: always()
         with:

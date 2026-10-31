@@ -131,6 +131,13 @@ export const supabase: any = {
     return query;
   },
   async rpc(name: string, args: any = {}) {
+    if(mode.startsWith('hotel-presence-')&&name==='issue_my_hotel_stay_code'){
+      state.rpcCalls.push({name,args});
+      if(mode==='hotel-presence-delay'&&args.p_booking_id===71)return new Promise(resolve=>{(window as any).__finishHotelCode=()=>resolve({data:'11112222',error:null});});
+      if(mode==='hotel-presence-failure'&&!state.recover)throw Error('Guest code connection interrupted');
+      if(mode==='hotel-presence-malformed'&&!state.recover)return{data:'not-a-code',error:null};
+      return{data:args.p_action==='checked_out'?'99998888':'55556666',error:null};
+    }
     if(mode.startsWith('share-journey-')){
       if(name==='get_my_roommate_peer_details')return {data:[{user_id:'roommate-peer',conversation_id:'roommate-chat',full_name:'Accepted Roommate',is_blocked:false}],error:null};
       if(name==='list_my_friends')return {data:[{user_id:'friend-peer',friend_id:'friend-chat',full_name:'Accepted Friend',status:'accepted'},{user_id:'blocked-peer',friend_id:'blocked-chat',full_name:'Blocked Friend',status:'blocked'},{user_id:'pending-peer',friend_id:'pending-chat',full_name:'Pending Friend',status:'pending'}],error:null};

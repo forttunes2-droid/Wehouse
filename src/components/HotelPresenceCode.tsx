@@ -1,18 +1,38 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {toast} from 'sonner';
 import {issueMyHotelStayCode} from '@/lib/supabase/hotels';
+import {withTimeout} from '@/lib/withTimeout';
 export default function HotelPresenceCode({ bookingId, status }: { bookingId: number; status: "confirmed" | "checked_in" }) {
-  const [code, setCode] = useState("");
+  const [receipt, setReceipt] = useState<{bookingId:number;status:typeof status;code:string}|null>(null);
   const [busy, setBusy] = useState(false);
+  const generation = useRef(0);
+  const inFlight = useRef(false);
+  const code = receipt?.bookingId === bookingId && receipt.status === status ? receipt.code : "";
   const action = status === "confirmed" ? "checked_in" : "checked_out";
-  useEffect(() => { setCode(""); }, [bookingId, status]);
-  async function issue() {
-    if (busy) return;
-    setBusy(true);
-    const { code: next, error } = await issueMyHotelStayCode(bookingId, action);
+  useEffect(() => {
+    generation.current++;
+    inFlight.current = false;
+    setReceipt(null);
     setBusy(false);
-    if (error || !next) return toast.error(error?.message || "Could not prepare your guest code");
-    setCode(next);
+    return () => { generation.current++; inFlight.current = false; };
+  }, [bookingId, status]);
+  async function issue() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    const requestGeneration = generation.current;
+    setReceipt(null);
+    setBusy(true);
+    try {
+      const { code: next, error } = await withTimeout(issueMyHotelStayCode(bookingId, action),10000,"Code preparation is delayed. Try again at reception.");
+      if (generation.current !== requestGeneration) return;
+      if (error) throw error;
+      if (typeof next !== 'string' || !/^\d{8}$/.test(next)) throw new Error("Could not verify your guest code. Please try again.");
+      setReceipt({bookingId,status,code:next});
+    } catch (error) {
+      if (generation.current === requestGeneration) toast.error(error instanceof Error ? error.message : (error as {message?:string})?.message || "Could not prepare your guest code. Please try again.");
+    } finally {
+      if (generation.current === requestGeneration) { inFlight.current = false; setBusy(false); }
+    }
   }
   return <div className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/[.06] p-3">
     <p className="text-xs font-semibold text-[var(--wh-accent-text)]">{status === "confirmed" ? "Arriving at the hotel" : "Leaving the hotel"}</p>
