@@ -123,8 +123,34 @@ migration installs it once. Only the new Test prerequisite receipt's auto-genera
 version was aligned to this required ordering, with its statement digest checked
 and retained. No existing receipt or customer record was rewritten. Rollback cases
 now include expired unpaid Home invitations/ready groups alongside the two/three
-Hotel payer/refund cases. The guard correction builds locally; exact-candidate
-fresh/upgrade replay and browser results must still replace the failed candidate.
+Hotel payer/refund cases. Candidate `b6c0e973` passed fresh/upgrade replay and six
+workflows, including Wallet/Pro and media browser jobs. The remaining browser job
+failed only because its isolated builder did not support the receipt's inline PNG;
+the production build supported it. That builder now loads the asset without
+changing the receipt or dropping the journey. A new candidate must pass it.
+
+The shared Hotel arrival contract then exposed another real hosted parity gap:
+Test lacked the earlier guest-presence proof table and both arrival/departure-code
+commands. Forward migrations `20261031123833`/`20261031123932` restore the same
+canonical API and one private proof table, deny revoked/untrusted devices, and
+retain Hotel capability checks, expiry, attempt limits and one-use codes. They
+do not grant browser access to direct stay transitions. The hosted rollback
+presence contract passes arrival, departure/cleaning, wrong codes, unrelated
+accounts and revoked guest/Hotel devices. Shared Hotel rollback cases also pass
+verified payer funding, organiser presence proof, an invited paid guest's own
+protection receipt, a tracked arrival case, and freezing both payer balances with
+no executable release left behind. Historical arrival dates are a clearly scoped
+rollback fixture; actual acceptance, gateway and arrival commands run with all
+triggers enabled.
+
+Shared Hotel guests now use the common accommodation-protection panel/report
+dialog; it was extracted from Bookings rather than copied. The panel uses readable
+theme text, reports settled/refunded states ahead of an old arrival deadline, and
+retains the reason on an uncertain submission. Updated browser cases check an
+invited guest's normal report and response-loss recovery without a duplicate case.
+These browser cases still require the new exact-candidate run. Hotel no-show and
+operator resolution evidence remains open under WR-01/11; actual PSP reconciliation
+remains owned once by WR-06.
 
 WR-09/11/19: four additional review findings have forward fixes on Test in
 `20261031064345` and `20261031064817`. Hotel revocation withdraws the tracked

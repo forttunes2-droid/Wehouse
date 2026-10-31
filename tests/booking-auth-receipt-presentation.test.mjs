@@ -20,7 +20,7 @@ test("Bookings use one compact presentation language", async () => {
   const bookingCardBlock = bookings.slice(bookings.indexOf("function BookingCard"), bookings.indexOf("function formatStayTime"));
   const serviceBlock = bookings.slice(bookings.indexOf("function ServiceBookingDetail"), bookings.indexOf("function HousingCard"));
   const propertyBlock = bookings.slice(bookings.indexOf("function PropertyBookingDetail"), bookings.indexOf("function HotelBookingDetail"));
-  const hotelBlock = bookings.slice(bookings.indexOf("function HotelBookingDetail"), bookings.indexOf("function AccommodationProtectionPanel"));
+  const hotelBlock = bookings.slice(bookings.indexOf("function HotelBookingDetail"), bookings.indexOf("function BookingDetailShell"));
   assert.match(bookingCardBlock, /aria-label=\{`Open \$\{eyebrow\} booking for \$\{title\}`\}/);
   assert.match(bookingCardBlock, /compact \? "bg-\[var\(--wh-surface\)\] px-3 py-3"/);
   assert.match(serviceBlock, /BookingDetailShell/);

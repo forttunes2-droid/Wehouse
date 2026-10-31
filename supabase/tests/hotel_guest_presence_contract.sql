@@ -13,6 +13,10 @@ do $$ begin
 end $$;
 
 set local session_replication_role=replica;
+insert into auth.users(id,aud,role,email,created_at,updated_at) values
+('78555555-0000-4000-8000-000000000001','authenticated','authenticated','presence-owner@example.invalid',now(),now()),
+('78555555-0000-4000-8000-000000000002','authenticated','authenticated','presence-guest@example.invalid',now(),now()),
+('78555555-0000-4000-8000-000000000003','authenticated','authenticated','presence-other@example.invalid',now(),now());
 insert into public.profiles(auth_id,email,user_id,role,profile_complete) values
 ('78555555-0000-4000-8000-000000000001','presence-owner@example.invalid','presence-owner','property_partner',true),
 ('78555555-0000-4000-8000-000000000002','presence-guest@example.invalid','presence-guest','user',true),
@@ -33,9 +37,19 @@ values('accommodation_arrival_issue_window',99002,'{"default_hours":2,"minimum_h
 insert into public.hotel_bookings(booking_id,hotel_id,room_id,user_id,check_in,check_out,total_nights,total_price,status,canonical_state,payment_status,booking_code,payment_protection_id,arrival_issue_policy_version_id,arrival_issue_window_hours)
 select -7855,-7855,-7855,'presence-guest',timezone('Africa/Lagos',now())::date,timezone('Africa/Lagos',now())::date+2,2,40000,'confirmed','confirmed','paid','PRESENCE-REF','78555555-1000-4000-8000-000000000001'::uuid,policy_version_id,default_hours
 from public.current_accommodation_arrival_policy();
+insert into auth.sessions(id,user_id,created_at,updated_at)
+select replace(auth_id::text,'-0000-','-2000-')::uuid,auth_id::uuid,now(),now() from public.profiles where user_id in('presence-owner','presence-guest','presence-other');
+insert into public.user_sessions(user_id,auth_id,auth_session_id,device_id,device,is_active,trust_status)
+select user_id,auth_id,replace(auth_id::text,'-0000-','-2000-'),'presence-'||user_id,'Browser',true,'trusted'
+from public.profiles where user_id in('presence-owner','presence-guest','presence-other');
 set local session_replication_role=origin;
 
-select set_config('request.jwt.claim.sub','78555555-0000-4000-8000-000000000003',true);
+create function pg_temp.presence_sign_in(p_auth uuid) returns void language sql as $$
+select set_config('request.jwt.claims',jsonb_build_object('sub',p_auth,'session_id',replace(p_auth::text,'-0000-','-2000-'),'role','authenticated')::text,true)::text is not null;
+$$;
+grant execute on function pg_temp.presence_sign_in(uuid) to authenticated;
+
+select pg_temp.presence_sign_in('78555555-0000-4000-8000-000000000003');
 set local role authenticated;
 do $$ begin
   begin
@@ -47,7 +61,15 @@ do $$ begin
 end $$;
 reset role;
 
-select set_config('request.jwt.claim.sub','78555555-0000-4000-8000-000000000002',true);
+select pg_temp.presence_sign_in('78555555-0000-4000-8000-000000000002');
+update public.user_sessions set is_active=false where user_id='presence-guest';
+set local role authenticated;
+do $$ begin
+ begin perform public.issue_my_hotel_stay_code(-7855,'checked_in');raise exception 'Revoked guest device issued an arrival code';
+ exception when insufficient_privilege then null;end;
+end $$;
+reset role;
+update public.user_sessions set is_active=true where user_id='presence-guest';
 set local role authenticated;
 select public.issue_my_hotel_stay_code(-7855,'checked_in') as arrival_code \gset
 do $$ begin
@@ -60,7 +82,15 @@ do $$ begin
 end $$;
 reset role;
 
-select set_config('request.jwt.claim.sub','78555555-0000-4000-8000-000000000001',true);
+select pg_temp.presence_sign_in('78555555-0000-4000-8000-000000000001');
+update public.user_sessions set is_active=false where user_id='presence-owner';
+set local role authenticated;
+do $$ begin
+ begin perform public.partner_confirm_hotel_stay_with_code(-7855,'checked_in','00000000');raise exception 'Revoked Hotel device submitted a guest code';
+ exception when insufficient_privilege then null;end;
+end $$;
+reset role;
+update public.user_sessions set is_active=true where user_id='presence-owner';
 set local role authenticated;
 do $$ declare result jsonb; begin
   result:=public.partner_confirm_hotel_stay_with_code(-7855,'checked_in','00000000');
@@ -81,11 +111,11 @@ do $$ begin
     raise exception 'Arrival code was reusable or room stayed ready';
   end if;
 end $$;
-select set_config('request.jwt.claim.sub','78555555-0000-4000-8000-000000000002',true);
+select pg_temp.presence_sign_in('78555555-0000-4000-8000-000000000002');
 set local role authenticated;
 select public.issue_my_hotel_stay_code(-7855,'checked_out') as departure_code \gset
 reset role;
-select set_config('request.jwt.claim.sub','78555555-0000-4000-8000-000000000001',true);
+select pg_temp.presence_sign_in('78555555-0000-4000-8000-000000000001');
 set local role authenticated;
 select public.partner_confirm_hotel_stay_with_code(-7855,'checked_out',:'departure_code') as departure_result \gset
 reset role;

@@ -5,6 +5,7 @@ import HotelCancellationPanel from '@/components/HotelCancellationPanel';
 import ReceiptAccess from '@/components/PaymentReceipt';
 import StayArrivalInstructions from '@/components/StayArrivalInstructions';
 import HotelPresenceCode from '@/components/HotelPresenceCode';
+import SharedHotelArrivalProtection from '@/components/SharedHotelArrivalProtection';
 import type {SharedHousingGroup} from '@/lib/supabase/shared-housing';
 import {formatRecordedMoney} from '@/lib/regional';
 import {displayDate,displayDateTimeAtProperty} from '@/lib/displayDate';
@@ -46,6 +47,7 @@ export default function SharedHotelDetails({group,userId,busy,error,onBack,onRef
     {mine?.refund_status&&<p role="status" className="text-sm leading-6">Your refund: {mine.refund_status==='completed'?'Provider processed':mine.refund_status==='pending'?'Requested':mine.refund_status==='provider_pending'||mine.refund_status==='processing'?'Processing':'Needs Finance review'}.</p>}
     {mine?.payment_reference&&['paid','refunded'].includes(mine.payment_status)&&<ReceiptAccess subjectType="hotel" subjectId={String(group.hotel_booking_id)}/>}
     {arrival&&<section className="space-y-3 rounded-2xl border border-[var(--wh-border)] bg-[var(--wh-surface)] p-4 text-sm leading-6"><h2 className="font-semibold">Your confirmed stay</h2><p>Booking reference <strong className="break-all">{arrival.booking_code}</strong></p>{arrival.address&&<p className="whitespace-pre-wrap">{arrival.address}</p>}<p className="text-[var(--wh-text-secondary)]">The organiser presents the separate arrival code at reception for this room booking.</p>{organiser&&['confirmed','checked_in'].includes(group.booking_status||'')&&<HotelPresenceCode bookingId={group.hotel_booking_id!} status={group.booking_status as 'confirmed'|'checked_in'}/>}<StayArrivalInstructions kind="hotel" bookingId={String(group.hotel_booking_id)}/></section>}
+    {group.status==='paid'&&mine?.payment_status==='paid'&&<SharedHotelArrivalProtection bookingId={group.hotel_booking_id!} userId={userId} bookingStatus={group.booking_status||''} timezone={terms.timezone} onChanged={onRefresh}/>}
     {organiser&&group.status==='paid'&&<HotelCancellationPanel bookingId={group.hotel_booking_id!} onChanged={onRefresh} onReview={help}/>}
     {organiser&&['inviting','payment_pending'].includes(group.status)&&<HotelCancellationPanel bookingId={group.hotel_booking_id!} onChanged={onRefresh} onReview={help}/>}
     {organiser&&onOpenBooking&&<button type="button" onClick={()=>onOpenBooking(group.hotel_booking_id!)} className="min-h-11 w-full text-sm font-semibold text-[var(--wh-accent-text)]">Open room booking</button>}

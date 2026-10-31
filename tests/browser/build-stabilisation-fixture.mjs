@@ -6,7 +6,7 @@ import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
 const out='test-results/stabilisation-offline';fs.mkdirSync(out,{recursive:true});
 const client=path.resolve('tests/browser/stabilisationClientFixture.ts');
-await build({entryPoints:['tests/browser/stabilisation-practical.tsx'],bundle:true,format:'iife',jsx:'automatic',outfile:out+'/fixture.js',plugins:[{name:'stabilisation-offline-client',setup(api){api.onResolve({filter:/.*/},args=>{
+await build({entryPoints:['tests/browser/stabilisation-practical.tsx'],bundle:true,format:'iife',jsx:'automatic',loader:{'.png':'dataurl'},outfile:out+'/fixture.js',plugins:[{name:'stabilisation-offline-client',setup(api){api.onResolve({filter:/.*/},args=>{
  if(args.path==='@/hooks/useCreatorAuth')return {path:path.resolve('tests/browser/creatorAuthFixture.ts')};
  if(['@/lib/supabase','@/lib/supabase/client'].includes(args.path)||
    (args.path==='./client'&&args.importer.replaceAll('\\','/').includes('/src/lib/supabase/'))||

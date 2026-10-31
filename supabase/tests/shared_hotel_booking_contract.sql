@@ -1,5 +1,6 @@
 begin;
--- Real Auth sessions and trusted devices; constraints and triggers stay enabled.
+-- Real Auth sessions and trusted devices. All exercised commands keep triggers
+-- enabled; the one historical-date fixture projection is explicitly isolated.
 insert into auth.users(id,aud,role,email,created_at,updated_at) values
 ('79706666-0000-4000-8000-000000000001','authenticated','authenticated','share-owner@example.invalid',now(),now()),
 ('79706666-0000-4000-8000-000000000002','authenticated','authenticated','share-guest@example.invalid',now(),now()),
@@ -270,6 +271,89 @@ reset role;
 select pg_temp.expect((select status='cancelled' and payment_status='refund_pending' from public.hotel_bookings where booking_id=current_setting('test.three_hotel_booking_id')::integer),'late payment never reopens the cancelled room');
 select pg_temp.expect((select count(*)=3 and sum(a.amount)=38000 from public.financial_action_outbox a join public.shared_payment_protection_components c on c.payment_protection_id=a.payment_protection_id
  where c.shared_payment_group_id=current_setting('test.three_hotel_group_id')::uuid and a.action_type='refund_shared_checkout'),'exactly three conserved original-payer refund actions, including the late receipt');
+-- Arrival uses the actual guest-code command and Partner confirmation. A paid
+-- invited guest can report a timely issue; every payer's funds must freeze.
+update public.hotels set check_in_time='00:00' where hotel_id=-7970;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000002');
+set local role authenticated;
+select set_config('test.arrival_booking_id',(public.create_my_hotel_booking_with_rate('79706666-5000-4000-8000-000000000004',
+ -7970,-7970,-7970,current_date+20,current_date+22,2,'Arrival guest','08000000000',null)).booking_id::text,true);
+reset role;
+-- Historical-date fixture projection before any group agreement or payment.
+-- Construction is future-dates-only; a rollback test cannot wait twenty days.
+-- Keep the two-night quote. Disable triggers only for this unpaid test record's
+-- date projection, restoring them before all acceptance/gateway/arrival calls.
+set local session_replication_role=replica;
+update public.hotel_bookings set check_in=timezone('Africa/Lagos',now())::date,check_out=timezone('Africa/Lagos',now())::date+2,
+ cancellation_snapshot=jsonb_set(cancellation_snapshot,'{deadline}',to_jsonb(now()-interval '24 hours'))
+where booking_id=current_setting('test.arrival_booking_id')::integer;
+set local session_replication_role=origin;
+set local role authenticated;
+do $$declare b public.hotel_bookings;g jsonb;begin
+ select * into b from public.hotel_bookings where booking_id=current_setting('test.arrival_booking_id')::integer;
+ g:=public.create_my_shared_hotel(b.booking_id,array['share-peer']);
+ perform set_config('test.arrival_booking_id',b.booking_id::text,true);
+ perform set_config('test.arrival_group_id',g->>'id',true);
+end$$;
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000004');
+set local role authenticated;
+select public.respond_to_shared_housing_invite(current_setting('test.arrival_group_id')::uuid,true);
+select public.create_my_shared_housing_payment(current_setting('test.arrival_group_id')::uuid);
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000002');
+set local role authenticated;
+select public.create_my_shared_housing_payment(current_setting('test.arrival_group_id')::uuid);
+reset role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+do $$declare payment public.booking_payments;receipt jsonb;begin
+ for payment in select * from public.booking_payments where hotel_booking_id=current_setting('test.arrival_booking_id')::integer order by id loop
+  receipt:=public.process_verified_paystack_charge('arrival-'||payment.user_id,'charge.success',payment.paystack_reference,
+   repeat('a',64),now(),(payment.amount_total*100)::bigint,'NGN','arrival-'||payment.user_id);
+  perform pg_temp.expect((receipt->>'success')::boolean,'shared arrival is funded by real verified receipts');
+ end loop;
+end$$;
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000005');
+set local role authenticated;
+do $$begin
+ begin perform public.get_my_accommodation_protection('hotel',current_setting('test.arrival_booking_id'));
+  raise exception 'FAIL: unrelated account read shared arrival protection';
+ exception when insufficient_privilege then null;end;
+end$$;
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000002');
+set local role authenticated;
+select set_config('test.arrival_code',public.issue_my_hotel_stay_code(current_setting('test.arrival_booking_id')::integer,'checked_in'),true);
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000001');
+set local role authenticated;
+do $$declare receipt jsonb;begin
+ receipt:=public.partner_confirm_hotel_stay_with_code(current_setting('test.arrival_booking_id')::integer,'checked_in',current_setting('test.arrival_code'));
+ perform pg_temp.expect((receipt->>'success')::boolean,'Partner verifies organiser presence for one shared room');
+end$$;
+reset role;
+select pg_temp.sign_in('79706666-0000-4000-8000-000000000004');
+set local role authenticated;
+do $$declare info jsonb;case_id uuid;begin
+ info:=public.get_my_accommodation_protection('hotel',current_setting('test.arrival_booking_id'));
+ perform pg_temp.expect((info->>'can_report_arrival_issue')::boolean and (info->>'amount_total')::numeric=19000,
+  'invited paid guest sees own protected share and the real arrival window');
+ case_id:=public.report_my_accommodation_arrival_issue('hotel',current_setting('test.arrival_booking_id'),'The booked room is unsafe and does not match the accepted listing.');
+ perform pg_temp.expect(case_id is not null,'guest arrival problem opens a tracked operational case');
+ info:=public.get_my_accommodation_protection('hotel',current_setting('test.arrival_booking_id'));
+ perform pg_temp.expect(info->>'protection_state'='disputed' and info->>'arrival_issue_case_id'=case_id::text
+  and not (info->>'can_report_arrival_issue')::boolean,'report receipt remains connected to this guest and prevents duplicate submission');
+end$$;
+reset role;
+select pg_temp.expect((select count(*)=2 and bool_and(p.protection_state='disputed' and p.released_amount=0)
+ from public.shared_payment_protection_components c join public.payment_protection_transactions p on p.id=c.payment_protection_id
+ where c.shared_payment_group_id=current_setting('test.arrival_group_id')::uuid),'timely shared arrival problem freezes every payer, not just its reporter');
+select pg_temp.expect(not exists(select 1 from public.financial_action_outbox a join public.shared_payment_protection_components c on c.payment_protection_id=a.payment_protection_id
+ where c.shared_payment_group_id=current_setting('test.arrival_group_id')::uuid and a.action_type='release_hotel_stay' and a.status in('pending','processing')),
+ 'a frozen shared arrival cannot retain an executable Partner release');
+
 -- Abandoned Home invitations must retain the earlier expiry repair too. These
 -- rollback-only pending groups represent unpaid historical holds, not new sales.
 insert into public.listings(id,listing_id,title,price,property_type,sub_type,status,availability_status,owner_id)

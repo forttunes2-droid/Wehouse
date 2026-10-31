@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {ChevronDown,Users} from 'lucide-react';
 import {listMyFriends,type Friend} from '@/lib/supabase/friends';
 import {sharedAmounts} from '@/lib/sharedHousingPresentation';
-import {formatRecordedMoney} from '@/lib/regional';
+import {formatMoney} from '@/lib/regional';
 import {withTimeout} from '@/lib/withTimeout';
 import WeHouseLoadingState from '@/components/WeHouseLoadingState';
 
@@ -25,7 +25,7 @@ export default function SharedStayInvite({bookingKey,userId,guests,rent,deposit=
  const selected=ids.map(id=>friends.find(friend=>friend.user_id===id)).filter((friend):friend is Friend=>Boolean(friend));
  const shares=selected.length?sharedAmounts(rent,deposit,selected.length+1):null;
  const name=(friend:Friend)=>friend.full_name||friend.username||'WeHouse member';
- const money=(value:number)=>formatRecordedMoney(value,'NGN');
+ const money=(value:number)=>formatMoney(value,{currency:'NGN'});
  async function invite(){
   if(inFlight.current||loading||!shares||selected.length+1>capacity||error)return;
   inFlight.current=true;setBusy(true);setError('');const current=generation.current;
