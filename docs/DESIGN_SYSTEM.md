@@ -61,6 +61,17 @@ status color with a label or icon.
 - Cards describe a record or a clearly actionable destination. Dashboards
   summarize work and next actions instead of duplicating the full navigation.
 
+Explore uses the shared `DiscoveryRows` / `DiscoveryRail` presentation and
+`DiscoveryGrid` for narrowed results. Media cards use a 4:3 photo area, including
+honest missing-photo states; names, location and recorded prices sit beneath it.
+They remain open on the page rather than adding a bordered panel around every
+record. Browse rows hold at most eight already-loaded records, then continue in
+another row without repeating the visible heading. Desktop media rows/results
+use up to five columns; phone rows show the next card edge to indicate swiping.
+Roommate identity cards use wider columns for living preferences and connection
+actions. Services lead with the offering's photo, separately from the Provider's
+avatar. These layouts never change ranking, create records or fetch while swiping.
+
 ## Controls and feedback
 
 Filter dependent fields together: a region change clears its local area and a

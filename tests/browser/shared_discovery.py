@@ -18,7 +18,7 @@ SCRIPT="""s=>{
  window.__browseAPI=async(name,args)=>{
   const s=window.__browse;s.calls.push({name,args});
   if(name==='getHotels'){
-   const count=s.hotelCount||1,cursor=args[1];
+   const count=s.hotelCount??1,cursor=args[1];
    const hotel=n=>({...s.hotel,hotel_id:6+n,name:n===1?s.hotel.name:s.hotel.name+' '+n,images:n>1&&n%2===0?['https://assets.wehouse.test/interior.jpg']:[]});
    const hotels=cursor?[hotel(count),hotel(count+1),hotel(count+2)]:Array.from({length:count},(_,i)=>hotel(i+1));
    const more=count>6&&!cursor&&!args[0]?.search;
@@ -38,6 +38,11 @@ SCRIPT="""s=>{
   if(name==='saveMyWorkerProfile'){s.workSave=args;return{profile:s.badWorkReceipt?null:{...s.profile,user_id:'qa-viewer',worker_verified:!s.workNeedsReview},error:s.failWorkSave?{message:'Synthetic work save failed'}:null};}
   if(name==='updateProfile'){s.profileUpdates=args[1];s.profile={user_id:args[0],...s.profile,...args[1]};return{profile:s.profile,error:null};}
   if(name==='getHotelReviews')return{reviews:[],eligible:false,error:null};
+  if(name==='checkSearchExpiry')return{prefs:{practical_preferences_version:2,search_status:'active',active:true,budget_min:200000,budget_max:500000,preferred_state:'Nasarawa',preferred_lga:'Lafia',school_match:false},error:null};
+  if(name==='getReceivedRoommateInterests')return{interests:[],error:null};
+  if(name==='getSavedMatchResults')return{matches:Array.from({length:s.layoutCount??0},(_,i)=>({id:'match-'+i,matched_user_id:'person-'+i,match_score:85,status:'new',matched_profile:{user_id:'person-'+i,full_name:'Sample person '+i,username:'sample'+i,avatar_url:null,city:'Lafia',state:'Nasarawa',compared_answers:4,match_highlights:['Similar rent budget','Same move-in area']}})),hasMore:false,error:null};
+  if(name==='getCategoryWithSubcategories')return{categories:[],error:null};
+  if(name==='rpc:search_service_providers')return{data:{items:Array.from({length:s.layoutCount??0},(_,i)=>{const id='provider-'+i,service='72700000-0000-4000-8000-'+String(i).padStart(12,'0'),photo='72700000-1000-4000-8000-'+String(i).padStart(12,'0'),base=id+'/'+service+'/'+photo+'/';return{user_id:id,full_name:'Sample professional '+i,worker_occupation:'Cleaner',worker_skills:['Cleaning'],worker_price:15000,city:'Lafia',state:'Nasarawa',rating:4.5,review_count:3,service_offer:{id:service,name:'Home cleaning '+i,price:15000,price_type:'fixed',cover:i%2?null:{id:photo,image:base+'full.jpg',preview:base+'preview.jpg',caption:'Example service cover'}}};}),has_more:false,next_cursor:null},error:null};
   if(name==='updatePrivacySettings'){s.privacy={...(s.privacy||{}),...args[1]};return{profile:{user_id:args[0],...s.privacy},error:null};}
   if(name==='rpc:get_my_private_call_preferences')return{data:{allow_audio_calls:true,allow_video_calls:true},error:null};
   if(name==='getReservationForListing')return{reservation:null,error:null};
@@ -49,10 +54,10 @@ SCRIPT="""s=>{
    return{data:{items:homes,has_more:false,next_cursor_created_at:null,next_cursor_id:null},error:null};
   }
   if(name==='rpc:get_sponsored_discovery')return{data:[],error:null};
-  if(name==='rpc:get_public_discovery_settings')return{data:[],error:null};
+  if(name==='rpc:get_public_discovery_settings')return{data:s.mode==='providers'?[{key:'worker_marketplace_launch_enabled',value:'true'}]:[],error:null};
   if(name==='rpc:get_my_page_distances')return{data:[{subject_type:'hotel',subject_id:'7',distance_km:2}],error:null};
   if(name==='rpc:get_my_workspace_access')return{data:{identity:{user_id:'qa-viewer'},personal_workspace:true,privileged_workspaces:[]},error:null};
-  if(['rpc:get_all_settings_v2','rpc:get_my_saved_searches','rpc:get_my_saved_hotels','rpc:get_my_saved_hotel_ids','rpc:get_my_shared_housing_groups','table:saved_searches','table:saved_hotels'].includes(name))return{data:[],error:null};
+  if(['rpc:get_all_settings_v2','rpc:get_my_workspace_inbox','rpc:get_my_saved_searches','rpc:get_my_saved_hotels','rpc:get_my_saved_hotel_ids','rpc:get_my_shared_housing_groups','table:saved_searches','table:saved_hotels'].includes(name))return{data:[],error:null};
   s.unexpected.push({name,args});throw new Error('Unexpected browse API '+name);
  };
 }"""
@@ -329,6 +334,8 @@ async def main():
     await page.get_by_role('button',name='Show more hotels',exact=True).click()
     await expect(page.locator('[data-hotel-card]')).to_have_count(10)
     await expect(hotels_grid.locator('[data-hotel-card]')).to_have_count(2)
+    media_boxes=[await hotels_shelf.locator('[data-hotel-media]').nth(i).bounding_box() for i in range(2)]
+    assert abs(media_boxes[0]['height']-media_boxes[1]['height'])<1,'Hotel photo and missing-photo tiles must keep the same comparison geometry'
     names=await page.locator('[data-hotel-card] h3').all_text_contents()
     assert len(names)==len(set(names))
     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')

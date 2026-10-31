@@ -105,7 +105,9 @@ async def main():
     await expect(page.get_by_role('button',name='Review booking',exact=False)).to_be_enabled()
     await expect(page.get_by_label('Full name',exact=True)).to_have_value('Sample Guest')
     if same_day:
-     await expect(page.get_by_text(re.compile("Today's payment deadline:.*Africa/Lagos"))).to_be_visible()
+     shown_deadline=page.get_by_text(re.compile("^Today's payment deadline:"))
+     await expect(shown_deadline).to_contain_text('8 Mar 2030')
+     await expect(shown_deadline).to_contain_text(re.compile(r'9:00\s*pm',re.I))
      await expect(page.get_by_role('region',name='Cancellation and arrival terms')).to_contain_text('free-cancellation deadline has passed')
      await page.screenshot(path=str(OUT/f'{mode}-dates-{theme}.png'),full_page=True)
     if mode=='same-day-closes':
@@ -153,7 +155,10 @@ async def main():
        reads=len(calls);await page.clock.fast_forward(121000)
        await expect(page.get_by_role('button',name='Complete my payment',exact=False)).to_have_count(0)
        await expect(page.get_by_text('The room hold has expired. Refresh to check any recorded payment or refund.',exact=True)).to_be_visible()
-       assert len(calls)==reads,'Shared deadline must not poll or start another payment'
+       # The containing shared-booking screen already has a visible 15s
+       # refresh. Fast-forward coalesces that timer; the new deadline clock
+       # must add no reads or payment writes of its own.
+       later=calls[reads:];assert len(later)<=1 and all(c['name']=='get_my_shared_housing_group' for c in later),'Shared expiry added a request beyond the existing visible refresh'
        await page.screenshot(path=str(OUT/f'{mode}-{theme}.png'),full_page=True)
       else:
        await page.get_by_role('button',name='Complete my payment',exact=False).click()

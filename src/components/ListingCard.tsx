@@ -15,9 +15,9 @@ export default function ListingCard({listing,onClick,isSaved,onToggleSave,distan
  const short=listing.sub_type==='short_let';
  const distance=distanceKm!=null&&Number.isFinite(distanceKm)?distanceKm<1?Math.max(1,Math.round(distanceKm*1000))+' m away':distanceKm.toFixed(distanceKm<10?1:0)+' km away':'';
  const specifications=[homeStyleLabel(listing.home_style),listing.bedrooms==null?'':listing.bedrooms===0?(listing.space_scope==='private_room'?'':'Studio / self-contained'):listing.bedrooms+' bed'+(listing.bedrooms===1?'':'s'),listing.bathrooms==null?'':listing.bathrooms+' bath'+(listing.bathrooms===1?'':'s')].filter(Boolean).join(' · ');
- return <article data-home-card className="relative min-w-0 rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-2.5 pb-4">
+ return <article data-home-card className="relative min-w-0 pb-2">
   <button type="button" onClick={onClick} aria-label={'View '+title} className="absolute inset-0 z-10 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--wh-violet)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wh-bg)]"/>
-  <div className={'relative overflow-hidden rounded-xl bg-[var(--wh-elevated)] '+(primary?'aspect-[4/3]':'h-36')}>
+  <div data-home-media className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-[var(--wh-elevated)]">
    {primary?<ShowcaseMediaThumbnail src={primary} mediaType="image" alt={title} className="h-full w-full object-cover"/>:<div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--wh-text-muted)]"><ImageOff size={24} aria-hidden="true"/><span className="text-xs">Photos not available</span></div>}
    {onToggleSave&&<button type="button" aria-label={isSaved?'Remove home from Saved':'Save home'} aria-pressed={Boolean(isSaved)} onClick={event=>{event.preventDefault();event.stopPropagation();onToggleSave(event);}} className={'absolute right-2 top-2 z-20 grid h-11 w-11 place-items-center rounded-full border shadow-sm '+(primary?'border-white/20 bg-black/55 text-white':'border-[var(--wh-border)] bg-[var(--wh-surface)] text-[var(--wh-text)]')}><Heart size={19} fill={isSaved?'currentColor':'none'}/></button>}
    {photos.length>1&&<span className="absolute bottom-2 right-2 rounded-full bg-black/65 px-2.5 py-1 text-xs font-medium text-white">{photos.length} photos</span>}

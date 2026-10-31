@@ -80,6 +80,7 @@ try {
         assert.equal(await page.getByLabel('Same-day booking cutoff',{exact:true}).inputValue(),'');
         assert.equal(await page.getByRole('button',{name:'Save Hotel policy',exact:true}).isDisabled(),true);
         await page.getByLabel('Same-day booking cutoff',{exact:true}).fill('21:00');await page.getByLabel('Check-in time',{exact:true}).fill('15:15');
+        assert.equal(await page.getByLabel('Same-day booking cutoff',{exact:true}).evaluate(input=>getComputedStyle(input).colorScheme),theme,'Native time controls follow the chosen theme');
         assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.length),0,'Editing policy must not send database writes');
         await page.getByRole('button',{name:'Save Hotel policy',exact:true}).click();
         if(scenario!=='success'){

@@ -186,6 +186,29 @@ test had switched to a standalone signed-in detail. The corrected sequence check
 guest Back/loading recovery before switching identities. The wider WR register
 and separately authorised Production rollout remain open.
 
+WR-15/16: the owner's 31 October Explore refinement applies to Homes, Hotels,
+Roommates and Services together. The existing shared rows/grid now have one media
+width/spacing scale, up to five desktop media columns and wider Roommate columns.
+Home/Hotel/Service/activity photos and missing-media states use the same 4:3
+geometry. Media cards lose duplicate outer panels; Services put offering photos
+before compact Provider identity, price and an accessible request action. Profile
+rows keep readable connection controls and the same page width as Explore.
+The actual [Airbnb 2026 Explore and Hotel references](https://news.airbnb.com/product-releases/airbnb-2026-summer-release)
+were checked; its additional product categories/features are not copied into scope.
+No ranking, filter, pagination, booking, paid entitlement or country is changed.
+
+Candidate `d2c2769c` passes six required workflows, all 892 source tests,
+fresh/upgrade validation and 24 Hotel policy browser cases. The broader browser
+job found a new test expecting the IANA zone string where the shared formatter
+correctly shows the property's local time/zone abbreviation; the assertion now
+checks the actual Hotel-local date/time. Shared-expiry checks also account for
+the existing visible-screen refresh rather than claiming that pre-existing
+refresh does not exist. The new clock creates no additional polling. Screenshot
+review found native time icons too dark; those controls now follow the theme.
+The next browser run includes 0/1/3/24 records for all four actual Explore screens,
+phone/tablet/desktop widths, both themes, bounded preview batches and one Roommate
+subscription rather than one per profile. Exact-commit results remain pending.
+
 WR-01/05/06: Hotel sharing is limited to accepted Friends joining the stay,
 with two/three payers and the room's declared guest limit still enforced (owner
 decision, 31 October). Its integration extends the existing shared-payment records.

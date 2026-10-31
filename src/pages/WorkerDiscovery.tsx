@@ -1,4 +1,5 @@
 import DiscoveryRows from '@/components/DiscoveryRows';
+import ShowcaseMediaThumbnail from '@/components/ShowcaseMediaThumbnail';
 import {useServicePhotoUrls} from '@/hooks/useServicePhotoUrls';
 import type {ServiceProvider} from '@/lib/supabase/workers-public';
 import SponsoredPlacement from "@/components/SponsoredPlacement";
@@ -577,87 +578,32 @@ function WorkerCard({
   offer?: Pick<NonNullable<ServiceProvider['service_offer']>,'name'|'price'|'price_type'|'cover'>|null;
   coverUrl?: string;
 }) {
-  const occupation = workerRoleLabel(worker),
-    displayName = workerDisplayName(worker),
-    avatarUrl = workerAvatarUrl(worker),
-    skills = workerServiceNames(worker);
-  return (
-    <article className="flex h-full flex-col rounded-2xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
-      {offer?.cover&&<button type="button" onClick={onProfile} aria-label={`View ${offer.name} by ${displayName}`} className="mb-4 overflow-hidden rounded-xl bg-[var(--wh-elevated)]">{coverUrl?<img src={coverUrl} loading="lazy" decoding="async" alt={offer.cover.caption} className="aspect-[4/3] w-full object-cover"/>:<div className="grid aspect-[4/3] place-items-center p-4 text-sm text-[var(--wh-text-secondary)]">Service photo unavailable</div>}</button>}
-      {offer&&<h2 className="mb-3 text-base font-semibold">{offer.name}</h2>}
-      {sponsored && (
-        <p className="mb-2 text-[8px] font-bold uppercase tracking-[.16em] text-amber-300">
-          Sponsored
-        </p>
-      )}
-      <div className="flex items-start gap-3">
-        <button
-          onClick={onProfile} aria-label={`Open ${displayName} profile`}
-          className="shrink-0 rounded-[18px]"
-        >
-          <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 to-violet-600 text-lg font-bold">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              workerInitial(worker)
-            )}
-          </div>
+  const occupation=workerRoleLabel(worker),displayName=workerDisplayName(worker),avatarUrl=workerAvatarUrl(worker),skills=workerServiceNames(worker);
+  return <article data-service-card className="flex h-full min-w-0 flex-col pb-2">
+    <button type="button" onClick={onProfile} aria-label={`View ${offer?.name||occupation} by ${displayName}`} className="relative block aspect-[4/3] w-full overflow-hidden rounded-2xl bg-[var(--wh-elevated)] text-left">
+      {coverUrl?<ShowcaseMediaThumbnail src={coverUrl} mediaType="image" alt={offer?.cover?.caption||offer?.name||occupation} className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center px-4 text-center text-xs text-[var(--wh-text-secondary)]">{offer?.cover?'Service photo unavailable':'Service photo not added'}</div>}
+      {sponsored&&<span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2.5 py-1 text-xs font-semibold text-white">Sponsored</span>}
+    </button>
+    <div className="flex flex-1 flex-col px-1 pt-3">
+      <h2 className="line-clamp-2 text-base font-semibold leading-snug">{offer?.name||occupation}</h2>
+      <div className="mt-3 flex items-center gap-2">
+        <button type="button" onClick={onProfile} aria-label={`Open ${displayName} profile`} className="grid h-11 w-11 shrink-0 place-items-center rounded-full">
+          <span className="grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-[var(--wh-accent-surface)] text-sm font-semibold text-[var(--wh-accent-text)]">
+            {avatarUrl?<img src={avatarUrl} alt="" className="h-full w-full object-cover"/>:workerInitial(worker)}
+          </span>
         </button>
-        <button onClick={onProfile} className="min-w-0 flex-1 text-left">
-          <div className="flex items-center gap-2">
-            <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">
-              {displayName}
-            </h3>
-            <WorkerTrustBadge />
-            {worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership" /> : null}
-          </div>
-          <p className="mt-1 truncate text-[10px] text-[var(--wh-text-secondary)]">
-            {occupation}
-          </p>
-          <p className="mt-1 truncate text-[9px] text-[var(--wh-text-muted)]">
-            Base: {locationLabel(worker.city || worker.local_government,worker.state) || "Location not shown"}
-          </p>
-          {serviceArea&&<p className="mt-1 text-[10px] text-[var(--wh-text-secondary)]">Serves {serviceArea}</p>}
-          {Number(worker.review_count || 0) > 0 && Number(worker.rating || 0) > 0 && (
-            <p className="mt-2 text-[9px] font-semibold text-amber-300">
-              ★ {Number(worker.rating).toFixed(1)} ·{" "}
-              {Number(worker.review_count || 0)} reviews
-            </p>
-          )}
-        </button>
+        <button type="button" onClick={onProfile} className="min-h-11 min-w-0 flex-1 text-left"><div className="flex items-center gap-1.5">
+          <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{displayName}</h3><WorkerTrustBadge/>{worker.pro_active&&<GoldTickBadge size="sm" title="Worker PRO membership"/>}
+        </div></button>
       </div>
-      {skills.length > 0 && (
-        <p className="mt-3 line-clamp-2 text-[9px] leading-4 text-[var(--wh-text-muted)]">
-          {skills.slice(0, 4).join(" · ")}
-          {skills.length > 4 ? ` · +${skills.length - 4}` : ""}
-        </p>
-      )}
-      <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-        <p className="text-[10px] font-semibold text-[var(--wh-text)]">
-          {(offer?.price??worker.worker_price)
-            ? `${offer?.price_type==='fixed'?'':'From '}${formatRecordedMoney(Number(offer?.price??worker.worker_price))}`
-            : "Discuss price"}
-        </p>
-        {active && bookable ? (
-          <button
-            onClick={onOpen}
-            className="rounded-xl border border-amber-500/20 bg-amber-500/[.06] px-3 py-2 text-[9px] font-semibold text-amber-300"
-          >
-            Open booking
-          </button>
-        ) : bookable ? (
-          <button
-            onClick={onBook}
-            className="rounded-xl bg-violet-500 px-3 py-2 text-[9px] font-semibold text-white"
-          >
-            Request
-          </button>
-        ) : null}
+      <p className="mt-2 truncate text-xs text-[var(--wh-text-secondary)]">Base: {locationLabel(worker.city||worker.local_government,worker.state)||'Location not shown'}</p>
+      {serviceArea&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Serves {serviceArea}</p>}
+      {Number(worker.review_count||0)>0&&Number(worker.rating||0)>0&&<p className="mt-2 text-xs text-[var(--wh-text)]">★ {Number(worker.rating).toFixed(1)} · {Number(worker.review_count)} reviews</p>}
+      {skills.length>0&&<p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--wh-text-secondary)]">{skills.slice(0,4).join(' · ')}{skills.length>4?` · +${skills.length-4}`:''}</p>}
+      <div className="mt-auto space-y-3 pt-3">
+        <p className="break-words text-sm font-semibold">{(offer?.price??worker.worker_price)?`${offer?.price_type==='fixed'?'':'From '}${formatRecordedMoney(Number(offer?.price??worker.worker_price))}`:'Discuss price'}</p>
+        {active&&bookable?<button type="button" onClick={onOpen} className="min-h-11 w-full rounded-xl border border-[var(--wh-border)] px-3 text-sm font-semibold text-[var(--wh-accent-text)]">Open booking</button>:bookable?<button type="button" onClick={onBook} className="min-h-11 w-full rounded-xl bg-violet-600 px-3 text-sm font-semibold text-white">Request</button>:null}
       </div>
-    </article>
-  );
+    </div>
+  </article>;
 }

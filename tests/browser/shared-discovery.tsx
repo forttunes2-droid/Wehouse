@@ -12,6 +12,8 @@ import ProfileEditAccount from '@/pages/ProfileEditAccount';
 import LocationSelector from '@/components/LocationSelector';
 import {setRegionalDefaults} from '@/lib/regional';
 import WorkerSetup from '@/pages/WorkerSetup';
+import Roommate from '@/pages/Roommate';
+import WorkerDiscovery from '@/pages/WorkerDiscovery';
 import type { Profile } from '@/types';
 
 function Fixture() {
@@ -24,6 +26,8 @@ function Fixture() {
   const signIn = () => { (window as any).__browse.requested = true; };
   (window as any).__switchBrowseMode = (next:string) => {setRegionalDefaults(next==='profile-other-default'?{countryCode:'GH',countryName:'Ghana'}:{countryCode:'NG',countryName:'Nigeria'});setMode(next);};
   const navigate = (page: string, id?: string) => { (window as any).__browse.destination = { page, id }; };
+  if(mode==='roommates')return <Roommate profile={{...actor,profile_complete:true,gender:'male',state:'Nasarawa',local_government:'Lafia'}} onNavigate={navigate}/>;
+  if(mode==='providers')return <WorkerDiscovery profile={actor} onNavigate={navigate}/>;
   if(mode==='profile-edit')return <ProfileEditAccount key={mode} profile={{...actor,...(window as any).__browse.profile}} onUpdate={profile=>{(window as any).__browse.updatedProfile=profile;}} onBack={()=>setMode('homes')}/>;
   if(mode==='profile-location')return <LocationSelector value={profileLocation} onChange={setProfileLocation}/>;
   if(mode==='worker-setup')return <WorkerSetup profile={{...actor,...(window as any).__browse.profile,role:'worker',profile_complete:true,worker_occupation:'Carpenter',worker_skills:['Carpentry'],worker_price:1000,worker_bio:'Existing work biography',worker_experience:'4 years',worker_verified:true}} onComplete={()=>{(window as any).__browse.workerComplete=true;}} onContinueVerification={()=>{(window as any).__browse.workerReview=true;}} onBack={()=>setMode('homes')}/>;
