@@ -112,6 +112,20 @@ area reset after changing State. Current local validation: 886 source tests,
 application TypeScript, focused lint, Edge typecheck and production build pass.
 The updated browser journeys are queued for exact-candidate CI.
 
+Candidate `7e0a800f` exposed two failures: the last booking-switch guard needed
+an explicit non-null check, and fresh replay reached the repository's broader
+18 October shared-checkout expiry function that was absent from hosted Test.
+Replay prerequisite `20261031114759` preserves expiry for every previously open
+Home status and supplies the entry shape consumed by the already-applied Hotel
+migration. The Hotel migration and its receipt stay unchanged. On upgraded Test,
+the prerequisite retains the Hotel branch; on a fresh database the following Hotel
+migration installs it once. Only the new Test prerequisite receipt's auto-generated
+version was aligned to this required ordering, with its statement digest checked
+and retained. No existing receipt or customer record was rewritten. Rollback cases
+now include expired unpaid Home invitations/ready groups alongside the two/three
+Hotel payer/refund cases. The guard correction builds locally; exact-candidate
+fresh/upgrade replay and browser results must still replace the failed candidate.
+
 WR-09/11/19: four additional review findings have forward fixes on Test in
 `20261031064345` and `20261031064817`. Hotel revocation withdraws the tracked
 direct invitation; both response APIs reject revoked/stale access while a fresh

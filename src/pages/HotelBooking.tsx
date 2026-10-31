@@ -252,7 +252,7 @@ function HotelBookingForm({
               onEdit={() => void editPendingBooking()}
               onConfirm={() => void openPayment()}
             />
-            <HotelBookingShares booking={pendingBooking} userId={profile.user_id} onCreated={group=>setPendingBooking(current=>current?.booking_id===group.hotel_booking_id?{...current,shared_payment_group_id:group.id}:current)}/>
+            <HotelBookingShares booking={pendingBooking} userId={profile.user_id} onCreated={group=>setPendingBooking(current=>current!==null&&current.booking_id===group.hotel_booking_id?{...current,shared_payment_group_id:group.id}:current)}/>
           </div>
         </div>
       </main>

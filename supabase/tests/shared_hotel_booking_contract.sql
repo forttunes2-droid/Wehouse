@@ -270,5 +270,29 @@ reset role;
 select pg_temp.expect((select status='cancelled' and payment_status='refund_pending' from public.hotel_bookings where booking_id=current_setting('test.three_hotel_booking_id')::integer),'late payment never reopens the cancelled room');
 select pg_temp.expect((select count(*)=3 and sum(a.amount)=38000 from public.financial_action_outbox a join public.shared_payment_protection_components c on c.payment_protection_id=a.payment_protection_id
  where c.shared_payment_group_id=current_setting('test.three_hotel_group_id')::uuid and a.action_type='refund_shared_checkout'),'exactly three conserved original-payer refund actions, including the late receipt');
-select 'PASS: guests-only two/three-payer Hotel sharing, consent, exact allocation, late-charge recovery and original-payer refunds' as result;
+-- Abandoned Home invitations must retain the earlier expiry repair too. These
+-- rollback-only pending groups represent unpaid historical holds, not new sales.
+insert into public.listings(id,listing_id,title,price,property_type,sub_type,status,availability_status,owner_id)
+values('79706666-6000-4000-8000-000000000001','shared-expiry-fixture','Unpublished expiry fixture',100000,'apartment','long_stay','pending_approval','pending_approval','share-owner');
+do $$declare stage text;gid uuid;mid uuid;person text;begin
+ foreach stage in array array['inviting','ready'] loop
+  gid:=gen_random_uuid();
+  insert into public.shared_housing_groups(id,listing_id,created_by,status,member_limit,total_amount,expires_at,payment_phase,product_type,canonical_group_id)
+  values(gid,'79706666-6000-4000-8000-000000000001','share-guest',stage,2,5000,now()-interval '1 minute','reservation_fee','long_let',gid);
+  insert into public.shared_payment_groups(shared_payment_group_id,product_type,listing_id,created_by,total_amount,capacity,status,checkout_expires_at,legacy_group_id,payment_phase)
+  values(gid,'long_let','79706666-6000-4000-8000-000000000001','share-guest',5000,2,stage,now()-interval '1 minute',gid,'reservation_fee');
+  foreach person in array array['share-guest','share-peer'] loop
+   mid:=gen_random_uuid();
+   insert into public.shared_housing_members(id,group_id,user_id,invitation_status,share_amount,payment_status,canonical_member_id)
+   values(mid,gid,person,case when stage='ready' or person='share-guest' then 'accepted' else 'invited' end,2500,'not_started',mid);
+   insert into public.shared_payment_members(shared_payment_member_id,shared_payment_group_id,user_id,share_amount,invitation_state,payment_state,legacy_member_id)
+   values(mid,gid,person,2500,case when stage='ready' or person='share-guest' then 'accepted' else 'invited' end,'not_started',mid);
+  end loop;
+  perform set_config('request.jwt.claims','{"role":"service_role"}',true);
+  perform public.expire_shared_payment_checkout_from_service(gid);
+  perform pg_temp.expect((select status='expired' from public.shared_housing_groups where id=gid),'unpaid Home '||stage||' expires');
+  perform pg_temp.expect((select status='expired' from public.shared_payment_groups where shared_payment_group_id=gid),'canonical unpaid Home expiry agrees');
+ end loop;
+end$$;
+select 'PASS: guests-only Hotel sharing, two/three-payer allocation, late-charge refunds and unpaid Home expiry' as result;
 rollback;
