@@ -42,8 +42,8 @@ export default function DiscoveryShell({ active, onNavigate, children }: ShellPr
     {guest?.notice}
     <header className="sticky top-0 z-40 border-y border-[var(--wh-border)] bg-[var(--wh-bg)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <nav className="flex gap-5 overflow-x-auto scrollbar-hide" aria-label="Discover categories">
-          {categories.map((item) => { const selected = active === item.id; return <button key={item.id} type="button" onClick={() => onNavigate(item.route)} className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 text-xs font-semibold transition ${selected ? 'border-violet-400 text-[var(--wh-text)]' : 'border-transparent text-[var(--wh-text-secondary)] hover:text-[var(--wh-text)]'}`}><span className={selected ? 'text-violet-300' : 'text-[var(--wh-text-muted)]'}>{item.icon}</span>{item.label}</button>; })}
+        <nav className="grid grid-cols-4 sm:flex sm:gap-5" aria-label="Discover categories">
+          {categories.map((item) => { const selected = active === item.id; return <button key={item.id} type="button" onClick={() => onNavigate(item.route)} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 border-b-2 sm:min-h-11 sm:flex-row sm:gap-2 text-xs font-semibold transition ${selected ? 'border-violet-400 text-[var(--wh-text)]' : 'border-transparent text-[var(--wh-text-secondary)] hover:text-[var(--wh-text)]'}`}><span className={selected ? 'text-violet-300' : 'text-[var(--wh-text-muted)]'}>{item.icon}</span>{item.label}</button>; })}
         </nav>
       </div>
     </header>

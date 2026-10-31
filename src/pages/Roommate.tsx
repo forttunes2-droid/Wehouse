@@ -673,11 +673,10 @@ function MatchRail({items,focusedId,busyId,schoolFilter,onOpenProfile,onChat,onI
           <ProfileImage src={p.avatar_url} name={name} className="h-14 w-14 rounded-full border border-[var(--wh-border-subtle)] text-lg"/>
         </button>
         <button type="button" onClick={()=>onOpenProfile(row.id)} className="min-w-0 flex-1 text-left">
-          <div className="flex items-center justify-between gap-3"><h3 className="truncate text-sm font-semibold">{name}</h3><span className="shrink-0 text-sm font-bold text-violet-300">{Number.isFinite(score) ? `${score}%` : "—"}</span></div>
+          <div className="flex items-start justify-between gap-2"><h3 className="min-w-0 flex-1 line-clamp-2 text-sm font-semibold">{name}</h3><span className="shrink-0 text-sm font-bold text-[var(--wh-accent-text)]">{Number.isFinite(score) ? `${score}%` : "—"}</span></div>
           <p className="mt-1 truncate text-sm text-[var(--wh-text-muted)]">{[p.city,p.state].filter(Boolean).join(", ")||"Location not added"}{sameSchool(schoolFilter,p.school)?` · ${p.school}`:""}</p>
           <p className={`mt-1 text-sm font-semibold ${connected?"text-emerald-300":sent?"text-violet-200":"text-[var(--wh-text-secondary)]"}`}>{connected?"Connected":sent?"Request pending":roommateScoreLabel(score,p.compared_answers)}</p>
         </button>
-        <button type="button" onClick={()=>onOpenProfile(row.id)} className="grid h-11 w-11 shrink-0 place-items-center text-lg text-[var(--wh-text-muted)]" aria-label={`Open ${name} profile`}>›</button>
       </div>
       <div className="mt-auto flex flex-wrap gap-2 pt-4">{connected ? <>
         <button type="button" disabled={busyId===row.id} onClick={()=>void onChat?.(row)} className="min-h-11 flex-1 rounded-xl bg-violet-500 px-4 text-sm font-semibold disabled:opacity-45">{busyId===row.id?"Opening…":"Message"}</button>

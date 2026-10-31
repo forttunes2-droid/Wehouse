@@ -19,7 +19,7 @@ SCRIPT="""s=>{
   const s=window.__browse;s.calls.push({name,args});
   if(name==='getHotels'){
    const count=s.hotelCount??1,cursor=args[1];
-   const hotel=n=>({...s.hotel,hotel_id:6+n,name:n===1?s.hotel.name:s.hotel.name+' '+n,images:n>1&&n%2===0?['https://assets.wehouse.test/interior.jpg']:[]});
+   const hotel=n=>({...s.hotel,hotel_id:6+n,name:n===1?s.hotel.name:s.hotel.name+' '+n,images:(s.layoutCount!==undefined?n%4!==0:n>1&&n%2===0)?['https://assets.wehouse.test/interior.jpg']:[]});
    const hotels=cursor?[hotel(count),hotel(count+1),hotel(count+2)]:Array.from({length:count},(_,i)=>hotel(i+1));
    const more=count>6&&!cursor&&!args[0]?.search;
    return{hotels,error:null,hasMore:more,nextCursor:more?{featured:false,createdAt:'2026-10-30T00:00:00Z',id:count+6}:null};

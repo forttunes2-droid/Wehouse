@@ -220,6 +220,15 @@ now use the shared comparison grid, unfiltered browsing says “Services to expl
 without promising proximity, and Roommate connection controls have 44px targets.
 These final corrections need the next exact-source full CI run.
 
+The phone screenshot review also caught the fourth Explore category clipped off
+the right edge and Roommate details squeezed by a redundant profile button.
+The shared category bar now fits all four options on phones; Roommate headers
+retain avatar/name opening, score and location, with more name space and no
+duplicate chevron control. Density checks cover tab bounds as well as card/name
+overflow. Capture resets the rail/focus after its keyboard check, and the Home
+samples keep distinct nightly/yearly prices. These are presentation fixtures;
+no published listing, price or account is created or changed by them.
+
 WR-01/05/06: Hotel sharing is limited to accepted Friends joining the stay,
 with two/three payers and the room's declared guest limit still enforced (owner
 decision, 31 October). Its integration extends the existing shared-payment records.

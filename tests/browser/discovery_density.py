@@ -21,7 +21,7 @@ async def main():
         assert handler.request.method=='GET' and not handler.request.headers.get('authorization')
         params={k:v[0] for k,v in parse_qs(urlparse(url).query).items()};assert params['kind']=='homes'
         await page.evaluate('q=>window.__browse.gatewayRequests.push(q)',params)
-        homes=[{**HOME,'id':'density-home-'+str(i),'title':'Courtyard apartment '+str(i),'sub_type':'short_let' if i%2 else 'long_stay','images':HOME['images'] if i%2 else []} for i in range(count)]
+        homes=[{**HOME,'id':'density-home-'+str(i),'title':'Courtyard apartment '+str(i),'sub_type':'short_let' if i%2 else 'long_stay','price':50000 if i%2 else HOME['price'],'images':[] if i%4==3 else HOME['images']} for i in range(count)]
         return await handler.fulfill(status=200,content_type='application/json',body=json.dumps({'items':homes,'has_more':False,'next_cursor_created_at':None,'next_cursor_id':None}))
        if url.startswith('https://wehouse-preview.vercel.app/brand/v4/'):
         return await handler.fulfill(status=200,content_type='image/svg+xml',body=Path('public/brand/v4',urlparse(url).path.rsplit('/',1)[-1]).read_bytes())
@@ -35,6 +35,9 @@ async def main():
        await page.wait_for_function('window.__browse.calls.length>0||window.__browse.gatewayRequests.length>0')
        await expect(page.get_by_role('status',name=re.compile('^Loading'))).to_have_count(0)
        await expect(page.locator(selector)).to_have_count(count)
+       navigation=page.get_by_role('navigation',name='Discover categories',exact=True)
+       await expect(navigation.get_by_role('button')).to_have_count(4)
+       assert await navigation.get_by_role('button').evaluate_all('(nodes)=>nodes.every(n=>{const r=n.getBoundingClientRect();return r.x>=0&&r.right<=innerWidth+1})'),'An Explore tab is clipped on the phone'
        assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
        if count:
         widths=await page.locator(selector).evaluate_all('(nodes)=>nodes.map(n=>n.getBoundingClientRect().width)')
@@ -42,6 +45,8 @@ async def main():
         assert await page.locator(selector).evaluate_all('(nodes)=>nodes.every(n=>n.scrollWidth<=n.clientWidth+1)'), 'Card contents spill into the next result'
         if family=='providers':
          assert await page.locator(selector+' h3').evaluate_all('(nodes)=>nodes.every(n=>n.getBoundingClientRect().width>=64)'), 'Trust badges squeeze out the professional name'
+        if family=='roommates':
+         assert await page.locator(selector+' h3').evaluate_all('(nodes)=>nodes.every(n=>n.getBoundingClientRect().width>=80)'), 'Roommate names are squeezed beside duplicate controls'
         # Every loaded item appears once, in the supplied order. Rows do not fetch.
         reads=await page.evaluate('window.__browse.calls.length+window.__browse.gatewayRequests.length')
         groups=page.locator('[data-discovery-rows] [role="group"]')
