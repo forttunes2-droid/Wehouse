@@ -123,6 +123,13 @@ also bounds the wait, rejects malformed results, handles connection errors and
 ignores responses after switching bookings or arrival/departure stage. New isolated
 browser cases cover those failures and recovery; their exact-commit run is pending.
 
+Candidate `24c44bed` passes fresh/upgrade replay and the ten Hotel code failure,
+timeout, stale-booking and recovery browser cases. Reviewing the actual 320px Host
+screenshots then exposed split date years inside the standard padded facts cells.
+Arrival facts now use compact cells and named months, with explicit narrow-screen
+checks that years remain intact and dates fit two lines in both themes. The
+ordinary property-facts cells retain their existing spacing and use theme text.
+
 WR-01/05/06: Hotel sharing is limited to accepted Friends joining the stay,
 with two/three payers and the room's declared guest limit still enforced (owner
 decision, 31 October). Its integration extends the existing shared-payment records.

@@ -804,12 +804,14 @@ export function PropertyDetails({
                 </div>}
                 {stay.stay_type === "short_let" ? (
                   <div className="mt-3 grid grid-cols-3 gap-2">
-                    <Info label="Check-in" value={partnerDate(stay.check_in)} />
+                    <Info compact label="Check-in" value={partnerDate(stay.check_in)} />
                     <Info
+                      compact
                       label="Checkout"
                       value={partnerDate(stay.check_out)}
                     />
                     <Info
+                      compact
                       label="Guests"
                       value={String(stay.guest_count || 1)}
                     />
@@ -817,6 +819,7 @@ export function PropertyDetails({
                 ) : (
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <Info
+                      compact
                       label={stay.tenancy_start_date ? "Move-in" : "Requested arrival"}
                       value={
                         stay.tenancy_start_date
@@ -825,6 +828,7 @@ export function PropertyDetails({
                       }
                     />
                     <Info
+                      compact
                       label="Tenancy ends"
                       value={
                         stay.tenancy_end_date
@@ -832,7 +836,7 @@ export function PropertyDetails({
                           : "Starts after handover"
                       }
                     />
-                    <Info label="Occupants" value={String(stay.occupant_count || 1)} />
+                    <Info compact label="Occupants" value={String(stay.occupant_count || 1)} />
                   </div>
                 )}
                 <p className="mt-3 text-xs leading-5 text-[var(--wh-text-secondary)]">
@@ -878,13 +882,13 @@ function FinanceTab({ profile }: { profile: Profile }) {
     </div>
   );
 }
-function Info({ label, value }: { label: string; value: string | number }) {
+function Info({ label, value, compact = false }: { label: string; value: string | number; compact?: boolean }) {
   return (
-    <div className="rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] p-4">
-      <p className="text-xs uppercase tracking-wide text-[var(--wh-text-muted)]">
+    <div className={`min-w-0 rounded-xl border border-[var(--wh-border-subtle)] bg-[var(--wh-surface)] ${compact ? "px-2 py-2.5" : "p-4"}`}>
+      <p className={`${compact ? "text-[10px]" : "text-xs"} uppercase tracking-wide text-[var(--wh-text-muted)]`}>
         {label}
       </p>
-      <p className="mt-1 break-words text-xs font-medium capitalize text-[#D3D4DC]">
+      <p className="mt-1 break-words text-xs font-medium text-[var(--wh-text)]">
         {value}
       </p>
     </div>
@@ -928,7 +932,7 @@ function Loading() {
 }
 function partnerDate(value?: string | null) {
   return value
-    ? new Date(`${value}T00:00:00`).toLocaleDateString()
+    ? new Date(`${value}T00:00:00`).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})
     : "Not started";
 }
 function partnerDateTime(value?: string | null) {

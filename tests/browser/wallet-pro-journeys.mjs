@@ -236,6 +236,11 @@ try {
       const sharedStay=page.locator('#partner-stay-old-stay');
       await sharedStay.getByText('Amina Yusuf',{exact:true}).waitFor();await sharedStay.getByText('Shared costs · 2 payers',{exact:true}).waitFor();
       await sharedStay.getByText(mode.endsWith('linked')?'Guests':'Occupants',{exact:true}).waitFor();await sharedStay.getByText('3',{exact:true}).waitFor();
+      const dates=await sharedStay.locator('.grid > div > p:last-child').evaluateAll(nodes=>nodes.filter(node=>/\d{4}/.test(node.textContent||'')).map(node=>{
+        const text=node.firstChild;const match=(text?.textContent||'').match(/\d{4}/);if(!text||!match)return false;
+        const range=document.createRange();range.setStart(text,match.index);range.setEnd(text,match.index+4);
+        return range.getClientRects().length===1&&node.getBoundingClientRect().height<=parseFloat(getComputedStyle(node).lineHeight)*2;
+      }));assert.deepEqual(dates,[true,true],'Arrival dates must retain an intact year and fit two lines on narrow Host cards');
       assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.filter(call=>call.args.p_before_id).every(call=>call.args.p_before_id==='stay-2'&&call.args.p_before_created_at==='2026-01-01T10:00:00.123456+00:00')),true);
       await sharedStay.scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);assert.deepEqual(errors,[]);await page.screenshot({path:output+'/'+mode+'-'+theme+'-'+width+'.png'});
       results.push(mode+' '+theme+' '+width+'px');await page.close();
