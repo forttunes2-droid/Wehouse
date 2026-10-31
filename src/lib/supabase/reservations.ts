@@ -1,6 +1,7 @@
 import { supabase } from "./client";
 import { locationLabel } from "@/lib/locationPresentation";
 import {initializePaymentReference} from './housing-payments';
+import {parseHostArrivalReceipt} from '@/lib/propertyManagement';
 type ReservationRecord = Record<string, unknown> & {
   id: string;
   listing_id?: string | null;
@@ -383,15 +384,26 @@ export async function completeInspectionResult(
   return { success: data, error };
 }
 
+function arrivalReceipt(data: unknown,bookingCode: string,expectedReservationId?: string) {
+  const row=data as ReservationRecord|null;
+  if(!row||typeof row.id!=='string'||!row.id)throw new Error('Arrival confirmation could not be verified. Refresh this reservation before retrying.');
+  parseHostArrivalReceipt(row,expectedReservationId||row.id);
+  if(row.booking_code!==bookingCode.trim().toUpperCase())throw new Error('Arrival confirmation belongs to a different booking. Refresh before retrying.');
+  return row;
+}
+
 export async function confirmApartmentHandover(
   bookingCode: string,
   startDate?: string,
+  expectedReservationId?: string,
 ) {
   const { data, error } = await supabase.rpc("confirm_apartment_handover", {
     p_booking_code: bookingCode,
     ...(startDate ? { p_start_date: startDate } : {}),
   });
-  return { reservation: (data as ReservationRecord) || null, error };
+  if(error)return{reservation:null,error};
+  try{return{reservation:arrivalReceipt(data,bookingCode,expectedReservationId),error:null};}
+  catch(failure){return{reservation:null,error:failure as Error};}
 }
 
 export async function requestApartmentMoveIn(
@@ -419,6 +431,7 @@ export async function completeApartmentTenancy(
 export async function confirmShortStayCheckIn(
   bookingCode: string,
   checkInDate?: string,
+  expectedReservationId?: string,
 ) {
   const { data, error } = await supabase.rpc(
     "confirm_short_stay_check_in_by_code",
@@ -427,7 +440,9 @@ export async function confirmShortStayCheckIn(
       ...(checkInDate ? { p_check_in_date: checkInDate } : {}),
     },
   );
-  return { reservation: (data as ReservationRecord) || null, error };
+  if(error)return{reservation:null,error};
+  try{return{reservation:arrivalReceipt(data,bookingCode,expectedReservationId),error:null};}
+  catch(failure){return{reservation:null,error:failure as Error};}
 }
 
 export async function completeShortStay(

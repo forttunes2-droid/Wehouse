@@ -73,6 +73,46 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 ## Latest scoped evidence — 31 October
 
+WR-01/09/11/13/16: the booking-to-arrival trace now distinguishes confirmation,
+payment and physical handover. Official [Airbnb Host confirmation guidance](https://www.airbnb.com/help/article/2390)
+and [Booking.com reservation connectivity](https://developers.booking.com/connectivity/docs/reservations-api/reservations-overview)
+were reviewed for the complete operator journey, not only discovery layout.
+Airbnb's reservation reference is not WeHouse's private customer handover code.
+WeHouse does not send that private Home code to the Host or include it in Activity.
+
+Test migrations `20261031132706`/`20261031133021` connect existing booking facts
+to the correct management workspace. Host-managed payments no longer tell the
+Partner that WeHouse will handle arrival or create a competing Operations task.
+The owner and separately assigned responsible Host receive accurate payment-stage,
+rescheduling and arrival updates. Shared Home/Hotel confirmation reaches every
+accepted paid guest through the existing shared-booking destination only after
+all required shares verify. Hotel invitations no longer call Friends Roommates
+or a Hotel a shared home. These are persisted in-app notifications; booking-email
+delivery is not implemented by the account-security email sender or proven here.
+
+The real three-payer Short Let gateway-to-arrival case exposed two defects:
+the WeHouse arrival wrapper unpacked its composite result incorrectly, and the
+private activation demanded one parent protection although shared stays correctly
+have per-payer protections. `20261031133211` locks those existing components and
+uses the canonical all-payer access authority. It does not create a replacement
+protection or bypass any payment/date/occupancy check. Both WeHouse and Host client
+arrival commands now require the matching occupied reservation receipt before
+showing success; wrong/missing results remain errors. An authenticated property
+owner's direct attempt to read another customer's private code is denied by RLS.
+
+Solo Creator handover can now be assigned to that same Creator identity without
+granting Staff. Scoped Field assignments and revocation remain enforced. The
+safe Partner projection retains previously paid/refunded booking history and
+`20261031133908` adds the booker's name plus separate occupant and payer counts.
+The existing stay row presents those facts without adding another dashboard.
+All four migration statement digests match their applied Test receipts. Hosted
+rollback contracts pass notification routing/rescheduling, private-code isolation,
+Creator/Field assignment, two/three-payer Hotel confirmations, real protected
+Short Let arrival and existing shared Long Let handover/later-rent collection.
+Local validation passes 888 source tests, production build and focused lint.
+The changed Partner history browser journeys and fresh/upgrade replay still need
+the new exact-commit CI run; this evidence does not close the wider register.
+
 WR-01/05/06: Hotel sharing is limited to accepted Friends joining the stay,
 with two/three payers and the room's declared guest limit still enforced (owner
 decision, 31 October). Its integration extends the existing shared-payment records.

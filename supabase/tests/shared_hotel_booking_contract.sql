@@ -146,6 +146,11 @@ do $$declare p public.booking_payments;receipt jsonb;begin
 end$$;
 reset role;
 select pg_temp.expect((select status='pending' and payment_status<>'paid' from public.hotel_bookings where booking_id=current_setting('test.hotel_booking_id')::integer),'one paid share cannot confirm the room');
+select pg_temp.expect(not exists(select 1 from public.activity_events where subject_type='shared_payment'
+ and subject_id=current_setting('test.hotel_group_id') and event_type='hotel.stay_confirmed'),'partial funding sends no whole-stay confirmation');
+select pg_temp.expect((select title='Shared Hotel invitation' and message like '%Fee Hotel%' from public.notifications
+ where recipient_id='share-peer' and type='shared_home_invite' and source_id=current_setting('test.hotel_group_id')),
+ 'Hotel invitation names the Hotel and never calls a Friend a Roommate');
 select pg_temp.sign_in('79706666-0000-4000-8000-000000000004');
 set local role authenticated;
 select pg_temp.expect(public.get_my_shared_housing_group(current_setting('test.hotel_group_id')::uuid)->'hotel_arrival'='null'::jsonb,'partially paid group gets no confirmed arrival');
@@ -167,6 +172,16 @@ select pg_temp.expect((select status='confirmed' and payment_status='paid' and p
 select pg_temp.expect((select count(*)=2 and sum(p.amount_total)=38000 and sum(p.amount_commission)=2800 and sum(p.amount_payee)=35200
  from public.shared_payment_protection_components c join public.payment_protection_transactions p on p.id=c.payment_protection_id
  where c.shared_payment_group_id=current_setting('test.hotel_group_id')::uuid and c.component_type='hotel_stay'),'both payer balances conserve Hotel discount and frozen fee');
+select pg_temp.expect((select count(*)=2 from public.activity_events e join public.activity_event_audiences a using(activity_event_id)
+ where e.subject_type='shared_payment' and e.subject_id=current_setting('test.hotel_group_id') and e.event_type='hotel.stay_confirmed'
+ and e.route='my_reservations' and e.route_params->>'booking_id'=current_setting('test.hotel_group_id') and a.workspace='personal'
+ and a.recipient_user_id in('share-guest','share-peer')),'both accepted payers receive the final confirmation with a working shared-booking destination');
+select pg_temp.expect((select count(*)=1 from public.activity_events e join public.activity_event_audiences a using(activity_event_id)
+ where e.subject_type='hotel_booking' and e.subject_id=current_setting('test.hotel_booking_id') and e.event_type='hotel.stay_confirmed'
+ and a.recipient_user_id='share-owner' and a.workspace='partner'),'Hotel owner receives one room-booking confirmation');
+select pg_temp.expect(not exists(select 1 from public.activity_events e join public.activity_event_audiences a using(activity_event_id)
+ where e.subject_type='hotel_booking' and e.subject_id=current_setting('test.hotel_booking_id') and e.event_type='hotel.stay_confirmed'
+ and a.workspace='personal'),'shared organiser receives no duplicate single-payer destination');
 select pg_temp.sign_in('79706666-0000-4000-8000-000000000004');
 set local role authenticated;
 do $$declare g jsonb;begin

@@ -105,6 +105,9 @@ jobs:
       - name: Exercise accommodation handover contract
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/accommodation_handover_contract.sql
+      - name: Verify booking confirmations, arrival responsibility and solo Creator handover
+        if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
+        run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/booking_confirmation_activity_contract.sql
       - name: Exercise identity policy and Service Provider review contract
         if: ${{ !cancelled() && steps.fresh_replay.outcome == 'success' }}
         run: docker exec -i supabase_db_wehouse psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/worker_face_review_contract.sql

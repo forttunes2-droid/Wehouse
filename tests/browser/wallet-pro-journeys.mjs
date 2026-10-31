@@ -204,8 +204,11 @@ try {
       }
       const count=page.getByText('52 loaded',{exact:true});await count.waitFor();await count.scrollIntoViewIfNeeded();
       assert.equal(await page.getByRole('button',{name:'Load older reservations',exact:true}).count(),0);assert.equal(await page.locator('#partner-stay-old-stay').count(),1);
+      const sharedStay=page.locator('#partner-stay-old-stay');
+      await sharedStay.getByText('Amina Yusuf',{exact:true}).waitFor();await sharedStay.getByText('Shared costs · 2 payers',{exact:true}).waitFor();
+      await sharedStay.getByText(mode.endsWith('linked')?'Guests':'Occupants',{exact:true}).waitFor();await sharedStay.getByText('3',{exact:true}).waitFor();
       assert.equal(await page.evaluate(()=>window.__walletPro.rpcCalls.filter(call=>call.args.p_before_id).every(call=>call.args.p_before_id==='stay-2'&&call.args.p_before_created_at==='2026-01-01T10:00:00.123456+00:00')),true);
-      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);assert.deepEqual(errors,[]);await page.screenshot({path:output+'/'+mode+'-'+theme+'-'+width+'.png'});
+      await sharedStay.scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth),false);assert.deepEqual(errors,[]);await page.screenshot({path:output+'/'+mode+'-'+theme+'-'+width+'.png'});
       results.push(mode+' '+theme+' '+width+'px');await page.close();
     }
   }else if(process.argv.includes('--hotel-cancellation-only')){

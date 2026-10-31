@@ -794,10 +794,14 @@ export function PropertyDetails({
                       </p>
                     ) : null}
                   </div>
-                  <span className="rounded-full bg-emerald-500/[.08] px-2 py-1 text-xs font-semibold text-emerald-300">
+                  <span className="rounded-full bg-emerald-500/[.08] px-2 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                     {partnerPaymentLabel(stay)}
                   </span>
                 </div>
+                {(stay.booked_by_name || Number(stay.payer_count)>1) && <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--wh-text-secondary)]">
+                  {stay.booked_by_name && <span>Booked by <span className="font-medium text-[var(--wh-text)]">{stay.booked_by_name}</span></span>}
+                  {Number(stay.payer_count)>1 && <span className="font-medium text-[var(--wh-accent-text)]">Shared costs · {stay.payer_count} payers</span>}
+                </div>}
                 {stay.stay_type === "short_let" ? (
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <Info label="Check-in" value={partnerDate(stay.check_in)} />
@@ -811,7 +815,7 @@ export function PropertyDetails({
                     />
                   </div>
                 ) : (
-                  <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="mt-3 grid grid-cols-3 gap-2">
                     <Info
                       label={stay.tenancy_start_date ? "Move-in" : "Requested arrival"}
                       value={
@@ -828,6 +832,7 @@ export function PropertyDetails({
                           : "Starts after handover"
                       }
                     />
+                    <Info label="Occupants" value={String(stay.occupant_count || 1)} />
                   </div>
                 )}
                 <p className="mt-3 text-xs leading-5 text-[var(--wh-text-secondary)]">
