@@ -9,7 +9,7 @@ from discovery_requests import settled_search,install_read_counter
 OUT=Path('test-results/experience');B=Path('test-results/shared-discovery-offline')
 HOME={'id':'public-home','title':'Courtyard apartment','sub_type':'long_stay','property_type':'apartment','availability_status':'available','city':'Lafia','state':'Nasarawa','address':'Test road','status':'available','price':18000000,'images':['https://assets.wehouse.test/interior.jpg'],'amenities':[],'description':'Sample home','bedrooms':2,'bathrooms':1}
 RATES=[{'rate_plan_id':10,'room_id':9,'active':True,'name':'Room only','meal_plan':'room_only','payment_timing':'pay_now','refundable':False,'cancellation_hours':None,'price_per_night':30000,'included_features':[]},{'rate_plan_id':11,'room_id':9,'active':True,'name':'Breakfast stay','meal_plan':'breakfast','payment_timing':'pay_now','refundable':True,'cancellation_hours':48,'price_per_night':35000,'included_features':['Lounge access']}]
-HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','address':'Hotel test road','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':[],'max_guests':2,'bed_type':'Double bed','rate_plans':RATES}],'description':'Sample hotel.'}
+HOTEL={'hotel_id':7,'name':'Garden Lodge','city':'Keffi','state':'Nasarawa','address':'Hotel test road','status':'active','images':[],'amenities':[],'hotel_rooms':[{'room_id':9,'room_type':'Standard','price_per_night':30000,'images':['https://assets.wehouse.test/interior.jpg'],'max_guests':2,'bed_type':'Double bed','rate_plans':RATES}],'description':'Sample hotel.'}
 SCRIPT="""s=>{
  window.__browse=s;
  window.__browse.gatewayRequests=[];
@@ -24,7 +24,10 @@ SCRIPT="""s=>{
    const more=count>6&&!cursor&&!args[0]?.search;
    return{hotels,error:null,hasMore:more,nextCursor:more?{featured:false,createdAt:'2026-10-30T00:00:00Z',id:count+6}:null};
   }
-  if(name==='getHotelById')return{hotel:s.hotel,error:null};
+  if(name==='getHotelById'){
+   if(s.holdHotel)return new Promise(resolve=>{window.__finishHotelInfo=()=>resolve({hotel:s.hotel,error:null});});
+   return{hotel:s.hotel,error:null};
+  }
   if(name==='getListing')return{listing:s.home,error:null};
   if(name==='getProfile')return{profile:{...s.profile,user_id:args[0],profile_complete:true,worker_occupation:'Carpenter',worker_skills:['Carpentry'],worker_price:1000,worker_bio:'Existing work biography',worker_experience:'4 years',worker_verified:true},error:null};
   if(name==='getProfileCountryOptions')return{countries:s.failCountryList?[]:[{country_code:'NG',name:'Nigeria'},{country_code:'GH',name:'Ghana'}],error:s.failCountryList?{message:'Synthetic country list unavailable'}:null};
@@ -337,6 +340,10 @@ async def main():
     await page.get_by_placeholder('Search hotel name or location').fill('Keffi Garden')
     await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
     await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_be_visible()
+    await expect(page.get_by_role('navigation',name='Main navigation')).to_have_count(0)
+    next_action=page.get_by_role('button',name='Choose a room',exact=True)
+    await expect(next_action).to_be_visible()
+    assert await next_action.evaluate('(button)=>{const r=button.getBoundingClientRect();return button.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}'),'Guest navigation must not cover the Hotel booking action'
     gallery=page.get_by_role('region',name='Garden Lodge media',exact=True)
     await expect(gallery.get_by_text('Photos are not available.',exact=True)).to_be_visible()
     assert (await gallery.bounding_box())['height']<150
@@ -346,6 +353,10 @@ async def main():
     await expect(page.get_by_text('Non-refundable',exact=True)).to_be_visible()
     await page.get_by_role('button',name='Breakfast stay',exact=False).click()
     await expect(page.get_by_role('button',name='Breakfast stay',exact=False)).to_have_attribute('aria-pressed','true')
+    await page.wait_for_function('document.querySelector(\'[data-room-choice="9"] img\')?.naturalWidth > 0')
+    offers=page.get_by_role('group',name='Standard packages').get_by_role('button')
+    boxes=[await offers.nth(i).bounding_box() for i in range(2)]
+    assert (abs(boxes[0]['y']-boxes[1]['y'])<2) if width>=640 else (boxes[1]['y']>=boxes[0]['y']+boxes[0]['height']), 'Hotel packages compare side by side on wider screens and stack on phones'
     await page.locator('[data-room-choice="9"]').screenshot(path=str(OUT/f'hotel-room-and-offers-{width}-{theme}.png'))
     assert not any(('get_my_' in c['name'] or c['name'].startswith('table:')) or c['name'].startswith(('create_','saveHotel','rpc:save_')) for c in await page.evaluate('window.__browse.calls'))
     await page.get_by_role('button',name='Save hotel',exact=True).click()
@@ -357,6 +368,15 @@ async def main():
     assert await page.locator('[data-room-choice="9"] > button').get_attribute('aria-expanded')=='true'
     assert not await page.evaluate('Boolean(window.__browse.booking)')
     await page.get_by_role('button',name='Back to hotels',exact=True).click()
+    await expect(page.get_by_role('navigation',name='Main navigation')).to_be_visible()
+    await page.evaluate('window.__browse.holdHotel=true')
+    await page.get_by_role('button',name='View Garden Lodge',exact=True).click()
+    await expect(page.get_by_role('status',name='Loading hotel',exact=True)).to_be_visible()
+    await page.wait_for_function('typeof window.__finishHotelInfo === "function"')
+    await page.get_by_role('button',name='Back to hotels',exact=True).click()
+    await expect(page.get_by_role('navigation',name='Main navigation')).to_be_visible()
+    await page.evaluate('window.__browse.holdHotel=false;window.__finishHotelInfo()')
+    await expect(page.get_by_role('heading',name='Garden Lodge',exact=True)).to_have_count(0)
     await expect(page.get_by_placeholder('Search hotel name or location')).to_have_value('Keffi Garden')
     await page.evaluate('window.__switchBrowseMode("thumbnail")')
     # Explicit load failures never produce an empty tile or endless skeleton.

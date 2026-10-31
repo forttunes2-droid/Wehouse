@@ -47,7 +47,7 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 | ID | Outcome / owner and dependencies | Current boundary | Completion test |
 |---|---|---|---|
-| WR-01 | **Shared accommodation payments**. Bookings; depends on WR-05/06/09. | **Shared Long Let/Short Let verified; Hotel checkout and refund integration implemented on Test.** Existing shared commands connect reservation fees, reviewed terms, each person's initial protection and own later-year plan/history/debit consent to one booking. Hotel guests use the same group/member/component records, frozen earnings, dated acceptance, separate receipts and original-payer refunds. Two/three-payer gateway rollback cases cover guest limits, partial funding, changed rates, duplicate receipts, cancellation and late-charge recovery. Hotel browser, expiry/arrival/operator evidence still needs completion; no second wallet or fabricated Home listing. | Complete accepted two/three-payer agreement and consent, per-payer initial protection, later-year shares/history/separate automatic-debit consent and combined Partner view. Preserve occupant capacity independently from payer count. Exercise invitation/eligibility, exact payer/reference/phase/attempt, duplicate and late payments, hold expiry, original-payer refunds, fulfillment and operator permissions. Reconcile all payer totals with one booking and use WR-06 for provider proof. |
+| WR-01 | **Shared accommodation payments**. Bookings; depends on WR-05/06/09. | **Shared Long Let/Short Let and Hotel payment/arrival contracts verified on Test.** Existing shared commands connect reservation fees, reviewed terms, each person's initial protection and own later-year plan/history/debit consent to one booking. Hotel guests use the same group/member/component records, frozen earnings, dated acceptance, separate receipts and original-payer refunds. Two/three-payer gateway rollback cases cover guest limits, partial funding, changed rates, duplicate receipts, cancellation and late-charge recovery. Hotel browser, hold expiry, arrival and role cases pass at `3077ab08`; no-show/operator resolution remains owned by WR-11 and real provider proof by WR-06. No second wallet or fabricated Home listing. | Complete accepted two/three-payer agreement and consent, per-payer initial protection, later-year shares/history/separate automatic-debit consent and combined Partner view. Preserve occupant capacity independently from payer count. Exercise invitation/eligibility, exact payer/reference/phase/attempt, duplicate and late payments, hold expiry, original-payer refunds, fulfillment and operator permissions. Reconcile all payer totals with one booking and use WR-06 for provider proof. |
 | WR-02 | **Long Let terms, later-year collection and exit**. Bookings; WR-06/21. | **Implemented in part; recovery/evidence open.** Manual and optional automatic later-year collection, accepted terms, immutable fees, rent-year credit/history and payment Help are implemented on Test. Initial Year 1 protection remains; later-year payments do not create a new hold. | Verify full upfront terms and Partner-approved monthly terms without offering one-year monthly rent. Preserve eight payments funding each later year, separate debit consent/pause/cancel, due dates and accepted snapshots. Finish lawful arrears/grace/exit/dispute operations after the named policy decisions; test failed/late collection and Partner/customer recovery. Provider debit/settlement proof is recorded once in WR-06. |
 | WR-03 | **Property and Worker evidence lifecycle**. Account/operations; WR-10/22. | **Implemented in part; recertification/terms open.** Private evidence, independent scoped correction/review, expiry and new-publication/new-job enforcement exist. Access footage is not title or safety proof. | Complete structured guest/tenancy terms and booking snapshots, already-live property/provider recertification, advance expiry reminders, appeals and evidence retention/deletion. Run actual owner/reviewer/outsider upload, partial-upload/replacement, expired-document, self-review-denial, publication and recovery cases. Verify category/market requirements and shared-person identity without adding another publication switch. Local forms/credential approval are EX-01; live identity adapter is WR-10. |
 | WR-04 | **Buildings, spaces and availability**. Bookings; WR-03/09. | **Implemented; integrated verification pending.** Shared physical registry, whole/private disclosure, per-space terms, grouped offers, Partner management and operating schedule are implemented. Do not rebuild the hierarchy. | Demonstrate atomic whole-unit/child-room and Short Let/Long Let conflict prevention on the deployed Test configuration, mixed-building availability/calendar parity, ownership isolation, edits/cancellations and customer/Partner lost-response recovery. Keep one physical occupancy authority and existing Hotel inventory. |
@@ -135,6 +135,24 @@ states now remain separate in the Host summary; completed stays refer to saved
 terms rather than inventing a pending deposit/payment check or granting Finance access.
 Browser cases cover cancellation, expiry, refund, payment conflict and fee-only
 history in both themes, including the absence of a closed-booking arrival action.
+
+Candidate `3077ab08` passes all seven required workflows, including 888 source
+tests, fresh/upgrade replay and the full isolated browser suite. Its manifest
+matches the applied Test migration set. Thirty-two Host-history and ten Hotel
+code recovery browser cases pass, and their actual light/dark phone screenshots
+were reviewed. This evidence is scoped to the candidate and does not close the
+remaining WR outcomes or authorize a Production rollout.
+
+WR-15/16: the Hotel review then reproduced signed-out navigation covering the
+Hotel's fixed booking actions. The shared public property entry now hides its
+bottom tabs while a Hotel detail is open and restores them on Back. Loading keeps
+a visible Back control, and a late Hotel response cannot reopen the closed detail. Room
+identity, photo and package choices remain together; packages compare in two
+columns on wider screens and stack on phones, with visible selection and honest
+missing-photo treatment. Hotel actions/labels use theme colors, and the pre-quote
+price is labelled as an estimate. No pricing, cancellation, capacity or booking
+command changes. New browser checks exercise the actual button hit target,
+navigation restoration, room photos, package selection and responsive comparison.
 
 WR-01/05/06: Hotel sharing is limited to accepted Friends joining the stay,
 with two/three payers and the room's declared guest limit still enforced (owner
