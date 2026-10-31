@@ -209,6 +209,17 @@ The next browser run includes 0/1/3/24 records for all four actual Explore scree
 phone/tablet/desktop widths, both themes, bounded preview batches and one Roommate
 subscription rather than one per profile. Exact-commit results remain pending.
 
+Candidate `0562c50c` passes all 128 Explore result-count cases, 34 Hotel checkout
+recovery/cutoff cases and 24 Hotel policy cases. The independent Service coverage
+journey caught the full review badge squeezing the professional name to zero
+width. Badges now occupy their own wrapping line; the density contract also
+checks card overflow and minimum name space. Existing Pro/earned-review source
+checks depended on the prior expression spelling; those conditions are retained
+and all 22 focused contracts pass without relaxing assertions. Filtered Services
+now use the shared comparison grid, unfiltered browsing says “Services to explore”
+without promising proximity, and Roommate connection controls have 44px targets.
+These final corrections need the next exact-source full CI run.
+
 WR-01/05/06: Hotel sharing is limited to accepted Friends joining the stay,
 with two/three payers and the room's declared guest limit still enforced (owner
 decision, 31 October). Its integration extends the existing shared-payment records.

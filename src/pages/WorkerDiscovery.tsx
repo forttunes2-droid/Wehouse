@@ -1,4 +1,4 @@
-import DiscoveryRows from '@/components/DiscoveryRows';
+import DiscoveryRows,{DiscoveryGrid} from '@/components/DiscoveryRows';
 import ShowcaseMediaThumbnail from '@/components/ShowcaseMediaThumbnail';
 import {useServicePhotoUrls} from '@/hooks/useServicePhotoUrls';
 import type {ServiceProvider} from '@/lib/supabase/workers-public';
@@ -386,6 +386,23 @@ export default function WorkerDiscovery({
     );
     }
   if(offering==='experiences')return <DiscoveryShell active="services" onNavigate={onNavigate}><main className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6 lg:px-8"><OfferingChoice value={offering} onChange={setOffering}/><Suspense fallback={<p role="status">Loading Activities...</p>}><ExperienceDiscovery viewerId={profile?.user_id} onNavigate={onNavigate} initialActivityId={initialExperienceId} onInitialActivityOpened={onInitialExperienceOpened} onBooking={id=>onNavigate('my_reservations',id?`experience:${id}`:undefined)}/></Suspense></main></DiscoveryShell>;
+  const serviceCards=shown.map((worker) => (
+              <WorkerCard
+                key={worker.user_id}
+                worker={worker}
+                offer={shownOffer(worker)} coverUrl={servicePhotos.urls[shownOffer(worker)?.cover?.preview||'']}
+                  serviceArea={locationLabel(city,state)}
+                active={active.has(worker.user_id)}
+                bookable={worker.user_id !== profile?.user_id}
+                onProfile={() => openWorker(worker)}
+                onBook={() =>
+                  profile
+                    ? setBookingWorker(worker)
+                    : toast.info("Sign in to request a service")
+                }
+                onOpen={() => onNavigate("my_reservations")}
+              />
+            ));
   return (
     <DiscoveryShell
       active="services"
@@ -475,29 +492,12 @@ export default function WorkerDiscovery({
           />
         ) : shown.length === 0 ? (
           <DiscoveryEmpty
-            title="No Worker matches this search"
+            title="No services match this search"
             text="Try a broader service or location."
           />
         ) : (
-          <DiscoveryRows title="Services near you" itemLabel="providers">
-            {shown.map((worker) => (
-              <WorkerCard
-                key={worker.user_id}
-                worker={worker}
-                offer={shownOffer(worker)} coverUrl={servicePhotos.urls[shownOffer(worker)?.cover?.preview||'']}
-                  serviceArea={locationLabel(city,state)}
-                active={active.has(worker.user_id)}
-                bookable={worker.user_id !== profile?.user_id}
-                onProfile={() => openWorker(worker)}
-                onBook={() =>
-                  profile
-                    ? setBookingWorker(worker)
-                    : toast.info("Please sign in to request a Worker")
-                }
-                onOpen={() => onNavigate("my_reservations")}
-              />
-            ))}
-          </DiscoveryRows>
+          searchText||category||specialty||state||city ? <DiscoveryGrid label="Service results">{serviceCards}</DiscoveryGrid> :
+          <DiscoveryRows title="Services to explore" itemLabel="providers">{serviceCards}</DiscoveryRows>
         )}
         {!loading&&workers.length>0&&loadError&&<p role="alert" className="text-sm text-[var(--wh-text-secondary)]">{loadError}</p>}
         {servicePhotos.error&&<p role="status" className="text-sm text-[var(--wh-text-secondary)]">{servicePhotos.error} <button type="button" className="min-h-11 underline" onClick={servicePhotos.retry}>Refresh photos</button></p>}
@@ -593,12 +593,13 @@ function WorkerCard({
           </span>
         </button>
         <button type="button" onClick={onProfile} className="min-h-11 min-w-0 flex-1 text-left"><div className="flex items-center gap-1.5">
-          <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{displayName}</h3><WorkerTrustBadge/>{worker.pro_active&&<GoldTickBadge size="sm" title="Worker PRO membership"/>}
+          <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{displayName}</h3>
         </div></button>
       </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2"><WorkerTrustBadge/>{worker.pro_active ? <GoldTickBadge size="sm" title="Worker PRO membership"/> : null}</div>
       <p className="mt-2 truncate text-xs text-[var(--wh-text-secondary)]">Base: {locationLabel(worker.city||worker.local_government,worker.state)||'Location not shown'}</p>
       {serviceArea&&<p className="mt-1 text-xs text-[var(--wh-text-secondary)]">Serves {serviceArea}</p>}
-      {Number(worker.review_count||0)>0&&Number(worker.rating||0)>0&&<p className="mt-2 text-xs text-[var(--wh-text)]">★ {Number(worker.rating).toFixed(1)} · {Number(worker.review_count)} reviews</p>}
+      {Number(worker.review_count || 0) > 0 && Number(worker.rating || 0) > 0 && <p className="mt-2 text-xs text-[var(--wh-text)]">★ {Number(worker.rating).toFixed(1)} · {Number(worker.review_count)} reviews</p>}
       {skills.length>0&&<p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--wh-text-secondary)]">{skills.slice(0,4).join(' · ')}{skills.length>4?` · +${skills.length-4}`:''}</p>}
       <div className="mt-auto space-y-3 pt-3">
         <p className="break-words text-sm font-semibold">{(offer?.price??worker.worker_price)?`${offer?.price_type==='fixed'?'':'From '}${formatRecordedMoney(Number(offer?.price??worker.worker_price))}`:'Discuss price'}</p>

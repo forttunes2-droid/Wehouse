@@ -117,7 +117,7 @@ async def main():
      await page.get_by_role('button',name='Back',exact=True).click()
      await expect(page.get_by_role('heading',name='Keffi coverage provider',exact=True)).to_be_visible()
      before=len(searches);fail['another_viewer']=True;await page.evaluate("window.dispatchEvent(new Event('qa-service-viewer'))")
-     await expect(page.get_by_text('No Worker matches this search',exact=True)).to_be_visible()
+     await expect(page.get_by_text('No services match this search',exact=True)).to_be_visible()
      assert len(searches)>before,'Personalized eligibility was reused after changing the signed-in person'
      assert not errors,errors
      results.append({'theme':theme,'width':width,'passed':True,'checks':['server search combines declared coverage/category/service/text','base and service area explained','reset does not reapply saved area','tied-rating pagination reaches thirty Providers','duplicate-page clicks bounded','failed next page retains results','slow old query cannot replace new query']})

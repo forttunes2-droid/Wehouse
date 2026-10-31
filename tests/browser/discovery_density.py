@@ -39,6 +39,9 @@ async def main():
        if count:
         widths=await page.locator(selector).evaluate_all('(nodes)=>nodes.map(n=>n.getBoundingClientRect().width)')
         assert min(widths)>=210 and max(widths)<=width,{'family':family,'width':width,'cardWidths':widths}
+        assert await page.locator(selector).evaluate_all('(nodes)=>nodes.every(n=>n.scrollWidth<=n.clientWidth+1)'), 'Card contents spill into the next result'
+        if family=='providers':
+         assert await page.locator(selector+' h3').evaluate_all('(nodes)=>nodes.every(n=>n.getBoundingClientRect().width>=64)'), 'Trust badges squeeze out the professional name'
         # Every loaded item appears once, in the supplied order. Rows do not fetch.
         reads=await page.evaluate('window.__browse.calls.length+window.__browse.gatewayRequests.length')
         groups=page.locator('[data-discovery-rows] [role="group"]')
@@ -46,6 +49,7 @@ async def main():
          await expect(groups).to_have_count(3)
          await groups.first.focus();await page.keyboard.press('ArrowRight')
          assert await page.evaluate('window.__browse.calls.length+window.__browse.gatewayRequests.length')==reads
+         await groups.first.evaluate("node=>{node.scrollTo({left:0,behavior:'instant'});node.blur();}")
         media=page.locator('[data-home-media],[data-hotel-media],[data-service-card] > button')
         for box in await media.evaluate_all('(nodes)=>nodes.map(n=>{const r=n.getBoundingClientRect();return{w:r.width,h:r.height}})'):
          assert abs(box['w']/box['h']-4/3)<.02,'Photo geometry changed for missing media'
