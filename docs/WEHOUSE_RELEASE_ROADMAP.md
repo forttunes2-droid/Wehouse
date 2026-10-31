@@ -73,6 +73,19 @@ The [prior-row disposition](#prior-row-disposition) accounts for every earlier r
 
 ## Latest scoped evidence — 31 October
 
+WR-01/05/06: Hotel sharing is limited to accepted Friends joining the stay,
+with two/three payers and the room's declared guest limit still enforced (owner
+decision, 31 October). Its integration extends the existing shared-payment records.
+Tracing this path exposed commission selection at webhook time. Test forward
+migration `20261031113408` now freezes Hotel fee/version, funded-offer basis and
+Partner net on the existing checkout payment. Rate changes cannot reprice that
+reference. The actual checkout/provider-gateway rollback contract passes a funded
+offer, changed Creator rate, duplicate receipt, tampered earnings/booking identity
+and an unfundable offer rejected before provider initialization. Existing paid
+cancellation/PMS, recorded-charge and discount contracts also pass on Test. These
+are controlled provider-boundary fixtures, not live PSP settlement proof. Hotel
+shared checkout remains in progress; this prerequisite does not close WR-01.
+
 WR-09/11/19: four additional review findings have forward fixes on Test in
 `20261031064345` and `20261031064817`. Hotel revocation withdraws the tracked
 direct invitation; both response APIs reject revoked/stale access while a fresh
